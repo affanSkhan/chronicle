@@ -241,3 +241,28 @@ export async function reviewEvidenceRelation(
   if (!response.ok) throw new Error(await readError(response));
   return response.json();
 }
+
+
+export interface SourceStatusSignal {
+  provider: string;
+  event_type: "correction" | "retraction" | "expression_of_concern" | "new_version" | "metadata_change" | "conflicting_study";
+  update_type: string;
+  description: string;
+  source_url: string | null;
+  verification_status: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface PaperStatusCheck {
+  paper_id: string;
+  doi: string | null;
+  providers: Record<string, string>;
+  signals: SourceStatusSignal[];
+  note: string;
+}
+
+export async function checkPaperStatus(paperId: string): Promise<PaperStatusCheck> {
+  const response = await fetch(`${API_BASE}/api/v1/sources/papers/${paperId}/status-check`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<PaperStatusCheck>;
+}
