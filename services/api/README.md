@@ -1,6 +1,6 @@
 # Chronicle API
 
-FastAPI service. Initial API exposes a root status endpoint and `/api/v1/health`; domain modules will be added incrementally.
+FastAPI service exposing the initial research-run API. The current run store is in memory and **demo-only**. It will be replaced with PostgreSQL persistence in the next milestone.
 
 ## Local run
 ```bash
@@ -14,4 +14,11 @@ uvicorn app.main:app --reload --port 8000
 
 Swagger UI: http://localhost:8000/docs
 
-Configuration is read from environment variables. Never commit real secrets.
+## Initial endpoints
+- `GET /` — service status
+- `GET /api/v1/health` — liveness check
+- `POST /api/v1/research/runs` — create a demo run request
+- `GET /api/v1/research/runs` — list in-memory demo requests
+- `GET /api/v1/research/runs/{run_id}` — retrieve a demo request
+
+No web or academic search is executed yet. Configuration is read from environment variables. Never commit real secrets.
