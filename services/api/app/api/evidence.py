@@ -3,21 +3,22 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.models.entities import (
     Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage,
-    ReportVersion, ResearchRun, SourceEvent, Study,
+    ReportVersion, ResearchRun, SourceEvent, Study, User,
 )
 from app.schemas.evidence import (
     ClaimCreate, ClaimRead, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
     PaperDependencyCreate, StudyCreate,
 )
 
-router = APIRouter(prefix="/evidence", tags=["evidence"])
+router = APIRouter(prefix="/evidence", tags=["evidence"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("/claims", response_model=ClaimRead, status_code=201)
-def create_claim(payload: ClaimCreate, db: Session = Depends(get_db)) -> Claim:
-    if db.get(ResearchRun, payload.run_id) is None:
+def create_claim(payload: ClaimCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Claim:
+    if db.scalar(select(ResearchRun.id).where(ResearchRun.id == payload.run_id, ResearchRun.owner_user_id == current_user.id)) is None:
         raise HTTPException(status_code=404, detail="Research run not found.")
     claim = Claim(
         run_id=payload.run_id,
@@ -34,15 +35,16 @@ def create_claim(payload: ClaimCreate, db: Session = Depends(get_db)) -> Claim:
 
 
 @router.get("/runs/{run_id}/claims", response_model=list[ClaimRead])
-def list_claims(run_id: str, db: Session = Depends(get_db)) -> list[Claim]:
-    if db.get(ResearchRun, run_id) is None:
+def list_claims(run_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[Claim]:
+    if db.scalar(select(ResearchRun.id).where(ResearchRun.id == run_id, ResearchRun.owner_user_id == current_user.id)) is None:
         raise HTTPException(status_code=404, detail="Research run not found.")
     return list(db.scalars(select(Claim).where(Claim.run_id == run_id).order_by(Claim.created_at)).all())
 
 
 @router.get("/claims/{claim_id}/relations", response_model=list[EvidenceRelationRead])
-def list_claim_relations(claim_id: str, db: Session = Depends(get_db)) -> list[EvidenceRelation]:
-    if db.get(Claim, claim_id) is None:
+def list_claim_relations(claim_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[EvidenceRelation]:
+    claim = db.scalar(select(Claim).join(ResearchRun, Claim.run_id == ResearchRun.id).where(Claim.id == claim_id, ResearchRun.owner_user_id == current_user.id))
+    if claim is None:
         raise HTTPException(status_code=404, detail="Claim not found.")
     return list(db.scalars(select(EvidenceRelation).where(EvidenceRelation.claim_id == claim_id).order_by(EvidenceRelation.created_at)).all())
 
@@ -52,8 +54,9 @@ def add_claim_relation(
     claim_id: str,
     payload: EvidenceRelationCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> EvidenceRelation:
-    claim = db.get(Claim, claim_id)
+    claim = db.scalar(select(Claim).join(ResearchRun, Claim.run_id == ResearchRun.id).where(Claim.id == claim_id, ResearchRun.owner_user_id == current_user.id))
     if claim is None:
         raise HTTPException(status_code=404, detail="Claim not found.")
 
@@ -61,7 +64,7 @@ def add_claim_relation(
         if db.get(Passage, payload.passage_id) is None:
             raise HTTPException(status_code=404, detail="Evidence passage not found.")
     if payload.related_claim_id:
-        other = db.get(Claim, payload.related_claim_id)
+        other = db.scalar(select(Claim).join(ResearchRun, Claim.run_id == ResearchRun.id).where(Claim.id == payload.related_claim_id, ResearchRun.owner_user_id == current_user.id))
         if other is None:
             raise HTTPException(status_code=404, detail="Related claim not found.")
         if other.id == claim.id:
@@ -103,8 +106,9 @@ def review_evidence_relation(
     relation_id: str,
     payload: EvidenceRelationReview,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> EvidenceRelation:
-    relation = db.get(EvidenceRelation, relation_id)
+    relation = db.scalar(select(EvidenceRelation).join(Claim, EvidenceRelation.claim_id == Claim.id).join(ResearchRun, Claim.run_id == ResearchRun.id).where(EvidenceRelation.id == relation_id, ResearchRun.owner_user_id == current_user.id))
     if relation is None:
         raise HTTPException(status_code=404, detail="Evidence relationship not found.")
 
@@ -154,11 +158,11 @@ def review_evidence_relation(
 
 
 @router.post("/paper-dependencies", status_code=201)
-def add_paper_dependency(payload: PaperDependencyCreate, db: Session = Depends(get_db)) -> dict:
+def add_paper_dependency(payload: PaperDependencyCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     if payload.dependent_paper_id == payload.depends_on_paper_id:
         raise HTTPException(status_code=422, detail="A paper cannot depend on itself.")
     for paper_id in {payload.dependent_paper_id, payload.depends_on_paper_id}:
-        if db.get(Paper, paper_id) is None:
+        if db.scalar(select(Paper.id).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id)) is None:
             raise HTTPException(status_code=404, detail=f"Paper not found: {paper_id}")
     existing = db.scalar(select(PaperDependency).where(
         PaperDependency.dependent_paper_id == payload.dependent_paper_id,
@@ -191,8 +195,8 @@ def add_paper_dependency(payload: PaperDependencyCreate, db: Session = Depends(g
 
 
 @router.get("/runs/{run_id}/graph")
-def get_evidence_graph(run_id: str, db: Session = Depends(get_db)) -> dict:
-    run = db.get(ResearchRun, run_id)
+def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+    run = db.scalar(select(ResearchRun).where(ResearchRun.id == run_id, ResearchRun.owner_user_id == current_user.id))
     if run is None:
         raise HTTPException(status_code=404, detail="Research run not found.")
     claims = list(db.scalars(select(Claim).where(Claim.run_id == run_id)).all())
@@ -295,8 +299,8 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db)) -> dict:
 
 
 @router.post("/runs/{run_id}/reports", status_code=201)
-def create_report_version(run_id: str, payload: dict, db: Session = Depends(get_db)) -> dict:
-    run = db.get(ResearchRun, run_id)
+def create_report_version(run_id: str, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+    run = db.scalar(select(ResearchRun).where(ResearchRun.id == run_id, ResearchRun.owner_user_id == current_user.id))
     if run is None:
         raise HTTPException(status_code=404, detail="Research run not found.")
     title = str(payload.get("title", "")).strip()
@@ -326,8 +330,8 @@ def create_report_version(run_id: str, payload: dict, db: Session = Depends(get_
 
 
 @router.get("/runs/{run_id}/reports")
-def list_report_versions(run_id: str, db: Session = Depends(get_db)) -> list[dict]:
-    if db.get(ResearchRun, run_id) is None:
+def list_report_versions(run_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[dict]:
+    if db.scalar(select(ResearchRun.id).where(ResearchRun.id == run_id, ResearchRun.owner_user_id == current_user.id)) is None:
         raise HTTPException(status_code=404, detail="Research run not found.")
     rows = db.scalars(select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number.desc())).all()
     return [{
@@ -345,12 +349,13 @@ def export_evidence_passport(
     run_id: str,
     format: str = Query(default="markdown", pattern="^(markdown|json)$"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Export a reproducible snapshot of the report, evidence records and provenance state."""
     from datetime import datetime, timezone
     from fastapi.responses import JSONResponse
 
-    run = db.get(ResearchRun, run_id)
+    run = db.scalar(select(ResearchRun).where(ResearchRun.id == run_id, ResearchRun.owner_user_id == current_user.id))
     if run is None:
         raise HTTPException(status_code=404, detail="Research run not found.")
 
@@ -601,8 +606,8 @@ def export_evidence_passport(
 
 
 @router.post("/papers/{paper_id}/studies", status_code=201)
-def create_study(paper_id: str, payload: StudyCreate, db: Session = Depends(get_db)) -> dict:
-    if db.get(Paper, paper_id) is None:
+def create_study(paper_id: str, payload: StudyCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+    if db.scalar(select(Paper.id).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id)) is None:
         raise HTTPException(status_code=404, detail="Paper not found.")
     study = Study(
         paper_id=paper_id, study_type=payload.study_type, population=payload.population,
