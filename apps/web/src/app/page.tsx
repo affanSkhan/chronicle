@@ -104,6 +104,63 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (view !== "Source timeline") return;
+    let cancelled = false;
+    const loadTimeline = async () => {
+      setTimelineLoading(true);
+      setTimelineError("");
+      try {
+        const [papers, events] = await Promise.all([listLibraryPapers(100), listSourceEvents(50)]);
+        if (!cancelled) {
+          setLibraryPapers(papers);
+          setSourceEvents(events);
+          setEventPaperId((current) => current || papers[0]?.id || "");
+        }
+      } catch (error) {
+        if (!cancelled) setTimelineError(error instanceof Error ? error.message : "Could not load source lifecycle events.");
+      } finally {
+        if (!cancelled) setTimelineLoading(false);
+      }
+    };
+    void loadTimeline();
+    return () => { cancelled = true; };
+  }, [view]);
+
+  async function submitSourceEvent(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!eventPaperId) {
+      setTimelineError("Import or upload a paper before recording a source event.");
+      return;
+    }
+    if (eventDescription.trim().length < 8) {
+      setTimelineError("Provide a source-event description of at least 8 characters.");
+      return;
+    }
+    setRecordingEvent(true);
+    setTimelineError("");
+    setEventResult("");
+    try {
+      const result = await createSourceEvent({
+        paperId: eventPaperId,
+        event_type: eventType,
+        description: eventDescription.trim(),
+        source_url: eventSourceUrl.trim() || undefined,
+        verification_status: eventVerification,
+      });
+      const impact = result.impact;
+      setEventResult(`Event recorded. ${impact.claims_flagged_for_review} claim(s) and ${impact.report_versions_flagged_for_review} report version(s) flagged for review across ${impact.impacted_paper_ids.length} paper(s). ${result.event.verification_status === "unverified" ? "The event is unverified; the source status was not changed." : "The event was marked as verified according to the selected status."}`);
+      setEventDescription("");
+      const [papers, events] = await Promise.all([listLibraryPapers(100), listSourceEvents(50)]);
+      setLibraryPapers(papers);
+      setSourceEvents(events);
+    } catch (error) {
+      setTimelineError(error instanceof Error ? error.message : "Could not record the source event.");
+    } finally {
+      setRecordingEvent(false);
+    }
+  }
+
+  useEffect(() => {
     if (view !== "Evidence graph" || !activeRunId) {
       setGraphData(null);
       setGraphError("");
