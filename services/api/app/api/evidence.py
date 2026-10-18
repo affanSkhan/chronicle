@@ -134,29 +134,6 @@ def add_claim_relation(
         if payload.relation_type in accepted_assessments:
             claim.assessment = accepted_assessments[payload.relation_type]
             claim.review_required = False
-    record_audit_event(
-        db,
-        actor_user_id=current_user.id,
-        run_id=claim.run_id if claim is not None else None,
-        target_entity_type="evidence_relation",
-        target_entity_id=relation.id,
-        action="evidence_relation.reviewed",
-        previous_value={
-            "reviewer_status": previous_status,
-            "provenance_basis": previous_provenance,
-            "claim_state": previous_claim_state,
-        },
-        new_value={
-            "reviewer_status": relation.reviewer_status,
-            "provenance_basis": relation.provenance_basis,
-            "claim_state": ({
-                "assessment": claim.assessment,
-                "review_required": claim.review_required,
-            } if claim is not None else None),
-        },
-        reason=payload.reviewer_notes,
-        resolution_status=payload.reviewer_status,
-    )
     db.commit()
     db.refresh(relation)
     return relation
@@ -221,6 +198,29 @@ def review_evidence_relation(
             },
         ],
     }
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=claim.run_id if claim is not None else None,
+        target_entity_type="evidence_relation",
+        target_entity_id=relation.id,
+        action="evidence_relation.reviewed",
+        previous_value={
+            "reviewer_status": previous_status,
+            "provenance_basis": previous_provenance,
+            "claim_state": previous_claim_state,
+        },
+        new_value={
+            "reviewer_status": relation.reviewer_status,
+            "provenance_basis": relation.provenance_basis,
+            "claim_state": ({
+                "assessment": claim.assessment,
+                "review_required": claim.review_required,
+            } if claim is not None else None),
+        },
+        reason=payload.reviewer_notes,
+        resolution_status=payload.reviewer_status,
+    )
     db.commit()
     db.refresh(relation)
     return relation
