@@ -161,6 +161,7 @@ async def execute_research_run(run_id: str) -> None:
         question = run.question
         limit = run.max_sources
         mode = run.mode
+        owner_user_id = run.owner_user_id
         db.commit()
 
     try:
@@ -179,15 +180,17 @@ async def execute_research_run(run_id: str) -> None:
                 doi = _normalize_doi(item.get("doi"))
                 paper = None
                 if doi:
-                    paper = db.scalar(select(Paper).where(func.lower(Paper.doi) == doi.lower()))
+                    paper = db.scalar(select(Paper).where(func.lower(Paper.doi) == doi.lower(), Paper.owner_user_id == owner_user_id))
                 if paper is None and item.get("external_id"):
                     paper = db.scalar(select(Paper).where(
                         Paper.source_provider == item.get("provider", "unknown"),
                         Paper.external_id == item.get("external_id"),
+                        Paper.owner_user_id == owner_user_id,
                     ))
 
                 if paper is None:
                     paper = Paper(
+                        owner_user_id=owner_user_id,
                         doi=doi,
                         title=item.get("title") or "Untitled paper",
                         authors=item.get("authors") or [],
