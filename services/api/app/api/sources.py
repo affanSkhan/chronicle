@@ -193,6 +193,19 @@ def record_source_event(
         report.review_required = True
         if not report.change_summary:
             report.change_summary = "A source event affected evidence used by this report; review is required."
+    event.metadata_snapshot = {
+        **(event.metadata_snapshot or {}),
+        "impact_summary": {
+            "impacted_paper_count": len(paper_ids),
+            "affected_claim_count": len(claim_ids),
+            "claims_flagged_for_review": reviewed_count,
+            "affected_run_count": len(run_ids),
+            "report_versions_flagged_for_review": len(report_versions),
+        },
+        "impacted_paper_ids": sorted(paper_ids),
+        "affected_claim_ids": sorted(claim_ids),
+        "affected_run_ids": sorted(run_ids),
+    }
     db.commit()
     db.refresh(event)
 
