@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { checkPaperStatus, createResearchRun, createSourceEvent, downloadEvidencePassport, getEvidenceGraph, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents, reviewEvidenceRelation, searchAcademicSources, uploadPdf, type AcademicSearchResult, type EvidenceGraphResponse, type LibraryPaper, type PaperStatusCheck, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord } from "@/lib/api";
 import {
-  Activity, ArrowRight, BookOpen, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
+  Activity, ArrowRight, BookOpen, CircleHelp, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
   History, LayoutDashboard, Microscope, Network, Plus, Search,
   ShieldCheck, Sparkles, Upload, Workflow, AlertTriangle, CircleDashed
 } from "lucide-react";
