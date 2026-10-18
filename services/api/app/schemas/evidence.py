@@ -119,6 +119,7 @@ class EvidenceRelationRead(BaseModel):
 
 class PaperDependencyCreate(BaseModel):
     dependent_paper_id: str
+    depends_on_paper_id: str
     relation_type: Literal["derived_from", "same_dataset", "duplicate_or_overlap", "cites_as_primary_source"] = "derived_from"
     provenance_basis: ProvenanceBasis = "metadata_inferred"
     rationale: str = Field(min_length=4, max_length=3000)
