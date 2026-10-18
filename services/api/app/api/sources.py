@@ -1,6 +1,7 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import hashlib
+import json
 import re
 
 import httpx
@@ -11,9 +12,10 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.entities import Paper, PaperDependency, PaperVersion, Passage, SourceEvent, User
-from app.schemas.evidence import PaperImport, PaperRead, PaperSearchResult, SourceEventCreate, SourceEventRead
+from app.models.entities import Paper, PaperDependency, PaperVersion, Passage, SourceEvent, SourceStatusCheck, User
+from app.schemas.evidence import PaperImport, PaperMonitoringUpdate, PaperRead, PaperSearchResult, SourceEventCreate, SourceEventRead
 from app.services.academic_search import search_papers
+from app.services.source_status import fetch_paper_status_signals, stable_signal_fingerprint
 from app.services.audit import record_audit_event
 from app.services.temporal_impact import affected_report_runs, impacted_claims, impacted_papers, mark_review_required
 
@@ -143,91 +145,226 @@ def get_paper(paper_id: str, db: Session = Depends(get_db), current_user: User =
 
 
 @router.get("/sources/papers/{paper_id}/status-check")
-async def check_paper_status(paper_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
-    """Preview post-publication signals without auto-changing saved evidence status."""
+async def check_paper_status(
+    paper_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Preview post-publication signals without writing a check or changing source status."""
     paper = db.scalar(select(Paper).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id))
     if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found.")
-    if not paper.doi:
-        return {
-            "paper_id": paper.id,
-            "doi": None,
-            "signals": [],
-            "providers": {"crossref": "skipped_no_doi", "openalex": "skipped_no_doi"},
-            "note": "This paper has no DOI. No automatic status signal could be checked; use the source notice form for manual review.",
-        }
-
-    from urllib.parse import quote
-
-    doi = normalize_doi(paper.doi)
-    headers = {"User-Agent": "Chronicle/0.1.0 (https://github.com/affanSkhan/chronicle)", "Accept": "application/json"}
-    timeout = httpx.Timeout(20.0, connect=8.0)
-    providers: dict[str, str] = {}
-    signals: list[dict] = []
-
-    async with httpx.AsyncClient(headers=headers, timeout=timeout, follow_redirects=True) as client:
-        # Crossref update-to records indicate items that update this DOI, including
-        # correction/retraction notices where those relationships were deposited.
-        try:
-            response = await client.get(f"https://api.crossref.org/works/{quote(doi or '', safe='/')}")
-            response.raise_for_status()
-            item = response.json().get("message", {})
-            providers["crossref"] = "ok"
-            for update in item.get("update-to") or []:
-                update_type_raw = str(update.get("type") or "metadata_change").strip().lower()
-                mapped = {
-                    "retraction": "retraction",
-                    "correction": "correction",
-                    "expression-of-concern": "expression_of_concern",
-                    "expression_of_concern": "expression_of_concern",
-                    "removal": "retraction",
-                }.get(update_type_raw, "metadata_change")
-                update_doi = normalize_doi(update.get("DOI"))
-                signals.append({
-                    "provider": "crossref",
-                    "event_type": mapped,
-                    "update_type": update_type_raw,
-                    "description": str(update.get("label") or f"Crossref reports an update relationship of type '{update_type_raw}'."),
-                    "source_url": f"https://doi.org/{update_doi}" if update_doi else None,
-                    "verification_status": "metadata_confirmed",
-                    "metadata": update,
-                })
-        except Exception:
-            providers["crossref"] = "unavailable"
-
-        # OpenAlex exposes is_retracted based on Retraction Watch coverage.
-        try:
-            response = await client.get(
-                "https://api.openalex.org/works",
-                params={
-                    "filter": f"doi:https://doi.org/{doi}",
-                    "per-page": 1,
-                    "select": "id,doi,title,is_retracted,updated_date",
-                },
-            )
-            response.raise_for_status()
-            results = response.json().get("results") or []
-            matched = results[0] if results else None
-            providers["openalex"] = "ok" if matched else "not_found"
-            if matched and matched.get("is_retracted") is True and not any(signal["event_type"] == "retraction" for signal in signals):
-                signals.append({
-                    "provider": "openalex",
-                    "event_type": "retraction",
-                    "update_type": "is_retracted",
-                    "description": "OpenAlex marks this work as retracted. Confirm the underlying notice before recording a verified event.",
-                    "source_url": matched.get("id"),
-                    "verification_status": "metadata_confirmed",
-                    "metadata": {"openalex_id": matched.get("id"), "updated_date": matched.get("updated_date")},
-                })
-        except Exception:
-            providers["openalex"] = "unavailable"
-
+    result = await fetch_paper_status_signals(paper.doi or "")
     return {
         "paper_id": paper.id,
-        "doi": doi,
-        "providers": providers,
-        "signals": signals,
-        "note": "This is a metadata status-check preview, not exhaustive surveillance. No event or publication status was changed. Verify the source notice and record an event to trigger downstream impact analysis.",
+        "doi": normalize_doi(paper.doi),
+        **result,
+        "note": result.get("note", "") + " This GET endpoint is a preview only; use POST to save a monitored check.",
+    }
+
+
+@router.post("/sources/papers/{paper_id}/status-check", status_code=201)
+async def record_paper_status_check(
+    paper_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Manually check and persist status signals without applying them to the paper."""
+    paper = db.scalar(select(Paper).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id))
+    if paper is None:
+        raise HTTPException(status_code=404, detail="Paper not found.")
+
+    checked_at = datetime.now(timezone.utc)
+    result = await fetch_paper_status_signals(paper.doi or "")
+    provider_states = result.get("providers", {})
+    signals = result.get("signals", [])
+    stable_signals = stable_signal_fingerprint(signals)
+    result_hash = hashlib.sha256(
+        json.dumps(stable_signals, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+    latest = db.scalar(
+        select(SourceStatusCheck)
+        .where(SourceStatusCheck.paper_id == paper.id)
+        .order_by(SourceStatusCheck.checked_at.desc())
+    )
+    previous_hash = latest.result_hash if latest else None
+    change_detected = previous_hash is not None and previous_hash != result_hash
+    states = list(provider_states.values())
+    if not paper.doi:
+        outcome = "no_doi"
+    elif states and all(state in {"unavailable", "skipped_no_doi"} for state in states):
+        outcome = "unavailable"
+    elif any(state == "unavailable" for state in states):
+        outcome = "partial"
+    else:
+        outcome = "ok"
+
+    check = SourceStatusCheck(
+        paper_id=paper.id,
+        checked_at=checked_at,
+        trigger_type="manual",
+        outcome=outcome,
+        provider_states=provider_states,
+        signals=signals,
+        result_hash=result_hash,
+        previous_result_hash=previous_hash,
+        change_detected=change_detected,
+        error_message="One or more metadata providers were unavailable." if outcome in {"partial", "unavailable"} else None,
+    )
+    db.add(check)
+    paper.last_status_check_at = checked_at
+    paper.next_status_check_at = (
+        checked_at + timedelta(minutes=paper.monitor_interval_minutes)
+        if paper.monitoring_enabled else None
+    )
+    db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=None,
+        target_entity_type="source_status_check",
+        target_entity_id=check.id,
+        action="source_status_check.manual_completed",
+        previous_value={"result_hash": previous_hash},
+        new_value={
+            "result_hash": result_hash,
+            "change_detected": change_detected,
+            "outcome": outcome,
+            "signal_count": len(signals),
+            "monitoring_enabled": paper.monitoring_enabled,
+        },
+        reason="Manual external source-status check saved. Signals remain pending human review.",
+        resolution_status="needs_review" if change_detected or signals else "recorded",
+    )
+    db.commit()
+    db.refresh(check)
+    return {
+        "id": check.id,
+        "paper_id": paper.id,
+        "paper_title": paper.title,
+        "doi": normalize_doi(paper.doi),
+        "checked_at": check.checked_at.isoformat(),
+        "trigger_type": check.trigger_type,
+        "outcome": check.outcome,
+        "provider_states": check.provider_states,
+        "signals": check.signals,
+        "change_detected": check.change_detected,
+        "previous_result_hash": check.previous_result_hash,
+        "result_hash": check.result_hash,
+        "monitoring_enabled": paper.monitoring_enabled,
+        "next_status_check_at": paper.next_status_check_at.isoformat() if paper.next_status_check_at else None,
+        "note": result.get("note", "") + " No event was created and no publication status was changed.",
+    }
+
+
+@router.patch("/sources/papers/{paper_id}/monitoring")
+def update_paper_monitoring(
+    paper_id: str,
+    payload: PaperMonitoringUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    paper = db.scalar(select(Paper).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id))
+    if paper is None:
+        raise HTTPException(status_code=404, detail="Paper not found.")
+    before = {
+        "monitoring_enabled": paper.monitoring_enabled,
+        "monitor_interval_minutes": paper.monitor_interval_minutes,
+        "next_status_check_at": paper.next_status_check_at.isoformat() if paper.next_status_check_at else None,
+    }
+    now = datetime.now(timezone.utc)
+    paper.monitoring_enabled = payload.enabled
+    paper.monitor_interval_minutes = payload.interval_minutes
+    paper.next_status_check_at = now if payload.enabled else None
+    db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=None,
+        target_entity_type="paper",
+        target_entity_id=paper.id,
+        action="paper.monitoring_updated",
+        previous_value=before,
+        new_value={
+            "monitoring_enabled": paper.monitoring_enabled,
+            "monitor_interval_minutes": paper.monitor_interval_minutes,
+            "next_status_check_at": paper.next_status_check_at.isoformat() if paper.next_status_check_at else None,
+        },
+        reason="Source status monitoring configuration updated by the paper owner.",
+    )
+    db.commit()
+    db.refresh(paper)
+    return {
+        "paper_id": paper.id,
+        "monitoring_enabled": paper.monitoring_enabled,
+        "monitor_interval_minutes": paper.monitor_interval_minutes,
+        "last_status_check_at": paper.last_status_check_at.isoformat() if paper.last_status_check_at else None,
+        "next_status_check_at": paper.next_status_check_at.isoformat() if paper.next_status_check_at else None,
+        "note": "Scheduled checks only record source-status changes for researcher review; they do not automatically create events or change publication status.",
+    }
+
+
+def _status_check_payload(check: SourceStatusCheck, paper_title: str, doi: str | None) -> dict:
+    return {
+        "id": check.id,
+        "paper_id": check.paper_id,
+        "paper_title": paper_title,
+        "doi": normalize_doi(doi),
+        "checked_at": check.checked_at.isoformat(),
+        "trigger_type": check.trigger_type,
+        "outcome": check.outcome,
+        "provider_states": check.provider_states,
+        "signals": check.signals,
+        "change_detected": check.change_detected,
+        "previous_result_hash": check.previous_result_hash,
+        "result_hash": check.result_hash,
+        "error_message": check.error_message,
+    }
+
+
+@router.get("/sources/status-checks")
+def list_status_checks(
+    limit: int = Query(default=50, ge=1, le=200),
+    changes_only: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    statement = (
+        select(SourceStatusCheck, Paper.title, Paper.doi)
+        .join(Paper, Paper.id == SourceStatusCheck.paper_id)
+        .where(Paper.owner_user_id == current_user.id)
+        .order_by(SourceStatusCheck.checked_at.desc())
+    )
+    if changes_only:
+        statement = statement.where(SourceStatusCheck.change_detected.is_(True))
+    rows = db.execute(statement.limit(limit)).all()
+    return {
+        "count": len(rows),
+        "checks": [_status_check_payload(check, title, doi) for check, title, doi in rows],
+        "note": "Provider signals are review prompts, not authoritative automatic publication-status changes.",
+    }
+
+
+@router.get("/sources/papers/{paper_id}/status-checks")
+def list_paper_status_checks(
+    paper_id: str,
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    paper = db.scalar(select(Paper).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id))
+    if paper is None:
+        raise HTTPException(status_code=404, detail="Paper not found.")
+    rows = db.scalars(
+        select(SourceStatusCheck)
+        .where(SourceStatusCheck.paper_id == paper.id)
+        .order_by(SourceStatusCheck.checked_at.desc())
+        .limit(limit)
+    ).all()
+    return {
+        "paper_id": paper.id,
+        "count": len(rows),
+        "checks": [_status_check_payload(check, paper.title, paper.doi) for check in rows],
     }
 
 
