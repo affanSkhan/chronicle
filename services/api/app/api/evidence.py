@@ -249,6 +249,25 @@ def add_paper_dependency(payload: PaperDependencyCreate, db: Session = Depends(g
         confidence=payload.confidence,
     )
     db.add(edge)
+    db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=None,
+        target_entity_type="paper_dependency",
+        target_entity_id=edge.id,
+        action="paper_dependency.created",
+        previous_value=None,
+        new_value={
+            "dependent_paper_id": edge.dependent_paper_id,
+            "depends_on_paper_id": edge.depends_on_paper_id,
+            "relation_type": edge.relation_type,
+            "provenance_basis": edge.provenance_basis,
+            "rationale": edge.rationale,
+            "confidence": edge.confidence,
+        },
+        reason="Source-dependency relationship recorded.",
+    )
     db.commit()
     db.refresh(edge)
     return {
@@ -415,6 +434,22 @@ def create_report_version(run_id: str, payload: dict, db: Session = Depends(get_
         change_summary=payload.get("change_summary"),
     )
     db.add(version)
+    db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=run_id,
+        target_entity_type="report_version",
+        target_entity_id=version.id,
+        action="report_version.created",
+        previous_value={"parent_version_id": latest.id if latest else None},
+        new_value={
+            "version_number": version.version_number,
+            "title": version.title,
+            "review_required": version.review_required,
+        },
+        reason=payload.get("change_summary") or "Report version saved.",
+    )
     db.commit()
     db.refresh(version)
     return {
@@ -495,6 +530,9 @@ def export_evidence_passport(
     reports = list(db.scalars(select(ReportVersion).where(
         ReportVersion.run_id == run_id
     ).order_by(ReportVersion.version_number)).all())
+    audit_rows = list(db.scalars(select(AuditEvent).where(
+        AuditEvent.run_id == run_id
+    ).order_by(AuditEvent.created_at.asc())).all())
     latest_report = reports[-1] if reports else None
     report_snapshot = latest_report.evidence_snapshot if latest_report and isinstance(latest_report.evidence_snapshot, dict) else {}
     snapshot_paper_ids = {
@@ -642,6 +680,18 @@ def export_evidence_passport(
             "verification_status": event.verification_status,
             "metadata_snapshot": event.metadata_snapshot or {},
         } for event in source_events],
+        "audit_events": [{
+            "id": row.id,
+            "actor_user_id": row.actor_user_id,
+            "target_entity_type": row.target_entity_type,
+            "target_entity_id": row.target_entity_id,
+            "action": row.action,
+            "previous_value": row.previous_value,
+            "new_value": row.new_value,
+            "reason": row.reason,
+            "resolution_status": row.resolution_status,
+            "created_at": iso(row.created_at),
+        } for row in audit_rows],
         "report_versions": [{
             "id": report.id,
             "version_number": report.version_number,
@@ -723,6 +773,16 @@ def export_evidence_passport(
         summary = (event["metadata_snapshot"] or {}).get("impact_summary")
         if summary:
             lines.append(f"  - Impact summary: {summary}")
+    lines.extend(["", "## Review and audit history", ""])
+    if not passport["audit_events"]:
+        lines.append("No audit events were recorded for this run.")
+    for audit in passport["audit_events"]:
+        lines.append(f"- **{audit['action']}** on {audit['target_entity_type']} {audit['target_entity_id']} at {audit['created_at']} (actor: {audit['actor_user_id'] or 'unavailable'}; status: {audit['resolution_status']})")
+        if audit["reason"]:
+            lines.append(f"  - Reason: {audit['reason']}")
+        if audit["previous_value"] is not None or audit["new_value"] is not None:
+            lines.append(f"  - Previous: {audit['previous_value']}")
+            lines.append(f"  - New: {audit['new_value']}")
     lines.extend(["", "## Report versions", ""])
     if not passport["report_versions"]:
         lines.append("No report versions are saved.")
