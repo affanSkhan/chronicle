@@ -2,34 +2,29 @@
 
 Last updated: 2026-10-18
 
-## Implemented in repository
-- Next.js + TypeScript workspace UI for overview, research workspace, evidence graph concept, source timeline and hypothesis-lab concept.
-- FastAPI application with health endpoint and typed request/response schemas.
-- Durable SQLAlchemy models for projects, runs, papers, paper versions, studies, passages, claims, evidence relations, paper dependencies, source events and report versions.
-- Alembic initial schema migration and local PostgreSQL Docker Compose configuration.
-- Research project/run create/list/get endpoints backed by the configured database.
-- Crossref/OpenAlex scholarly metadata search, DOI/external-ID de-duplication and paper import.
-- PDF upload with type/size checks, PyMuPDF text extraction, SHA-256 deduplication and page-aware passage records.
-- Claim creation, claim/passage relations, claim-to-claim dependencies, paper dependency records and persisted graph JSON endpoint.
-- Report version creation/listing.
-- Manual source-event ingestion with deterministic traversal to dependent papers, evidence-linked claims and report versions; affected records are flagged for review, not automatically declared false.
-- API tests for parser behavior, CRUD validation, PDF ingestion and temporal source-event impact.
-- GitHub Actions workflows for API tests and frontend lint/typecheck/build.
+## Implemented
+- Next.js/TypeScript workspace with overview, research workspace, academic metadata search, PDF upload, report rendering, evidence graph, source timeline and Hypothesis Lab.
+- FastAPI API with SQLAlchemy models and Alembic bootstrap migration for projects, runs, papers/versions, studies, passages, claims, evidence relations, paper dependencies, source events and report versions.
+- Crossref/OpenAlex metadata discovery and normalized/de-duplicated paper-library import.
+- PDF upload validation, SHA-256 duplicate detection, selectable-text extraction, page-aware passage storage and bounded upload size.
+- Executable background discovery pipeline that persists paper metadata, abstract passages, run state and a versioned Academic Discovery Snapshot.
+- Optional OpenAI-compatible structured claim extraction and evidence-bounded synthesis. Every generated claim is labelled unreviewed/model-inferred; supplied passage references are validated. Abstract-only synthesis is explicitly not full-text review.
+- Evidence relation review endpoint and UI actions; accepted relations become human-reviewed and can update the claim's assessment label.
+- Persisted evidence graph endpoint with paper/versions/passages/claims and dependency edges.
+- Report version history selector and deterministic line-level Markdown comparison.
+- Manual source-event registration, Crossref/OpenAlex status preview, dependency traversal, affected-claim/report review flags and source-event history.
+- Markdown and JSON Evidence Passport export containing source records, report snapshots, claim-to-passage relationships, review state and temporal events.
+- Dockerfiles for API and web, Docker Compose full stack, upload/database volumes and GitHub Actions CI workflows.
+- Automated API tests for validation, search parsers, PDF ingestion, run/pipeline persistence, human review, graph lineage, temporal impact and Evidence Passport.
 
-## Important limitation: demo versus research execution
-Research-run endpoints currently persist the request with status queued and demo=true. A worker/orchestrator has not yet executed the research question against returned papers. Creating a run does not yet produce a verified literature report.
-The frontend uses illustrative sample claims/graph/timeline for its dashboard panels. Academic search results and PDF ingestion are API-backed, but graph and timeline screens are not fully wired to live database data.
+## Important limitations
+- Crossref/OpenAlex search returns bibliographic metadata and abstracts; it does not provide guaranteed full-text access or exhaustive scholarly coverage.
+- The current LLM stage is optional and uses a server-configured OpenAI-compatible model. Without those settings the system runs in retrieval-only mode.
+- Model-generated claims and synthesis findings remain candidates, not independently verified scientific conclusions.
+- The research run uses FastAPI BackgroundTasks, not a durable task queue. A server restart during a run may interrupt it; add a persistent queue/worker before production use.
+- Scanned-PDF OCR is not implemented.
+- Crossref/OpenAlex status check is a preview for a researcher. It does not automatically monitor all publishers on a schedule or automatically assert that a paper is retracted. Manual event submission triggers impact propagation.
+- Graph and timeline are backed by persisted data, but the hypothesis discovery algorithm is not yet an autonomous graph-based novelty detector.
+- Authentication, per-user access controls, durable cloud object storage, rate limiting, production logging/metrics, backup/restore, and production deployment configuration are not complete.
 
-## Not implemented yet
-- End-to-end research job worker and cancellation/retry.
-- LLM-backed structured claim extraction, citation entailment and contextual contradiction assessment.
-- Embeddings, hybrid passage retrieval and grounded report synthesis.
-- Source-status polling/scheduled alerts.
-- Persistent object storage for uploaded PDFs in cloud deployment.
-- OCR for scanned PDFs.
-- Authentication, access control and multi-user project isolation.
-- Live graph and source-timeline frontend powered by stored records.
-- Exportable Evidence Passport / report export.
-- Deployment configuration and production observability.
-
-All demo claims and graph edges must not be interpreted as actual scientific findings.
+All demo records remain illustrative and must not be interpreted as scientific findings.
