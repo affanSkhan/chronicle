@@ -30,7 +30,6 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     existing = db.scalar(select(Paper).where(Paper.file_sha256 == file_hash))
     if existing:
         version = db.scalar(select(PaperVersion).where(PaperVersion.paper_id == existing.id).order_by(PaperVersion.retrieved_at.desc()))
-        count = db.scalar(select(Passage).where(Passage.paper_version_id == version.id).count()) if False else None
         return {
             "paper_id": existing.id,
             "title": existing.title,
