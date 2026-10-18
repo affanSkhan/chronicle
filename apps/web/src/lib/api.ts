@@ -17,7 +17,7 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000
 async function readError(response: Response): Promise<string> {
   const payload = await response.json().catch(() => null);
   if (typeof payload?.detail === "string") return payload.detail;
-  return \`Chronicle API request failed (\${response.status}).\`;
+  return `Chronicle API request failed (${response.status}).`;
 }
 
 export async function createResearchRun(input: {
@@ -27,7 +27,7 @@ export async function createResearchRun(input: {
   project_id?: string | null;
   execute?: boolean;
 }): Promise<ResearchRun> {
-  const response = await fetch(\`\${API_BASE}/api/v1/research/runs\`, {
+  const response = await fetch(`${API_BASE}/api/v1/research/runs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input)
@@ -37,7 +37,7 @@ export async function createResearchRun(input: {
 }
 
 export async function listResearchRuns(): Promise<ResearchRun[]> {
-  const response = await fetch(\`\${API_BASE}/api/v1/research/runs\`, { cache: "no-store" });
+  const response = await fetch(`${API_BASE}/api/v1/research/runs`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<ResearchRun[]>;
 }
@@ -56,7 +56,7 @@ export interface AcademicSearchResult {
 
 export async function searchAcademicSources(query: string, limit = 10, provider = "all") {
   const params = new URLSearchParams({ q: query, limit: String(limit), provider });
-  const response = await fetch(\`\${API_BASE}/api/v1/sources/search?\${params.toString()}\`, { cache: "no-store" });
+  const response = await fetch(`${API_BASE}/api/v1/sources/search?${params.toString()}`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<{
     query: string;
@@ -67,7 +67,7 @@ export async function searchAcademicSources(query: string, limit = 10, provider 
 }
 
 export async function importPaper(paper: Omit<AcademicSearchResult, "provider"> & { provider: string }) {
-  const response = await fetch(\`\${API_BASE}/api/v1/sources/papers\`, {
+  const response = await fetch(`${API_BASE}/api/v1/sources/papers`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(paper)
@@ -93,7 +93,7 @@ export interface PDFUploadResult {
 export async function uploadPdf(file: File): Promise<PDFUploadResult> {
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(\`\${API_BASE}/api/v1/documents/upload\`, {
+  const response = await fetch(`${API_BASE}/api/v1/documents/upload`, {
     method: "POST",
     body: form
   });
@@ -115,7 +115,7 @@ export interface ReportVersionSummary {
 }
 
 export async function listReportVersions(runId: string): Promise<ReportVersionSummary[]> {
-  const response = await fetch(\`\${API_BASE}/api/v1/evidence/runs/\${runId}/reports\`, { cache: "no-store" });
+  const response = await fetch(`${API_BASE}/api/v1/evidence/runs/${runId}/reports`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<ReportVersionSummary[]>;
 }
