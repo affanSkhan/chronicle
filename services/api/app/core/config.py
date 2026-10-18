@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +12,9 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     max_upload_mb: int = 25
     upload_dir: str = "uploads"
+    openai_api_key: SecretStr | None = None
+    openai_api_base: str = "https://api.openai.com/v1"
+    openai_model: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
