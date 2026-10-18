@@ -1,30 +1,31 @@
-# Implementation status
+# Chronicle implementation status
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19
 
-## Implemented
-- Next.js/TypeScript workspace with overview, research workspace, academic metadata search, PDF upload, report rendering, evidence graph, source timeline and Hypothesis Lab.
-- FastAPI API with SQLAlchemy models and Alembic bootstrap migration for projects, runs, papers/versions, studies, passages, claims, evidence relations, paper dependencies, source events and report versions.
-- Crossref/OpenAlex metadata discovery and normalized/de-duplicated paper-library import.
-- PDF upload validation, SHA-256 duplicate detection, selectable-text extraction, page-aware passage storage and bounded upload size.
-- Executable background discovery pipeline that persists paper metadata, abstract passages, run state and a versioned Academic Discovery Snapshot.
-- Optional OpenAI-compatible structured claim extraction and evidence-bounded synthesis. Every generated claim is labelled unreviewed/model-inferred; supplied passage references are validated. Abstract-only synthesis is explicitly not full-text review.
-- Evidence relation review endpoint and UI actions; accepted relations become human-reviewed and can update the claim's assessment label.
-- Persisted evidence graph endpoint with paper/versions/passages/claims and dependency edges.
-- Report version history selector and deterministic line-level Markdown comparison.
-- Manual source-event registration, Crossref/OpenAlex status preview, dependency traversal, affected-claim/report review flags and source-event history.
-- Markdown and JSON Evidence Passport export containing source records, report snapshots, claim-to-passage relationships, review state and temporal events.
-- Dockerfiles for API and web, Docker Compose full stack, upload/database volumes and GitHub Actions CI workflows.
-- Automated API tests for validation, search parsers, PDF ingestion, run/pipeline persistence, human review, graph lineage, temporal impact and Evidence Passport.
+This status separates completed prototype behavior from research objectives in the VIIT SRS. It is not a claim that all specified requirements have been satisfied.
 
-## Important limitations
-- Crossref/OpenAlex search returns bibliographic metadata and abstracts; it does not provide guaranteed full-text access or exhaustive scholarly coverage.
-- The current LLM stage is optional and uses a server-configured OpenAI-compatible model. Without those settings the system runs in retrieval-only mode.
-- Model-generated claims and synthesis findings remain candidates, not independently verified scientific conclusions.
-- The research run uses FastAPI BackgroundTasks, not a durable task queue. A server restart during a run may interrupt it; add a persistent queue/worker before production use.
-- Scanned-PDF OCR is not implemented.
-- Crossref/OpenAlex status check is a preview for a researcher. It does not automatically monitor all publishers on a schedule or automatically assert that a paper is retracted. Manual event submission triggers impact propagation.
-- Graph and timeline are backed by persisted data, but the hypothesis discovery algorithm is not yet an autonomous graph-based novelty detector.
-- Authentication, per-user access controls, durable cloud object storage, rate limiting, production logging/metrics, backup/restore, and production deployment configuration are not complete.
+## Implemented in the repository
+- **Auth and data isolation:** account registration/login using Argon2 password hashes and signed bearer tokens; authenticated API routes; user ownership checks on projects, runs, papers, PDF passages, evidence links, reports and exports.
+- **Workspace/run records:** persistent SQLAlchemy models, run status API, project APIs and owner-scoped run history.
+- **Scholarly discovery:** Crossref and OpenAlex metadata search, DOI/external-ID normalization and deduplicated library import.
+- **PDF ingestion:** file type/signature and byte-size checks, configurable 50 MB/300-page limits, PyMuPDF selectable-text extraction, page-aware passage records, SHA-256 deduplication and owner-scoped local storage paths.
+- **Execution and report:** background discovery task persists paper metadata, abstract passages, run state and an Academic Discovery Snapshot with coverage limitations.
+- **Optional model stage:** server-configured OpenAI-compatible structured claim extraction and synthesis. Returned passage references are checked against the supplied passage set. Generated claims/edges remain model-inferred/unreviewed, not independently verified.
+- **Evidence graph/review:** persisted claim-to-passage and claim-to-claim relationships, paper-dependency links, a graph API/UI and human review actions. Accepted/rejected/needs-review transitions preserve review history.
+- **Temporal review:** Crossref/OpenAlex status-check preview; manual source-event recording; dependency traversal; impacted claims/reports flagged for review; source-event history and impact summary.
+- **Audit trail:** audit events record actor, time, target, action, previous/new values, reason and resolution status for run/project creation, claims/evidence relationships, review transitions, dependency records, report versions and source-event impact. Per-run audit API/UI and Passport export are available.
+- **Version history and exports:** report-version creation/listing, selector and deterministic line-level comparison, Markdown and JSON Evidence Passport including source/version/passage/claim/dependency/event/report/audit snapshots.
+- **Local stack and CI:** Dockerfiles, PostgreSQL/API/web Compose stack, Alembic configuration/migrations, example environment files and GitHub Actions for API tests, web lint/typecheck/build and container builds.
 
-All demo records remain illustrative and must not be interpreted as scientific findings.
+## Important limitations / not yet implemented
+- **Not a full multi-agent system yet:** current executed flow is a bounded scholarly discovery pipeline, not the complete seven-layer planner/agent orchestration in the project proposal.
+- **Not full-text verification:** Crossref/OpenAlex returns metadata and abstracts when available. No citation-entailment benchmarked verifier, full-text acquisition/appraisal, embeddings/hybrid retrieval or calibrated evidence-weight score exists.
+- **Worker durability:** research runs use FastAPI background tasks rather than a durable queue/worker. A server restart may interrupt an active run; retry/cancellation and persisted subtask progress are unfinished.
+- **Temporal coverage:** external status check is user-triggered and a preview. There is no scheduled publisher/retraction-feed monitoring, exhaustive coverage or automatic authoritative status change.
+- **Research Hypothesis Lab:** displays optional model-suggested candidate questions based on the current synthesis. It is not a graph-based novelty detector, and no prior-art recall or hypothesis-quality experiment has been performed.
+- **PDF/records:** OCR for scanned PDFs, private cloud object storage, workspace deletion/retention controls and a full PDF report exporter are unfinished.
+- **Production readiness:** no production deployment, monitoring/alerting, rate-limit/abuse controls, regular backup/restore validation or independently reviewed secure-cookie session model has been configured. JWT secret defaults are explicitly local-only; production setting rejects the known default secret.
+- **Security testing:** API tests now include two-account isolation and private-route checks, but a comprehensive security review, prompt-injection evaluation, load test and privacy/retention audit remain outstanding.
+- **Evaluation:** no reported benchmark results yet for SciFact/SciFact-Open, LitQA2, ScholarQABench, dependency precision/recall, contradiction per-class F1 or temporal impact precision/recall/false alarms.
+
+All sample/demo content and model-assisted claims must be treated as unverified research assistance. No benchmark or scientific-accuracy result should be claimed without conducting and documenting the specified experiment.
