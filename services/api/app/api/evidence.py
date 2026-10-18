@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.entities import (
     Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage,
-    ReportVersion, ResearchRun, Study,
+    ReportVersion, ResearchRun, SourceEvent, Study,
 )
 from app.schemas.evidence import (
     ClaimCreate, ClaimRead, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
@@ -338,6 +338,231 @@ def list_report_versions(run_id: str, db: Session = Depends(get_db)) -> list[dic
         "change_summary": row.change_summary, "review_required": row.review_required,
         "created_at": row.created_at.isoformat(),
     } for row in rows]
+
+
+@router.get("/runs/{run_id}/passport")
+def export_evidence_passport(
+    run_id: str,
+    format: str = Query(default="markdown", pattern="^(markdown|json)$"),
+    db: Session = Depends(get_db),
+):
+    """Export a reproducible snapshot of the report, evidence records and provenance state."""
+    from datetime import datetime, timezone
+    from fastapi.responses import JSONResponse
+
+    run = db.get(ResearchRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Research run not found.")
+
+    claims = list(db.scalars(select(Claim).where(Claim.run_id == run_id).order_by(Claim.created_at)).all())
+    claim_ids = {claim.id for claim in claims}
+    relations = list(db.scalars(select(EvidenceRelation).where(
+        EvidenceRelation.claim_id.in_(claim_ids)
+    ).order_by(EvidenceRelation.created_at)).all()) if claim_ids else []
+    passage_ids = {relation.passage_id for relation in relations if relation.passage_id}
+    passages = list(db.scalars(select(Passage).where(Passage.id.in_(passage_ids))).all()) if passage_ids else []
+    version_ids = {passage.paper_version_id for passage in passages}
+    versions = list(db.scalars(select(PaperVersion).where(PaperVersion.id.in_(version_ids))).all()) if version_ids else []
+    paper_ids = {version.paper_id for version in versions}
+    papers = list(db.scalars(select(Paper).where(Paper.id.in_(paper_ids))).all()) if paper_ids else []
+    dependencies = list(db.scalars(select(PaperDependency).where(or_(
+        PaperDependency.dependent_paper_id.in_(paper_ids),
+        PaperDependency.depends_on_paper_id.in_(paper_ids),
+    ))).all()) if paper_ids else []
+    source_events = list(db.scalars(select(SourceEvent).where(SourceEvent.paper_id.in_(paper_ids)).order_by(SourceEvent.observed_at.desc())).all()) if paper_ids else []
+    reports = list(db.scalars(select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number)).all())
+
+    version_by_id = {version.id: version for version in versions}
+    paper_by_id = {paper.id: paper for paper in papers}
+    passage_by_id = {passage.id: passage for passage in passages}
+    relation_by_claim: dict[str, list[EvidenceRelation]] = {}
+    for relation in relations:
+        relation_by_claim.setdefault(relation.claim_id, []).append(relation)
+
+    def iso(value):
+        return value.isoformat() if value else None
+
+    passport = {
+        "schema_version": "1.0",
+        "passport_generated_at": datetime.now(timezone.utc).isoformat(),
+        "scope": {
+            "run_id": run.id,
+            "research_question": run.question,
+            "mode": run.mode,
+            "status": run.status,
+            "run_created_at": iso(run.created_at),
+            "configuration_snapshot": run.configuration or {},
+        },
+        "interpretation_limitations": [
+            "This passport captures records available in Chronicle at export time; it is not a guarantee that the searched corpus is exhaustive.",
+            "Model-inferred edges and candidate claims are not equivalent to human-verified scientific conclusions.",
+            "An absent edge is not evidence that a relationship does not exist.",
+            "Source events flag claims and report versions for review; they do not automatically prove dependent claims false.",
+            "Abstract-only evidence must not be described as full-text appraisal.",
+        ],
+        "papers": [{
+            "id": paper.id,
+            "doi": paper.doi,
+            "title": paper.title,
+            "authors": paper.authors or [],
+            "abstract": paper.abstract,
+            "publication_year": paper.publication_year,
+            "publisher": paper.publisher,
+            "source_provider": paper.source_provider,
+            "external_id": paper.external_id,
+            "landing_url": paper.landing_url,
+            "versions": [{
+                "id": version.id,
+                "version_label": version.version_label,
+                "publication_status": version.publication_status,
+                "publication_date": iso(version.publication_date),
+                "retrieved_at": iso(version.retrieved_at),
+                "status_url": version.status_url,
+                "metadata_snapshot": version.metadata_snapshot or {},
+            } for version in versions if version.paper_id == paper.id],
+        } for paper in papers],
+        "claims": [{
+            "id": claim.id,
+            "statement": claim.statement,
+            "scope": claim.scope or {},
+            "assessment": claim.assessment,
+            "review_required": claim.review_required,
+            "uncertainty_notes": claim.uncertainty_notes,
+            "created_at": iso(claim.created_at),
+            "evidence_relations": [{
+                "id": relation.id,
+                "relation_type": relation.relation_type,
+                "provenance_basis": relation.provenance_basis,
+                "reviewer_status": relation.reviewer_status,
+                "confidence": relation.confidence,
+                "rationale": relation.rationale,
+                "related_claim_id": relation.related_claim_id,
+                "passage": ({
+                    "id": passage_by_id[relation.passage_id].id,
+                    "text": passage_by_id[relation.passage_id].text,
+                    "page_number": passage_by_id[relation.passage_id].page_number,
+                    "section_title": passage_by_id[relation.passage_id].section_title,
+                    "text_hash": passage_by_id[relation.passage_id].text_hash,
+                    "paper_version_id": passage_by_id[relation.passage_id].paper_version_id,
+                    "paper_id": version_by_id[passage_by_id[relation.passage_id].paper_version_id].paper_id,
+                } if relation.passage_id in passage_by_id and passage_by_id[relation.passage_id].paper_version_id in version_by_id else None),
+            } for relation in relation_by_claim.get(claim.id, [])],
+        } for claim in claims],
+        "paper_dependencies": [{
+            "id": dependency.id,
+            "dependent_paper_id": dependency.dependent_paper_id,
+            "depends_on_paper_id": dependency.depends_on_paper_id,
+            "relation_type": dependency.relation_type,
+            "provenance_basis": dependency.provenance_basis,
+            "rationale": dependency.rationale,
+            "confidence": dependency.confidence,
+            "created_at": iso(dependency.created_at),
+        } for dependency in dependencies],
+        "source_events": [{
+            "id": event.id,
+            "paper_id": event.paper_id,
+            "event_type": event.event_type,
+            "event_date": iso(event.event_date),
+            "observed_at": iso(event.observed_at),
+            "source_url": event.source_url,
+            "description": event.description,
+            "verification_status": event.verification_status,
+            "metadata_snapshot": event.metadata_snapshot or {},
+        } for event in source_events],
+        "report_versions": [{
+            "id": report.id,
+            "version_number": report.version_number,
+            "parent_version_id": report.parent_version_id,
+            "title": report.title,
+            "content_markdown": report.content_markdown,
+            "evidence_snapshot": report.evidence_snapshot or {},
+            "change_summary": report.change_summary,
+            "review_required": report.review_required,
+            "created_at": iso(report.created_at),
+        } for report in reports],
+    }
+
+    filename = f"chronicle-evidence-passport-{run_id[:8]}.{ 'json' if format == 'json' else 'md' }"
+    if format == "json":
+        return JSONResponse(
+            content=passport,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    lines = [
+        "# Chronicle Evidence Passport",
+        "",
+        f"- **Research question:** {run.question}",
+        f"- **Run ID:** {run.id}",
+        f"- **Mode / status:** {run.mode} / {run.status}",
+        f"- **Generated at:** {passport['passport_generated_at']}",
+        "",
+        "## Interpretation limitations",
+        "",
+    ]
+    lines.extend(f"- {item}" for item in passport["interpretation_limitations"])
+    lines.extend(["", "## Source papers", ""])
+    for paper in passport["papers"]:
+        lines.extend([f"### {paper['title']}", ""])
+        lines.append(f"- **Authors:** {', '.join(paper['authors']) or 'Unavailable'}")
+        lines.append(f"- **Year:** {paper['publication_year'] or 'Unavailable'}")
+        if paper["doi"]:
+            lines.append(f"- **DOI:** https://doi.org/{paper['doi']}")
+        elif paper["landing_url"]:
+            lines.append(f"- **Source:** {paper['landing_url']}")
+        if paper["abstract"]:
+            lines.extend(["", "**Abstract:**", "", paper["abstract"], ""])
+        for version in paper["versions"]:
+            lines.append(f"- **Version/status:** {version['version_label']} / {version['publication_status']} (retrieved {version['retrieved_at']})")
+        lines.append("")
+    lines.extend(["## Claims and evidence trace", ""])
+    if not passport["claims"]:
+        lines.append("No claim records are linked to this run yet.")
+    for claim in passport["claims"]:
+        lines.extend([f"### {claim['statement']}", "", f"- **Assessment:** {claim['assessment']}", f"- **Review required:** {claim['review_required']}"])
+        if claim["scope"]:
+            lines.append(f"- **Scope:** {claim['scope']}")
+        if claim["uncertainty_notes"]:
+            lines.append(f"- **Uncertainty:** {claim['uncertainty_notes']}")
+        for relation in claim["evidence_relations"]:
+            lines.append(f"- **{relation['relation_type']}** · basis: {relation['provenance_basis']} · review: {relation['reviewer_status']}")
+            if relation["rationale"]:
+                lines.append(f"  - Rationale: {relation['rationale']}")
+            if relation["passage"]:
+                passage = relation["passage"]
+                lines.append(f"  - Passage ID: {passage['id']} · page: {passage['page_number'] or 'abstract / page unavailable'} · paper: {passage['paper_id']}")
+                lines.append("  - Exact text: " + passage["text"].replace("\n", " "))
+        lines.append("")
+    lines.extend(["## Source dependencies", ""])
+    if not passport["paper_dependencies"]:
+        lines.append("No paper-dependency relationships are recorded in this export.")
+    for dependency in passport["paper_dependencies"]:
+        lines.append(f"- {dependency['depends_on_paper_id']} -> {dependency['dependent_paper_id']} ({dependency['relation_type']}; basis: {dependency['provenance_basis']}; confidence: {dependency['confidence']})")
+        if dependency["rationale"]:
+            lines.append(f"  - Rationale: {dependency['rationale']}")
+    lines.extend(["", "## Source events", ""])
+    if not passport["source_events"]:
+        lines.append("No source events are recorded for the included papers.")
+    for event in passport["source_events"]:
+        lines.append(f"- **{event['event_type']}** ({event['verification_status']}) for paper {event['paper_id']} observed {event['observed_at']}: {event['description']}")
+        if event["source_url"]:
+            lines.append(f"  - Source notice: {event['source_url']}")
+        summary = (event["metadata_snapshot"] or {}).get("impact_summary")
+        if summary:
+            lines.append(f"  - Impact summary: {summary}")
+    lines.extend(["", "## Report versions", ""])
+    if not passport["report_versions"]:
+        lines.append("No report versions are saved.")
+    for report in passport["report_versions"]:
+        lines.extend([f"### Version {report['version_number']}: {report['title']}", "", f"- **Created:** {report['created_at']}", f"- **Review required:** {report['review_required']}"])
+        if report["change_summary"]:
+            lines.append(f"- **Change summary:** {report['change_summary']}")
+        lines.extend(["", report["content_markdown"], ""])
+    return Response(
+        content="\n".join(lines),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/papers/{paper_id}/studies", status_code=201)
