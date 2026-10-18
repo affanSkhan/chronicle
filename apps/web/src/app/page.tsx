@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { createResearchRun, getEvidenceGraph, importPaper, listReportVersions, listResearchRuns, searchAcademicSources, uploadPdf, type AcademicSearchResult, type EvidenceGraphResponse, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun } from "@/lib/api";
+import { createResearchRun, createSourceEvent, getEvidenceGraph, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents, searchAcademicSources, uploadPdf, type AcademicSearchResult, type EvidenceGraphResponse, type LibraryPaper, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord } from "@/lib/api";
 import {
   Activity, ArrowRight, BookOpen, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
   History, LayoutDashboard, Microscope, Network, Plus, Search,
@@ -68,6 +68,17 @@ export default function HomePage() {
   const [graphData, setGraphData] = useState<EvidenceGraphResponse | null>(null);
   const [graphLoading, setGraphLoading] = useState(false);
   const [graphError, setGraphError] = useState("");
+  const [libraryPapers, setLibraryPapers] = useState<LibraryPaper[]>([]);
+  const [sourceEvents, setSourceEvents] = useState<SourceEventRecord[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineError, setTimelineError] = useState("");
+  const [eventPaperId, setEventPaperId] = useState("");
+  const [eventType, setEventType] = useState<"correction" | "retraction" | "expression_of_concern" | "new_version" | "metadata_change" | "conflicting_study">("retraction");
+  const [eventDescription, setEventDescription] = useState("");
+  const [eventSourceUrl, setEventSourceUrl] = useState("");
+  const [eventVerification, setEventVerification] = useState<"unverified" | "metadata_confirmed" | "human_verified">("unverified");
+  const [recordingEvent, setRecordingEvent] = useState(false);
+  const [eventResult, setEventResult] = useState("");
   const [sourceQuery, setSourceQuery] = useState("");
   const [sourceResults, setSourceResults] = useState<AcademicSearchResult[]>([]);
   const [sourceLoading, setSourceLoading] = useState(false);
