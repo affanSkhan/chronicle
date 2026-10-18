@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { checkPaperStatus, clearAccessToken, createResearchRun, createSourceEvent, downloadEvidencePassport, fetchCurrentUser, getEvidenceGraph, hasSavedAccessToken, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listRunAuditEvents, listSourceEvents, loginAccount, registerAccount, reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf, type AcademicSearchResult, type AuditEventRecord, type AuthUser, type EvidenceGraphResponse, type LibraryPaper, type PaperStatusCheck, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord } from "@/lib/api";
+import { checkPaperStatus, clearAccessToken, configurePaperMonitoring, createResearchRun, createSourceEvent, downloadEvidencePassport, fetchCurrentUser, getEvidenceGraph, hasSavedAccessToken, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listRunAuditEvents, listSourceEvents, listSourceStatusChecks, loginAccount, recordPaperStatusCheck, registerAccount, reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf, type AcademicSearchResult, type AuditEventRecord, type AuthUser, type EvidenceGraphResponse, type LibraryPaper, type PaperStatusCheck, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord, type SourceStatusCheckRecord } from "@/lib/api";
 import {
   Activity, ArrowRight, BookOpen, CircleHelp, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
   History, LayoutDashboard, Microscope, Network, Plus, Search,
@@ -94,6 +94,10 @@ export default function HomePage() {
   const [eventResult, setEventResult] = useState("");
   const [statusCheck, setStatusCheck] = useState<PaperStatusCheck | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [statusChecks, setStatusChecks] = useState<SourceStatusCheckRecord[]>([]);
+  const [statusChecksLoading, setStatusChecksLoading] = useState(false);
+  const [monitorIntervalMinutes, setMonitorIntervalMinutes] = useState(1440);
+  const [updatingMonitoring, setUpdatingMonitoring] = useState(false);
   const [passportFormatLoading, setPassportFormatLoading] = useState<"markdown" | "json" | null>(null);
   const [passportError, setPassportError] = useState("");
   const [reviewingRelationId, setReviewingRelationId] = useState<string | null>(null);
@@ -156,11 +160,19 @@ export default function HomePage() {
       setTimelineLoading(true);
       setTimelineError("");
       try {
-        const [papers, events] = await Promise.all([listLibraryPapers(100), listSourceEvents(50)]);
+        const [papers, events, checks] = await Promise.all([
+          listLibraryPapers(100),
+          listSourceEvents(50),
+          listSourceStatusChecks(50, false),
+        ]);
         if (!cancelled) {
           setLibraryPapers(papers);
           setSourceEvents(events);
+          setStatusChecks(checks);
           setEventPaperId((current) => current || papers[0]?.id || "");
+          const selectedId = eventPaperId || papers[0]?.id;
+          const selected = papers.find((paper) => paper.id === selectedId);
+          if (selected) setMonitorIntervalMinutes(selected.monitor_interval_minutes);
         }
       } catch (error) {
         if (!cancelled) setTimelineError(error instanceof Error ? error.message : "Could not load source lifecycle events.");
@@ -205,11 +217,32 @@ export default function HomePage() {
     setTimelineError("");
     setStatusCheck(null);
     try {
-      setStatusCheck(await checkPaperStatus(eventPaperId));
+      const result = await recordPaperStatusCheck(eventPaperId);
+      setStatusCheck(result);
+      const [checks, papers] = await Promise.all([listSourceStatusChecks(50, false), listLibraryPapers(100)]);
+      setStatusChecks(checks);
+      setLibraryPapers(papers);
     } catch (error) {
       setTimelineError(error instanceof Error ? error.message : "Could not check external source metadata.");
     } finally {
       setCheckingStatus(false);
+    }
+  }
+
+  async function setSelectedPaperMonitoring(enabled: boolean) {
+    if (!eventPaperId) return;
+    setUpdatingMonitoring(true);
+    setTimelineError("");
+    try {
+      const updated = await configurePaperMonitoring(eventPaperId, enabled, monitorIntervalMinutes);
+      setLibraryPapers((papers) => papers.map((paper) => paper.id === updated.id ? updated : paper));
+      setEventResult(enabled
+        ? "Scheduled status checks enabled. Chronicle will store provider signals and notify you of metadata changes for review."
+        : "Scheduled status checks disabled for this paper.");
+    } catch (error) {
+      setTimelineError(error instanceof Error ? error.message : "Could not update monitoring settings.");
+    } finally {
+      setUpdatingMonitoring(false);
     }
   }
 
