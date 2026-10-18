@@ -86,6 +86,35 @@ def import_paper(payload: PaperImport, db: Session = Depends(get_db)) -> Paper:
     return paper
 
 
+@router.get("/sources/events")
+def list_recent_source_events(
+    limit: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> dict:
+    rows = db.execute(
+        select(SourceEvent, Paper.title)
+        .join(Paper, Paper.id == SourceEvent.paper_id)
+        .order_by(SourceEvent.observed_at.desc())
+        .limit(limit)
+    ).all()
+    return {
+        "events": [{
+            "id": event.id,
+            "paper_id": event.paper_id,
+            "paper_title": paper_title,
+            "event_type": event.event_type,
+            "event_date": event.event_date.isoformat() if event.event_date else None,
+            "observed_at": event.observed_at.isoformat(),
+            "source_url": event.source_url,
+            "description": event.description,
+            "verification_status": event.verification_status,
+            "metadata_snapshot": event.metadata_snapshot,
+        } for event, paper_title in rows],
+        "count": len(rows),
+        "note": "Events are recorded from manual submissions in the current version. Scheduled publisher/retraction-feed monitoring is not enabled.",
+    }
+
+
 @router.get("/sources/papers", response_model=list[PaperRead])
 def list_papers(
     q: str | None = Query(default=None, max_length=500),
