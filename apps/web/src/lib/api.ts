@@ -226,3 +226,18 @@ export async function createSourceEvent(input: {
   if (!response.ok) throw new Error(await readError(response));
   return response.json();
 }
+
+
+export async function reviewEvidenceRelation(
+  relationId: string,
+  reviewerStatus: "accepted" | "rejected" | "needs_review",
+  reviewerNotes?: string
+): Promise<{ id: string; reviewer_status: string; provenance_basis: string; relation_type: string }> {
+  const response = await fetch(`${API_BASE}/api/v1/evidence/relations/${relationId}/review`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reviewer_status: reviewerStatus, reviewer_notes: reviewerNotes })
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json();
+}
