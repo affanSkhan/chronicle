@@ -64,6 +64,9 @@ export default function HomePage() {
   const [runsLoading, setRunsLoading] = useState(false);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [currentReport, setCurrentReport] = useState<ReportVersionSummary | null>(null);
+  const [reportVersions, setReportVersions] = useState<ReportVersionSummary[]>([]);
+  const [compareReportId, setCompareReportId] = useState("");
+  const [showVersionCompare, setShowVersionCompare] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [graphData, setGraphData] = useState<EvidenceGraphResponse | null>(null);
   const [graphLoading, setGraphLoading] = useState(false);
@@ -252,7 +255,11 @@ export default function HomePage() {
           setReportLoading(true);
           try {
             const reports = await listReportVersions(activeRunId);
-            if (!cancelled) setCurrentReport(reports[0] ?? null);
+            if (!cancelled) {
+              setReportVersions(reports);
+              setCurrentReport(reports[0] ?? null);
+              setCompareReportId(reports.find((report) => report.id !== reports[0]?.id)?.id ?? "");
+            }
           } catch (error) {
             if (!cancelled) setNotice(error instanceof Error ? error.message : "The report was completed but could not be loaded.");
           } finally {
@@ -354,6 +361,24 @@ export default function HomePage() {
   }
 
 
+  const comparedReport = reportVersions.find((report) => report.id === compareReportId) ?? null;
+  const versionDiff = useMemo(() => {
+    if (!showVersionCompare || !currentReport || !comparedReport || currentReport.id === comparedReport.id) return [];
+    const oldLines = comparedReport.content_markdown.split("\n");
+    const newLines = currentReport.content_markdown.split("\n");
+    const oldSet = new Set(oldLines);
+    const newSet = new Set(newLines);
+    const rows: { kind: "removed" | "added" | "unchanged"; text: string }[] = [];
+    for (const line of oldLines) {
+      if (!newSet.has(line)) rows.push({ kind: "removed", text: line });
+    }
+    for (const line of newLines) {
+      if (!oldSet.has(line)) rows.push({ kind: "added", text: line });
+    }
+    if (!rows.length) rows.push({ kind: "unchanged", text: "No line-level text changes detected." });
+    return rows;
+  }, [showVersionCompare, currentReport, comparedReport]);
+
   async function exportPassport(format: "markdown" | "json") {
     if (!activeRunId) return;
     setPassportFormatLoading(format);
@@ -374,7 +399,10 @@ export default function HomePage() {
     setReportLoading(true);
     try {
       const reports = await listReportVersions(runId);
+      setReportVersions(reports);
       setCurrentReport(reports[0] ?? null);
+      setCompareReportId(reports.find((report) => report.id !== reports[0]?.id)?.id ?? "");
+      setShowVersionCompare(false);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not load this research run.");
     } finally {
@@ -405,6 +433,9 @@ export default function HomePage() {
       setRuns((current) => [created, ...current.filter((run) => run.id !== created.id)]);
       setActiveRunId(created.id);
       setCurrentReport(null);
+      setReportVersions([]);
+      setCompareReportId("");
+      setShowVersionCompare(false);
       setView("Research workspace");
       setNotice(`Run ${created.id.slice(0, 8)} submitted. Searching Crossref/OpenAlex and building an academic discovery snapshot…`);
       setShowNewRun(false);
