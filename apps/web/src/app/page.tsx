@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createResearchRun, listResearchRuns, type ResearchMode as ApiResearchMode, type ResearchRun } from "@/lib/api";
 import {
   Activity, ArrowRight, BookOpen, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
@@ -57,6 +57,7 @@ export default function HomePage() {
   const [activeClaim, setActiveClaim] = useState("C-001");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("");
+  useEffect(() => { void listResearchRuns().then(setRuns).catch(() => undefined); }, []);
   const [submitting, setSubmitting] = useState(false);
   const [runs, setRuns] = useState<ResearchRun[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
