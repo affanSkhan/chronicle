@@ -110,6 +110,7 @@ export interface ReportVersionSummary {
   parent_version_id: string | null;
   title: string;
   content_markdown: string;
+  evidence_snapshot?: Record<string, unknown> | null;
   change_summary: string | null;
   review_required: boolean;
   created_at: string;
