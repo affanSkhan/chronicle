@@ -91,3 +91,22 @@ def test_research_pipeline_persists_metadata_report_and_evidence(monkeypatch, cl
     passport_papers = passport.json()["papers"]
     assert len(passport_papers) == 2
     assert any(paper["doi"] == "10.5555/chronicle-test-1" for paper in passport_papers)
+
+    # A discovery report must be flagged when one of its source papers changes,
+    # even if no model-derived claims were created for that run.
+    paper_id = next(paper["id"] for paper in passport_papers if paper["doi"] == "10.5555/chronicle-test-1")
+    event_response = client.post(
+        f"/api/v1/sources/papers/{paper_id}/events",
+        json={
+            "event_type": "correction",
+            "description": "A correction notice has been recorded for this discovered paper.",
+            "source_url": "https://example.org/correction-notice",
+            "verification_status": "human_verified",
+        },
+    )
+    assert event_response.status_code == 201, event_response.text
+    impact = event_response.json()["impact"]
+    assert run_id in impact["affected_run_ids"]
+    assert impact["report_versions_flagged_for_review"] == 1
+    updated_report = client.get(f"/api/v1/evidence/runs/{run_id}/reports").json()[0]
+    assert updated_report["review_required"] is True
