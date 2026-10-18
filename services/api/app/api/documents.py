@@ -45,7 +45,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
 
     raw_name = Path(file.filename or "uploaded-document.pdf").name
     safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(raw_name).stem).strip(".-_")[:80] or "document"
-    upload_dir = Path(settings.upload_dir)
+    upload_dir = Path(settings.upload_dir) / current_user.id
     upload_dir.mkdir(parents=True, exist_ok=True)
     stored_path = upload_dir / f"{file_hash}.pdf"
     stored_path.write_bytes(data)
