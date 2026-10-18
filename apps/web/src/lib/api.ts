@@ -266,3 +266,18 @@ export async function checkPaperStatus(paperId: string): Promise<PaperStatusChec
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<PaperStatusCheck>;
 }
+
+
+export async function downloadEvidencePassport(runId: string, format: "markdown" | "json" = "markdown"): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/v1/evidence/runs/${runId}/passport?format=${format}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = `chronicle-evidence-passport-${runId.slice(0, 8)}.${format === "json" ? "json" : "md"}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
