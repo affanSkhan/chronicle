@@ -110,3 +110,106 @@ def test_research_pipeline_persists_metadata_report_and_evidence(monkeypatch, cl
     assert impact["report_versions_flagged_for_review"] == 1
     updated_report = client.get(f"/api/v1/evidence/runs/{run_id}/reports").json()[0]
     assert updated_report["review_required"] is True
+
+
+def test_optional_synthesis_persists_source_linked_study_context(monkeypatch, client) -> None:
+    from sqlalchemy import select
+
+    from app.models.entities import Study
+    from conftest import TestingSessionLocal
+
+    monkeypatch.setattr(research_pipeline, "SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr(
+        research_pipeline,
+        "get_settings",
+        lambda: SimpleNamespace(
+            openai_api_key=SimpleNamespace(get_secret_value=lambda: "test-key"),
+            openai_api_base="https://model.example/v1",
+            openai_model="test-model",
+        ),
+    )
+
+    async def fake_search_papers(question: str, limit: int = 10, provider: str = "all") -> dict:
+        return {
+            "query": question,
+            "providers_requested": provider,
+            "provider_errors": {},
+            "results": [{
+                "provider": "crossref",
+                "external_id": "10.5555/study-context-test",
+                "doi": "10.5555/study-context-test",
+                "title": "Evaluation Methods in Evidence Research",
+                "authors": ["Example Researcher"],
+                "abstract": "We conducted a randomized controlled study of 120 adult participants. The intervention used a provenance-aware workflow. Outcomes included answer accuracy and citation traceability. Limitations include one institution and a short follow-up period.",
+                "publication_year": 2025,
+                "publisher": "Example Publisher",
+                "landing_url": "https://doi.org/10.5555/study-context-test",
+            }],
+        }
+
+    async def fake_extract_claims_from_passages(question: str, passages: list[dict], api_key: str, api_base: str, model: str) -> list[dict]:
+        return []
+
+    async def fake_synthesize_evidence(question: str, passages: list[dict], api_key: str, api_base: str, model: str) -> dict:
+        passage_id = passages[0]["id"]
+        return {
+            "executive_summary": "The retrieved abstract describes a randomized evaluation with a stated population, intervention, outcomes and limitations.",
+            "findings": [],
+            "study_characterizations": [{
+                "passage_id": passage_id,
+                "study_type": "Randomized controlled study",
+                "population": "120 adult participants",
+                "method": "Randomized controlled evaluation",
+                "intervention": "Provenance-aware workflow",
+                "outcomes": ["Answer accuracy", "Citation traceability"],
+                "limitations": ["One institution", "Short follow-up period"],
+            }],
+            "disagreements": [],
+            "limitations": ["Only the abstract was retrieved."],
+            "candidate_research_questions": [],
+            "uncertainty_statement": "The structured fields are model-inferred from an abstract and require full-text verification.",
+            "input_passage_ids": [passage_id],
+            "validated_source_references": True,
+            "human_review_required": True,
+        }
+
+    monkeypatch.setattr(research_pipeline, "search_papers", fake_search_papers)
+    monkeypatch.setattr(research_pipeline, "extract_claims_from_passages", fake_extract_claims_from_passages)
+    monkeypatch.setattr(research_pipeline, "synthesize_evidence", fake_synthesize_evidence)
+
+    created = client.post(
+        "/api/v1/research/runs",
+        json={
+            "question": "What methods evaluate provenance-aware research workflows?",
+            "mode": "academic",
+            "max_sources": 3,
+            "execute": False,
+        },
+    )
+    assert created.status_code == 201, created.text
+    run_id = created.json()["id"]
+
+    asyncio.run(research_pipeline.execute_research_run(run_id))
+
+    with TestingSessionLocal() as db:
+        study = db.scalar(select(Study).where(Study.extraction_basis == "model_inferred"))
+        assert study is not None
+        assert study.source_passage_id
+        assert study.study_type == "Randomized controlled study"
+        assert study.population == "120 adult participants"
+        assert "Citation traceability" in study.outcomes
+        study_id = study.id
+        passage_id = study.source_passage_id
+
+    reports = client.get(f"/api/v1/evidence/runs/{run_id}/reports").json()
+    assert reports[0]["evidence_snapshot"]["study_ids"] == [study_id]
+    assert "Extracted study context" in reports[0]["content_markdown"]
+    assert "Randomized controlled study" in reports[0]["content_markdown"]
+
+    graph = client.get(f"/api/v1/evidence/runs/{run_id}/graph").json()
+    assert any(node["id"] == f"study:{study_id}" for node in graph["nodes"])
+    assert any(edge["source"] == f"passage:{passage_id}" and edge["target"] == f"study:{study_id}" for edge in graph["edges"])
+
+    passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json").json()
+    assert any(item["id"] == study_id and item["source_passage_id"] == passage_id for item in passport["studies"])
+    assert any(item["id"] == study_id for item in passport["audit_events"])
