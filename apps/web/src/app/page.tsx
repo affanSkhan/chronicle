@@ -361,11 +361,12 @@ export default function HomePage() {
   }
 
 
+  const latestReport = reportVersions[0] ?? currentReport;
   const comparedReport = reportVersions.find((report) => report.id === compareReportId) ?? null;
   const versionDiff = useMemo(() => {
-    if (!showVersionCompare || !currentReport || !comparedReport || currentReport.id === comparedReport.id) return [];
+    if (!showVersionCompare || !latestReport || !comparedReport || latestReport.id === comparedReport.id) return [];
     const oldLines = comparedReport.content_markdown.split("\n");
-    const newLines = currentReport.content_markdown.split("\n");
+    const newLines = latestReport.content_markdown.split("\n");
     const oldSet = new Set(oldLines);
     const newSet = new Set(newLines);
     const rows: { kind: "removed" | "added" | "unchanged"; text: string }[] = [];
@@ -377,7 +378,7 @@ export default function HomePage() {
     }
     if (!rows.length) rows.push({ kind: "unchanged", text: "No line-level text changes detected." });
     return rows;
-  }, [showVersionCompare, currentReport, comparedReport]);
+  }, [showVersionCompare, latestReport, comparedReport]);
 
   async function exportPassport(format: "markdown" | "json") {
     if (!activeRunId) return;
@@ -507,6 +508,24 @@ export default function HomePage() {
               <div><div className="text-sm font-semibold">{currentReport?.title ?? "Loading report…"}</div><div className="mt-1 text-xs text-muted">{currentReport ? `Version ${currentReport.version_number} · ${new Date(currentReport.created_at).toLocaleString()}` : "Retrieving saved report version"}</div></div>
               {currentReport && <div className="flex flex-wrap items-center gap-2"><button onClick={()=>{void exportPassport("markdown");}} disabled={passportFormatLoading!==null} className="rounded-lg border border-line px-3 py-2 text-[11px] font-semibold hover:bg-paper disabled:opacity-50">{passportFormatLoading==="markdown"?"Preparing…":"Evidence Passport .md"}</button><button onClick={()=>{void exportPassport("json");}} disabled={passportFormatLoading!==null} className="rounded-lg border border-line px-3 py-2 text-[11px] font-semibold hover:bg-paper disabled:opacity-50">{passportFormatLoading==="json"?"Preparing…":"Export JSON"}</button><StatusPill tone={currentReport.review_required ? "amber" : "blue"}>{currentReport.review_required ? "Review required" : "Discovery snapshot"}</StatusPill></div>}
             </div>
+            {currentReport && reportVersions.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-paper px-5 py-3">
+              <label className="flex items-center gap-2 text-xs font-semibold">View saved version
+                <select value={currentReport.id} onChange={(event)=>{const selected=reportVersions.find((report)=>report.id===event.target.value);if(selected)setCurrentReport(selected);}} className="max-w-[260px] rounded-lg border border-line bg-white px-2.5 py-2 text-xs font-medium">
+                  {reportVersions.map((report)=><option key={report.id} value={report.id}>Version {report.version_number}{report.review_required ? " · review required" : ""}</option>)}
+                </select>
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                {reportVersions.length > 1 && <><select aria-label="Compare older version with latest" value={compareReportId} onChange={(event)=>setCompareReportId(event.target.value)} className="max-w-[190px] rounded-lg border border-line bg-white px-2.5 py-2 text-xs"><option value="">Choose version to compare…</option>{reportVersions.filter((report)=>report.id!==latestReport?.id).map((report)=><option key={report.id} value={report.id}>Version {report.version_number}</option>)}</select><button onClick={()=>setShowVersionCompare((value)=>!value)} disabled={!compareReportId} className="rounded-lg border border-line bg-white px-3 py-2 text-[11px] font-semibold hover:bg-slate-50 disabled:opacity-50">{showVersionCompare ? "Hide comparison" : "Compare with latest"}</button></>}
+                <span className="text-[10px] text-muted">{reportVersions.length} saved version(s)</span>
+              </div>
+            </div>}
+            {showVersionCompare && comparedReport && latestReport && comparedReport.id !== latestReport.id && <div className="border-b border-line px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-2"><div className="text-sm font-semibold">Version comparison: {comparedReport.version_number} → {latestReport.version_number}</div><div className="flex flex-wrap gap-2 text-[10px]"><StatusPill tone="red">Removed from latest</StatusPill><StatusPill tone="teal">Added in latest</StatusPill></div></div>
+              <p className="mt-1 text-xs leading-5 text-muted">Deterministic line-level comparison of saved Markdown, not a semantic judgement about scientific significance.</p>
+              <div className="mt-3 max-h-[360px] space-y-1 overflow-auto rounded-xl bg-slate-950 p-3 font-mono text-[11px] leading-5">
+                {versionDiff.map((row,index)=><div key={\`\${row.kind}-\${index}\`} className={row.kind==="removed"?"whitespace-pre-wrap break-words bg-red-950/50 px-2 text-red-200":row.kind==="added"?"whitespace-pre-wrap break-words bg-emerald-950/50 px-2 text-emerald-200":"whitespace-pre-wrap break-words px-2 text-slate-300"}>{row.kind==="removed"?"− ":row.kind==="added"?"+ ":"  "}{row.text || " "}</div>)}
+              </div>
+            </div>}
             {passportError && <div role="status" className="mx-5 mt-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{passportError}</div>}{currentReport && <div className="space-y-3 px-5 py-5 text-sm leading-6 text-slate-700">
               {currentReport.change_summary && <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">{currentReport.change_summary}</p>}
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
