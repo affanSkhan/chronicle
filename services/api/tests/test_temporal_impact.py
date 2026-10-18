@@ -1,9 +1,4 @@
-from fastapi.testclient import TestClient
 import fitz
-
-from app.main import app
-
-client = TestClient(app)
 
 
 def make_pdf(text: str) -> bytes:
@@ -15,7 +10,7 @@ def make_pdf(text: str) -> bytes:
     return data
 
 
-def upload_pdf(text: str, filename: str) -> dict:
+def upload_pdf(client, text: str, filename: str) -> dict:
     response = client.post(
         "/api/v1/documents/upload",
         files={"file": (filename, make_pdf(text), "application/pdf")},
@@ -24,7 +19,7 @@ def upload_pdf(text: str, filename: str) -> dict:
     return response.json()
 
 
-def test_source_event_flags_dependent_claims_and_report() -> None:
+def test_source_event_flags_dependent_claims_and_report(client) -> None:
     run_response = client.post(
         "/api/v1/research/runs",
         json={"question": "How does an intervention affect learning outcomes?", "mode": "forensic"},
@@ -32,8 +27,8 @@ def test_source_event_flags_dependent_claims_and_report() -> None:
     assert run_response.status_code == 201, run_response.text
     run_id = run_response.json()["id"]
 
-    origin = upload_pdf("This original study reports the initial experiment and dataset.", "origin.pdf")
-    dependent = upload_pdf("This follow-up analysis reuses the original dataset.", "dependent.pdf")
+    origin = upload_pdf(client, "This original study reports the initial experiment and dataset.", "origin.pdf")
+    dependent = upload_pdf(client, "This follow-up analysis reuses the original dataset.", "dependent.pdf")
     origin_id = origin["paper_id"]
     dependent_id = dependent["paper_id"]
 
@@ -158,7 +153,7 @@ def test_source_event_flags_dependent_claims_and_report() -> None:
     assert "Exact text:" in markdown_passport.text
 
 
-def test_upload_rejects_non_pdf() -> None:
+def test_upload_rejects_non_pdf(client) -> None:
     response = client.post(
         "/api/v1/documents/upload",
         files={"file": ("fake.pdf", b"not a PDF", "application/pdf")},
