@@ -31,7 +31,7 @@ services:
       API_PREFIX: /api/v1
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-development-only-change-this-secret-key}
       JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-480}
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://chronicle:chronicle-local-only@postgres:5432/chronicle}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://chronicle:${POSTGRES_PASSWORD:-chronicle-local-only}@postgres:5432/chronicle}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-50}
       MAX_PDF_PAGES: ${MAX_PDF_PAGES:-300}
