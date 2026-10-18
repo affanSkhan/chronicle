@@ -2,6 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router as research_router
+from app.api.sources import router as sources_router
+from app.api.documents import router as documents_router
+from app.api.evidence import router as evidence_router
 from app.core.config import get_settings
 from app.schemas.common import HealthResponse
 
@@ -34,3 +37,6 @@ def health() -> HealthResponse:
 
 
 app.include_router(research_router, prefix=settings.api_prefix)
+app.include_router(sources_router, prefix=settings.api_prefix)
+app.include_router(documents_router, prefix=settings.api_prefix)
+app.include_router(evidence_router, prefix=settings.api_prefix)
