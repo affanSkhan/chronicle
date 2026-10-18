@@ -27,7 +27,7 @@ def _clean_markup(value: str | None) -> str | None:
 
 def _year_from_parts(parts: Any) -> int | None:
     try:
-        year = int(parts[0][0])
+        year = int(parts[0])
         return year if 1600 <= year <= 2200 else None
     except (TypeError, ValueError, IndexError):
         return None
