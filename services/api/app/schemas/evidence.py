@@ -145,6 +145,7 @@ class SourceEventRead(BaseModel):
     source_url: str | None
     description: str
     verification_status: str
+    metadata_snapshot: dict = Field(default_factory=dict)
 
 
 class EvidenceRelationReview(BaseModel):
