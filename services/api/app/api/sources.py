@@ -10,12 +10,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.models.entities import Paper, PaperDependency, PaperVersion, Passage, SourceEvent
+from app.core.security import get_current_user
+from app.models.entities import Paper, PaperDependency, PaperVersion, Passage, SourceEvent, User
 from app.schemas.evidence import PaperImport, PaperRead, PaperSearchResult, SourceEventCreate, SourceEventRead
 from app.services.academic_search import search_papers
 from app.services.temporal_impact import affected_report_runs, impacted_claims, impacted_papers, mark_review_required
 
-router = APIRouter(tags=["sources"])
+router = APIRouter(tags=["sources"], dependencies=[Depends(get_current_user)])
 settings = get_settings()
 
 
@@ -41,15 +42,16 @@ async def search_academic_sources(
 
 
 @router.post("/sources/papers", response_model=PaperRead, status_code=201)
-def import_paper(payload: PaperImport, db: Session = Depends(get_db)) -> Paper:
+def import_paper(payload: PaperImport, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Paper:
     doi = normalize_doi(payload.doi)
     existing = None
     if doi:
-        existing = db.scalar(select(Paper).where(func.lower(Paper.doi) == doi.lower()))
+        existing = db.scalar(select(Paper).where(func.lower(Paper.doi) == doi.lower(), Paper.owner_user_id == current_user.id))
     if existing is None and payload.external_id:
         existing = db.scalar(select(Paper).where(
             Paper.source_provider == payload.provider,
             Paper.external_id == payload.external_id,
+            Paper.owner_user_id == current_user.id,
         ))
     if existing:
         if not existing.abstract and payload.abstract:
@@ -63,6 +65,7 @@ def import_paper(payload: PaperImport, db: Session = Depends(get_db)) -> Paper:
         return existing
 
     paper = Paper(
+        owner_user_id=current_user.id,
         doi=doi,
         title=payload.title.strip(),
         authors=payload.authors,
@@ -90,10 +93,12 @@ def import_paper(payload: PaperImport, db: Session = Depends(get_db)) -> Paper:
 def list_recent_source_events(
     limit: int = Query(default=50, ge=1, le=100),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     rows = db.execute(
         select(SourceEvent, Paper.title)
         .join(Paper, Paper.id == SourceEvent.paper_id)
+        .where(Paper.owner_user_id == current_user.id)
         .order_by(SourceEvent.observed_at.desc())
         .limit(limit)
     ).all()
@@ -120,25 +125,26 @@ def list_papers(
     q: str | None = Query(default=None, max_length=500),
     limit: int = Query(default=50, ge=1, le=100),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> list[Paper]:
-    statement = select(Paper).order_by(Paper.created_at.desc()).limit(limit)
+    statement = select(Paper).where(Paper.owner_user_id == current_user.id).order_by(Paper.created_at.desc()).limit(limit)
     if q:
-        statement = select(Paper).where(Paper.title.ilike(f"%{q.strip()}%")).order_by(Paper.created_at.desc()).limit(limit)
+        statement = select(Paper).where(Paper.owner_user_id == current_user.id, Paper.title.ilike(f"%{q.strip()}%")).order_by(Paper.created_at.desc()).limit(limit)
     return list(db.scalars(statement).all())
 
 
 @router.get("/sources/papers/{paper_id}", response_model=PaperRead)
-def get_paper(paper_id: str, db: Session = Depends(get_db)) -> Paper:
-    paper = db.get(Paper, paper_id)
+def get_paper(paper_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Paper:
+    paper = db.scalar(select(Paper).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id))
     if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found.")
     return paper
 
 
 @router.get("/sources/papers/{paper_id}/status-check")
-async def check_paper_status(paper_id: str, db: Session = Depends(get_db)) -> dict:
+async def check_paper_status(paper_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     """Preview post-publication signals without auto-changing saved evidence status."""
-    paper = db.get(Paper, paper_id)
+    paper = db.scalar(select(Paper).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id))
     if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found.")
     if not paper.doi:
@@ -229,8 +235,9 @@ def record_source_event(
     paper_id: str,
     payload: SourceEventCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
-    paper = db.get(Paper, paper_id)
+    paper = db.scalar(select(Paper).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id))
     if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found.")
 
@@ -329,7 +336,7 @@ def record_source_event(
 
 
 @router.get("/sources/papers/{paper_id}/events", response_model=list[SourceEventRead])
-def list_source_events(paper_id: str, db: Session = Depends(get_db)) -> list[SourceEvent]:
-    if db.get(Paper, paper_id) is None:
+def list_source_events(paper_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[SourceEvent]:
+    if db.scalar(select(Paper.id).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id)) is None:
         raise HTTPException(status_code=404, detail="Paper not found.")
     return list(db.scalars(select(SourceEvent).where(SourceEvent.paper_id == paper_id).order_by(SourceEvent.observed_at.desc())).all())
