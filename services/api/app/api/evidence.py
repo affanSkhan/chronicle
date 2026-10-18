@@ -375,16 +375,34 @@ def export_evidence_passport(
     passage_ids.update(snapshot_passage_ids)
     passages = list(db.scalars(select(Passage).where(Passage.id.in_(passage_ids))).all()) if passage_ids else []
     version_ids = {passage.paper_version_id for passage in passages}
+    paper_ids = set(snapshot_paper_ids)
+    if version_ids:
+        direct_versions = db.scalars(select(PaperVersion).where(PaperVersion.id.in_(version_ids))).all()
+        paper_ids.update(version.paper_id for version in direct_versions)
+
+    # Include the transitive dependency neighborhood so the passport covers
+    # related source events and paper records, not just the directly cited source.
+    all_dependencies = list(db.scalars(select(PaperDependency)).all())
+    dependencies: list[PaperDependency] = []
+    changed = True
+    while changed:
+        changed = False
+        for dependency in all_dependencies:
+            if dependency in dependencies:
+                continue
+            if dependency.dependent_paper_id in paper_ids or dependency.depends_on_paper_id in paper_ids:
+                dependencies.append(dependency)
+                before = len(paper_ids)
+                paper_ids.add(dependency.dependent_paper_id)
+                paper_ids.add(dependency.depends_on_paper_id)
+                if len(paper_ids) != before:
+                    changed = True
+
     versions = list(db.scalars(select(PaperVersion).where(or_(
         PaperVersion.id.in_(version_ids),
-        PaperVersion.paper_id.in_(snapshot_paper_ids),
-    ))).all()) if (version_ids or snapshot_paper_ids) else []
-    paper_ids = {version.paper_id for version in versions} | snapshot_paper_ids
+        PaperVersion.paper_id.in_(paper_ids),
+    ))).all()) if (version_ids or paper_ids) else []
     papers = list(db.scalars(select(Paper).where(Paper.id.in_(paper_ids))).all()) if paper_ids else []
-    dependencies = list(db.scalars(select(PaperDependency).where(or_(
-        PaperDependency.dependent_paper_id.in_(paper_ids),
-        PaperDependency.depends_on_paper_id.in_(paper_ids),
-    ))).all()) if paper_ids else []
     source_events = list(db.scalars(select(SourceEvent).where(
         SourceEvent.paper_id.in_(paper_ids)
     ).order_by(SourceEvent.observed_at.desc())).all()) if paper_ids else []
