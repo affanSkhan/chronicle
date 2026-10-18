@@ -384,6 +384,8 @@ async def execute_research_run(run_id: str) -> None:
                     "llm_extraction_error": extraction_error,
                     "model_synthesis_completed": synthesis_result is not None,
                     "model_synthesis_error": synthesis_error,
+                    "model_synthesis_note": synthesis_note,
+                    "model_synthesis": synthesis_result,
                 },
                 change_summary="Initial scholarly discovery snapshot; extracted claims remain unreviewed candidates.",
             )
