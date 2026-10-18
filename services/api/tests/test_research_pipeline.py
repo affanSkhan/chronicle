@@ -92,6 +92,29 @@ def test_research_pipeline_persists_metadata_report_and_evidence(monkeypatch, cl
     assert len(passport_papers) == 2
     assert any(paper["doi"] == "10.5555/chronicle-test-1" for paper in passport_papers)
 
+    from app.models.entities import SourceStatusCheck
+    with TestingSessionLocal() as db:
+        check_paper_id = next(paper["id"] for paper in passport_papers if paper["doi"] == "10.5555/chronicle-test-1")
+        db.add(SourceStatusCheck(
+            paper_id=check_paper_id,
+            trigger_type="scheduled",
+            outcome="ok",
+            provider_states={"crossref": "ok", "openalex": "ok"},
+            signals=[{
+                "provider": "crossref",
+                "event_type": "correction",
+                "description": "Candidate update notice for review.",
+                "source_url": "https://example.org/status-notice",
+            }],
+            result_hash="a" * 64,
+            previous_result_hash="b" * 64,
+            change_detected=True,
+        ))
+        db.commit()
+    passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json").json()
+    assert any(check["trigger_type"] == "scheduled" and check["change_detected"] for check in passport["source_status_checks"])
+    assert any(signal["source_url"] == "https://example.org/status-notice" for check in passport["source_status_checks"] for signal in check["signals"])
+
     # A discovery report must be flagged when one of its source papers changes,
     # even if no model-derived claims were created for that run.
     paper_id = next(paper["id"] for paper in passport_papers if paper["doi"] == "10.5555/chronicle-test-1")
