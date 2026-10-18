@@ -53,13 +53,21 @@ def test_source_event_flags_dependent_claims_and_report() -> None:
         json={
             "passage_id": passage_id,
             "relation_type": "supports",
-            "provenance_basis": "human_reviewed",
+            "provenance_basis": "model_inferred",
             "confidence": 0.9,
-            "reviewer_status": "accepted",
+            "reviewer_status": "unreviewed",
             "rationale": "The passage directly reports the outcome.",
         },
     )
     assert relation_response.status_code == 201, relation_response.text
+    relation_id = relation_response.json()["id"]
+    review_response = client.patch(
+        f"/api/v1/evidence/relations/{relation_id}/review",
+        json={"reviewer_status": "accepted", "reviewer_notes": "I reviewed the exact passage and it directly supports the statement."},
+    )
+    assert review_response.status_code == 200, review_response.text
+    assert review_response.json()["reviewer_status"] == "accepted"
+    assert review_response.json()["provenance_basis"] == "human_reviewed"
 
     dependency_response = client.post(
         "/api/v1/evidence/paper-dependencies",
