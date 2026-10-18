@@ -1,9 +1,7 @@
-"""Background research runner.
+"""Background research runner: scholarly discovery plus optional structured extraction.
 
-The first live pipeline performs scholarly metadata discovery and persists
-abstract-level passages. It deliberately does not call an abstract a verified
-scientific claim; optional structured claim extraction is added as a separate
-provider-backed stage.
+Model-generated claims remain unreviewed. Each edge is checked against the
+passage IDs supplied to the model and labelled model-inferred, not verified.
 """
 from datetime import datetime, timezone
 import hashlib
@@ -11,9 +9,11 @@ import re
 
 from sqlalchemy import func, select
 
+from app.core.config import get_settings
 from app.core.database import SessionLocal
-from app.models.entities import Paper, PaperVersion, Passage, ReportVersion, ResearchRun
+from app.models.entities import Claim, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun
 from app.services.academic_search import search_papers
+from app.services.claim_extraction import extract_claims_from_passages
 
 
 def _normalize_doi(value: str | None) -> str | None:
@@ -25,17 +25,26 @@ def _normalize_doi(value: str | None) -> str | None:
     return doi.strip().rstrip(".") or None
 
 
-def _markdown_report(question: str, papers: list[dict], provider_errors: dict[str, str], created_at: str) -> str:
+def _markdown_report(
+    question: str,
+    mode: str,
+    papers: list[dict],
+    provider_errors: dict[str, str],
+    created_at: str,
+    extracted_claims: list[dict],
+    llm_note: str,
+) -> str:
     lines = [
         "# Academic Discovery Snapshot",
         "",
         f"**Research question:** {question}",
+        f"**Mode:** {mode}",
         f"**Generated:** {created_at}",
-        "**Workflow:** Crossref/OpenAlex metadata retrieval with abstract passage persistence.",
+        "**Workflow:** Crossref/OpenAlex metadata retrieval, abstract passage persistence, and optional structured claim extraction.",
         "",
         "## Important interpretation note",
         "",
-        "This is a bibliographic discovery snapshot, not a completed systematic review. Abstracts and metadata have been retrieved, but claims have not automatically been verified against full-text studies. Any optional model-generated claim is labelled as unreviewed and must be checked by a researcher.",
+        "This is a bibliographic discovery snapshot, not a completed systematic review. Abstracts and metadata are retrieved, but they do not replace full-text appraisal. Any model-generated claim below is unreviewed and must be checked by a researcher.",
         "",
         "## Retrieved literature",
         "",
@@ -53,11 +62,28 @@ def _markdown_report(question: str, papers: list[dict], provider_errors: dict[st
             lines.append(f"- **DOI:** [{doi}](https://doi.org/{doi})")
         elif url:
             lines.append(f"- **Source:** {url}")
+        if paper.get("passage_id"):
+            lines.append(f"- **Abstract passage ID:** {paper['passage_id']}")
         abstract = (paper.get("abstract") or "").strip()
         if abstract:
             lines.extend(["", "**Abstract**", "", "> " + abstract.replace("\n", "\n> "), ""])
         else:
             lines.extend(["", "_No abstract was available from the metadata provider._", ""])
+
+    lines.extend(["## Candidate claims", ""])
+    if not extracted_claims:
+        lines.append("No model-generated candidate claims were added. " + llm_note)
+    else:
+        lines.append("These are model-extracted candidates linked to abstract passages. They are not independently verified conclusions.")
+        lines.append("")
+        for index, claim in enumerate(extracted_claims, start=1):
+            lines.append(f"{index}. **{claim['statement']}**")
+            if claim.get("uncertainty_notes"):
+                lines.append(f"   - Uncertainty: {claim['uncertainty_notes']}")
+            for evidence in claim.get("evidence", []):
+                lines.append(f"   - {evidence['relation_type']} passage {evidence['passage_id']}: {evidence['rationale']}")
+            lines.append("")
+
     lines.extend(["## Search coverage and limitations", ""])
     lines.append(f"- Papers persisted in this run: {len(papers)}")
     lines.append("- Search providers: Crossref and OpenAlex.")
@@ -65,24 +91,24 @@ def _markdown_report(question: str, papers: list[dict], provider_errors: dict[st
         lines.append("- Provider limitations: " + ", ".join(f"{name}: {reason}" for name, reason in provider_errors.items()))
     lines.append("- Provider indexing is not exhaustive; absence from this result set is not evidence that a study does not exist.")
     lines.append("- Retrieved abstracts are source text for inspection, not an automatic verdict on the research question.")
-    lines.append("- Full-text extraction, citation entailment, contextual contradiction analysis and dependency-adjusted synthesis must be completed by later workflow stages.")
+    lines.append("- Claims are marked model-inferred/unreviewed; a model response is not proof of truth.")
+    lines.append("- Source dependency detection, context-aware contradiction adjudication, full-text citation entailment and calibrated evidence weighting require further evaluation.")
     return "\n".join(lines)
 
 
 async def execute_research_run(run_id: str) -> None:
-    """Run a single discovery job and persist its status/report.
-
-    Every phase opens its own synchronous DB session. The async scholarly API
-    calls happen outside a transaction to avoid holding a connection while
-    waiting on the network.
-    """
+    """Execute a discovery run and persist its status, source records and report."""
     with SessionLocal() as db:
         run = db.get(ResearchRun, run_id)
         if run is None:
             return
         run.status = "running"
         run.error_message = None
-        run.configuration = {**(run.configuration or {}), "pipeline": "scholarly-metadata-discovery", "started_at": datetime.now(timezone.utc).isoformat()}
+        run.configuration = {
+            **(run.configuration or {}),
+            "pipeline": "scholarly-metadata-discovery",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+        }
         question = run.question
         limit = run.max_sources
         mode = run.mode
@@ -92,7 +118,9 @@ async def execute_research_run(run_id: str) -> None:
         provider_result = await search_papers(question, limit=limit, provider="all")
         result_items = provider_result.get("results", [])
         saved_papers: list[dict] = []
+        passages_for_extraction: list[dict] = []
 
+        # Phase 1: persist papers, versions and abstract passages.
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
             if run is None:
@@ -135,7 +163,8 @@ async def execute_research_run(run_id: str) -> None:
 
                 abstract = (item.get("abstract") or paper.abstract or "").strip()
                 abstract_hash = hashlib.sha256(abstract.encode("utf-8")).hexdigest() if abstract else None
-                version_label = f"metadata-{abstract_hash[:12] if abstract_hash else hashlib.sha256(paper.title.encode('utf-8')).hexdigest()[:12]}"
+                version_source = abstract_hash if abstract_hash else hashlib.sha256(paper.title.encode("utf-8")).hexdigest()
+                version_label = f"metadata-{version_source[:12]}"
                 version = db.scalar(select(PaperVersion).where(
                     PaperVersion.paper_id == paper.id,
                     PaperVersion.version_label == version_label,
@@ -178,6 +207,12 @@ async def execute_research_run(run_id: str) -> None:
                         db.add(passage)
                         db.flush()
                     passage_id = passage.id
+                    passages_for_extraction.append({
+                        "id": passage_id,
+                        "paper_title": paper.title,
+                        "doi": paper.doi,
+                        "text": abstract,
+                    })
 
                 saved_papers.append({
                     "paper_id": paper.id,
@@ -191,25 +226,97 @@ async def execute_research_run(run_id: str) -> None:
                     "abstract": abstract or None,
                     "source_provider": paper.source_provider,
                 })
+            db.commit()
 
-            generated_at = datetime.now(timezone.utc).isoformat()
+        # Phase 2: optional model-backed candidates; retrieval-only mode is valid.
+        settings = get_settings()
+        extracted_claims: list[dict] = []
+        llm_note = "LLM extraction skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured."
+        extraction_error: str | None = None
+        if settings.openai_api_key and settings.openai_model.strip() and passages_for_extraction:
+            try:
+                extracted_claims = await extract_claims_from_passages(
+                    question=question,
+                    passages=passages_for_extraction,
+                    api_key=settings.openai_api_key.get_secret_value(),
+                    api_base=settings.openai_api_base,
+                    model=settings.openai_model.strip(),
+                )
+                llm_note = "Structured extraction completed; generated claims and evidence edges still require human review."
+            except Exception as exc:
+                extraction_error = type(exc).__name__
+                llm_note = "LLM extraction failed; the bibliographic discovery report was completed without model-generated claims."
+
+        persisted_claims: list[dict] = []
+        if extracted_claims:
+            allowed_passage_ids = {str(p["id"]) for p in passages_for_extraction}
+            with SessionLocal() as db:
+                for proposal in extracted_claims:
+                    valid_evidence = [e for e in proposal["evidence"] if e["passage_id"] in allowed_passage_ids]
+                    if not valid_evidence:
+                        continue
+                    claim = Claim(
+                        run_id=run_id,
+                        statement=proposal["statement"],
+                        scope=proposal.get("scope") or {},
+                        assessment="unassessed",
+                        review_required=True,
+                        uncertainty_notes=proposal.get("uncertainty_notes"),
+                    )
+                    db.add(claim)
+                    db.flush()
+                    stored_edges = []
+                    for evidence in valid_evidence:
+                        db.add(EvidenceRelation(
+                            claim_id=claim.id,
+                            passage_id=evidence["passage_id"],
+                            relation_type=evidence["relation_type"],
+                            provenance_basis="model_inferred",
+                            reviewer_status="unreviewed",
+                            rationale=evidence["rationale"],
+                        ))
+                        stored_edges.append({
+                            "passage_id": evidence["passage_id"],
+                            "relation_type": evidence["relation_type"],
+                            "rationale": evidence["rationale"],
+                        })
+                    persisted_claims.append({
+                        "id": claim.id,
+                        "statement": claim.statement,
+                        "uncertainty_notes": claim.uncertainty_notes,
+                        "evidence": stored_edges,
+                    })
+                db.commit()
+
+        # Phase 3: immutable report snapshot and final job state.
+        generated_at = datetime.now(timezone.utc).isoformat()
+        with SessionLocal() as db:
+            run = db.get(ResearchRun, run_id)
+            if run is None:
+                return
             latest = db.scalar(select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number.desc()))
             report = ReportVersion(
                 run_id=run_id,
                 version_number=(latest.version_number + 1) if latest else 1,
                 parent_version_id=latest.id if latest else None,
                 title="Academic Discovery Snapshot",
-                content_markdown=_markdown_report(question, saved_papers, provider_result.get("provider_errors", {}), generated_at),
+                content_markdown=_markdown_report(
+                    question, mode, saved_papers, provider_result.get("provider_errors", {}),
+                    generated_at, persisted_claims, llm_note,
+                ),
                 evidence_snapshot={
                     "query": question,
+                    "mode": mode,
                     "providers_requested": provider_result.get("providers_requested"),
                     "provider_errors": provider_result.get("provider_errors", {}),
                     "paper_ids": [paper["paper_id"] for paper in saved_papers],
                     "passage_ids": [paper["passage_id"] for paper in saved_papers if paper["passage_id"]],
+                    "claim_ids": [claim["id"] for claim in persisted_claims],
                     "generated_at": generated_at,
                     "claim_verification_completed": False,
+                    "llm_extraction_error": extraction_error,
                 },
-                change_summary="Initial metadata discovery run.",
+                change_summary="Initial scholarly discovery snapshot; extracted claims remain unreviewed candidates.",
             )
             db.add(report)
             run.status = "completed"
@@ -221,13 +328,15 @@ async def execute_research_run(run_id: str) -> None:
                 "completed_at": generated_at,
                 "paper_count": len(saved_papers),
                 "passage_count": sum(1 for paper in saved_papers if paper["passage_id"]),
+                "claim_candidate_count": len(persisted_claims),
                 "provider_errors": provider_result.get("provider_errors", {}),
+                "llm_extraction_error": extraction_error,
                 "claim_verification_completed": False,
             }
             db.commit()
 
     except Exception as exc:
-        # Store a user-safe error; do not persist request URLs, headers, or secrets.
+        # Store a user-safe error; don't persist request URLs, headers or secrets.
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
             if run is not None:
