@@ -323,6 +323,21 @@ export default function HomePage() {
   }
 
 
+  async function openResearchRun(runId: string) {
+    setActiveRunId(runId);
+    setCurrentReport(null);
+    setView("Research workspace");
+    setReportLoading(true);
+    try {
+      const reports = await listReportVersions(runId);
+      setCurrentReport(reports[0] ?? null);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not load this research run.");
+    } finally {
+      setReportLoading(false);
+    }
+  }
+
   async function startResearch() {
     if (!query.trim()) {
       setNotice("Enter a research question to create a run.");
@@ -397,7 +412,7 @@ export default function HomePage() {
             {runs.length === 0 ? <div className="px-5 py-6 text-sm text-muted">No API-backed runs loaded yet. Open this workspace and create a research run to verify the backend connection.</div> :
             <div className="divide-y divide-line">{runs.map((run) => <div key={run.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
               <div className="min-w-0"><div className="text-sm font-medium">{run.question}</div><div className="mt-1 text-[11px] text-muted">{run.id.slice(0, 8)} · {new Date(run.created_at).toLocaleString()}</div></div>
-              <div className="flex items-center gap-2"><StatusPill tone="blue">{run.mode}</StatusPill><StatusPill>{run.status}</StatusPill></div>
+              <div className="flex items-center gap-2"><StatusPill tone="blue">{run.mode}</StatusPill><StatusPill tone={run.status==="completed"?"teal":run.status==="failed"?"red":"amber"}>{run.status}</StatusPill><button onClick={()=>{void openResearchRun(run.id);}} className="rounded-lg border border-line px-3 py-1.5 text-[11px] font-semibold hover:bg-paper">{run.status==="completed"?"Open report":"Open run"}</button></div>
             </div>)}</div>}
           </section>
           <div className="mt-5 grid gap-4 xl:grid-cols-3"><div className="surface p-5"><div className="flex items-center gap-2 text-sm font-semibold"><Network size={17} className="text-accent"/> Evidence graph</div><p className="mt-2 text-xs leading-5 text-muted">Trace a conclusion through claims and passages. Model-inferred edges will be labelled separately.</p><button onClick={() => setView("Evidence graph")} className="mt-4 text-xs font-semibold text-accent">Explore graph →</button></div><div className="surface p-5"><div className="flex items-center gap-2 text-sm font-semibold"><History size={17} className="text-accent"/> Temporal intelligence</div><p className="mt-2 text-xs leading-5 text-muted">Future source events will trigger targeted reassessment, preserving previous report versions.</p><button onClick={() => setView("Source timeline")} className="mt-4 text-xs font-semibold text-accent">View timeline →</button></div><div className="surface p-5"><div className="flex items-center gap-2 text-sm font-semibold"><FlaskConical size={17} className="text-accent"/> Hypothesis lab</div><p className="mt-2 text-xs leading-5 text-muted">Candidate research opportunities will be grounded in retrieved literature and marked as hypotheses, not discoveries.</p><button onClick={() => setView("Hypothesis lab")} className="mt-4 text-xs font-semibold text-accent">Open lab →</button></div></div>
