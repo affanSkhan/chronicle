@@ -145,3 +145,8 @@ class SourceEventRead(BaseModel):
     source_url: str | None
     description: str
     verification_status: str
+
+
+class EvidenceRelationReview(BaseModel):
+    reviewer_status: Literal["accepted", "rejected", "needs_review"]
+    reviewer_notes: str | None = Field(default=None, max_length=3000)
