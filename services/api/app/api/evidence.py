@@ -8,7 +8,7 @@ from app.models.entities import (
     ReportVersion, ResearchRun, Study,
 )
 from app.schemas.evidence import (
-    ClaimCreate, ClaimRead, EvidenceRelationCreate, EvidenceRelationRead,
+    ClaimCreate, ClaimRead, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
     PaperDependencyCreate, StudyCreate,
 )
 
@@ -93,6 +93,61 @@ def add_claim_relation(
         if payload.relation_type in accepted_assessments:
             claim.assessment = accepted_assessments[payload.relation_type]
             claim.review_required = False
+    db.commit()
+    db.refresh(relation)
+    return relation
+
+
+@router.patch("/relations/{relation_id}/review", response_model=EvidenceRelationRead)
+def review_evidence_relation(
+    relation_id: str,
+    payload: EvidenceRelationReview,
+    db: Session = Depends(get_db),
+) -> EvidenceRelation:
+    relation = db.get(EvidenceRelation, relation_id)
+    if relation is None:
+        raise HTTPException(status_code=404, detail="Evidence relationship not found.")
+
+    previous_status = relation.reviewer_status
+    relation.reviewer_status = payload.reviewer_status
+    if payload.reviewer_notes:
+        relation.metadata_snapshot = {
+            **(relation.metadata_snapshot or {}),
+            "human_review": {
+                "reviewer_status": payload.reviewer_status,
+                "reviewer_notes": payload.reviewer_notes,
+            },
+        }
+    if payload.reviewer_status == "accepted":
+        relation.provenance_basis = "human_reviewed"
+        assessment_map = {
+            "supports": "supported",
+            "contradicts": "contradicted",
+            "qualifies": "qualified",
+            "not_comparable": "not_comparable",
+            "insufficient_evidence": "insufficient_evidence",
+        }
+        claim = db.get(Claim, relation.claim_id)
+        if claim is not None and relation.relation_type in assessment_map:
+            claim.assessment = assessment_map[relation.relation_type]
+            claim.review_required = False
+    elif payload.reviewer_status in {"rejected", "needs_review"}:
+        claim = db.get(Claim, relation.claim_id)
+        if claim is not None:
+            claim.review_required = True
+            claim.assessment = "needs_review"
+
+    relation.metadata_snapshot = {
+        **(relation.metadata_snapshot or {}),
+        "review_history": [
+            *((relation.metadata_snapshot or {}).get("review_history") or []),
+            {
+                "previous_status": previous_status,
+                "new_status": payload.reviewer_status,
+                "notes": payload.reviewer_notes,
+            },
+        ],
+    }
     db.commit()
     db.refresh(relation)
     return relation
