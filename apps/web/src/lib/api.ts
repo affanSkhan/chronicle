@@ -28,3 +28,12 @@ export async function createResearchRun(input: {
   }
   return response.json() as Promise<ResearchRun>;
 }
+
+
+export async function listResearchRuns(): Promise<ResearchRun[]> {
+  const response = await fetch(`${API_BASE}/api/v1/research/runs`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Could not load research runs (${response.status}).`);
+  }
+  return response.json() as Promise<ResearchRun[]>;
+}
