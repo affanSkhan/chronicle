@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { createResearchRun, importPaper, listReportVersions, listResearchRuns, searchAcademicSources, uploadPdf, type AcademicSearchResult, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun } from "@/lib/api";
+import { createResearchRun, getEvidenceGraph, importPaper, listReportVersions, listResearchRuns, searchAcademicSources, uploadPdf, type AcademicSearchResult, type EvidenceGraphResponse, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun } from "@/lib/api";
 import {
   Activity, ArrowRight, BookOpen, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
   History, LayoutDashboard, Microscope, Network, Plus, Search,
@@ -65,6 +65,9 @@ export default function HomePage() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [currentReport, setCurrentReport] = useState<ReportVersionSummary | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [graphData, setGraphData] = useState<EvidenceGraphResponse | null>(null);
+  const [graphLoading, setGraphLoading] = useState(false);
+  const [graphError, setGraphError] = useState("");
   const [sourceQuery, setSourceQuery] = useState("");
   const [sourceResults, setSourceResults] = useState<AcademicSearchResult[]>([]);
   const [sourceLoading, setSourceLoading] = useState(false);
@@ -88,6 +91,29 @@ export default function HomePage() {
     void loadRuns();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (view !== "Evidence graph" || !activeRunId) {
+      setGraphData(null);
+      setGraphError("");
+      return;
+    }
+    let cancelled = false;
+    const loadGraph = async () => {
+      setGraphLoading(true);
+      setGraphError("");
+      try {
+        const graph = await getEvidenceGraph(activeRunId);
+        if (!cancelled) setGraphData(graph);
+      } catch (error) {
+        if (!cancelled) setGraphError(error instanceof Error ? error.message : "Could not load the persisted evidence graph.");
+      } finally {
+        if (!cancelled) setGraphLoading(false);
+      }
+    };
+    void loadGraph();
+    return () => { cancelled = true; };
+  }, [view, activeRunId]);
 
   useEffect(() => {
     if (!activeRunId) return;
