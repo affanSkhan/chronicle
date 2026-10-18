@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { createResearchRun, type ResearchMode as ApiResearchMode } from "@/lib/api";
+import { createResearchRun, listResearchRuns, type ResearchMode as ApiResearchMode, type ResearchRun } from "@/lib/api";
 import {
   Activity, ArrowRight, BookOpen, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
   History, LayoutDashboard, Microscope, Network, Plus, Search,
@@ -58,7 +58,22 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [runs, setRuns] = useState<ResearchRun[]>([]);
+  const [runsLoading, setRunsLoading] = useState(false);
   const claims = useMemo(() => demoClaims.filter(c => (c.title + c.state).toLowerCase().includes(searchTerm.toLowerCase())), [searchTerm]);
+
+  async function refreshRuns() {
+    setRunsLoading(true);
+    try {
+      const latest = await listResearchRuns();
+      setRuns(latest);
+    } catch {
+      // Keep demo UI usable if the API is offline; show the connection error in the workspace.
+    } finally {
+      setRunsLoading(false);
+    }
+  }
+
 
   async function startResearch() {
     if (!query.trim()) {
@@ -79,6 +94,7 @@ export default function HomePage() {
         mode: modes[mode] ?? "deep",
         max_sources: 10
       });
+      setRuns((current) => [created, ...current.filter((run) => run.id !== created.id)]);
       setNotice(`Run ${created.id.slice(0, 8)} was created by the API. It is currently a demo request; live research orchestration is not connected.`);
       setShowNewRun(false);
     } catch (error) {
@@ -116,11 +132,22 @@ export default function HomePage() {
 
         {view === "Overview" && <>
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><div className="eyebrow">Research command center</div><h1 className="mt-2 text-2xl font-semibold tracking-tight md:text-3xl">A clearer trail from evidence to conclusion.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Explore a research workspace built to keep claims inspectable, source dependencies visible, and evidence changes accountable.</p></div><button onClick={() => setShowNewRun(true)} className="inline-flex w-fit items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 text-sm font-semibold shadow-sm hover:bg-slate-50"><Plus size={16}/> Start a research run</button></div>
-          <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Research runs" value="01" hint="1 demo workspace" icon={Workflow}/><Metric label="Claims in ledger" value="03" hint="Illustrative demo records" icon={ShieldCheck}/><Metric label="Evidence relations" value="06" hint="Not verified against live sources" icon={GitBranch}/><Metric label="Source updates" value="00" hint="External monitoring not connected" icon={Clock3}/></div>
+          <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Research runs" value={String(runs.length).padStart(2, "0")} hint={runsLoading ? "Refreshing API runs…" : "API-backed demo run requests"} icon={Workflow}/><Metric label="Claims in ledger" value="03" hint="Illustrative demo records" icon={ShieldCheck}/><Metric label="Evidence relations" value="06" hint="Not verified against live sources" icon={GitBranch}/><Metric label="Source updates" value="00" hint="External monitoring not connected" icon={Clock3}/></div>
           <div className="mt-7 grid gap-5 2xl:grid-cols-[1.25fr_0.75fr]">
             <section className="surface overflow-hidden"><div className="flex items-center justify-between border-b border-line px-5 py-4"><div><div className="font-semibold">Evidence ledger</div><div className="mt-1 text-xs text-muted">Example claims and their review states</div></div><button onClick={() => setView("Research workspace")} className="text-xs font-semibold text-accent">Open ledger <ArrowRight size={13} className="ml-1 inline"/></button></div><div className="divide-y divide-line">{demoClaims.map(c => <button key={c.id} onClick={() => {setActiveClaim(c.id); setView("Research workspace");}} className="flex w-full items-start gap-4 px-5 py-4 text-left transition hover:bg-slate-50"><div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-paper text-muted"><FileSearch size={17}/></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-semibold tracking-wide text-muted">{c.id}</span><StatusPill tone={c.tone}>{c.state}</StatusPill></div><div className="mt-1.5 text-sm font-semibold">{c.title}</div><div className="mt-1 text-xs leading-5 text-muted">{c.summary}</div></div><div className="shrink-0 text-right"><div className="text-sm font-semibold">{c.evidence}</div><div className="text-[10px] text-muted">evidence links</div></div></button>)}</div><div className="bg-paper px-5 py-3 text-[11px] text-muted">Illustrative sample only. The prototype has not yet retrieved or verified these findings.</div></section>
             <section className="surface p-5"><div className="flex items-center justify-between"><div><div className="font-semibold">Research activity</div><div className="mt-1 text-xs text-muted">Events in the demo workspace</div></div><Activity size={18} className="text-muted"/></div><div className="mt-6 space-y-5">{timeline.map((item,i)=><div key={item.title} className="flex gap-3"><div className="flex flex-col items-center"><div className={`flex h-8 w-8 items-center justify-center rounded-xl ${item.kind === "review" ? "bg-amber-50 text-amber-700" : "bg-accent-soft text-accent"}`}>{item.kind === "run" ? <Workflow size={15}/> : item.kind === "claim" ? <ShieldCheck size={15}/> : <CircleDashed size={15}/>}</div>{i < timeline.length-1 && <div className="mt-2 h-8 w-px bg-line"/>}</div><div><div className="text-[10px] font-medium text-muted">{item.date}</div><div className="mt-1 text-sm font-semibold">{item.title}</div><div className="mt-1 text-xs leading-5 text-muted">{item.description}</div></div></div>)}</div><button onClick={() => setView("Source timeline")} className="mt-6 flex items-center gap-2 text-xs font-semibold text-accent">Open source timeline <ArrowRight size={14}/></button></section>
           </div>
+<section className="surface mt-5 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-line px-5 py-4">
+              <div><div className="font-semibold">Research runs</div><div className="mt-1 text-xs text-muted">Stored by the API process (demo storage resets on restart)</div></div>
+              <button onClick={refreshRuns} className="rounded-lg border border-line px-3 py-2 text-xs font-semibold hover:bg-paper" disabled={runsLoading}>{runsLoading ? "Refreshing…" : "Refresh"}</button>
+            </div>
+            {runs.length === 0 ? <div className="px-5 py-6 text-sm text-muted">No API-backed runs loaded yet. Open this workspace and create a research run to verify the backend connection.</div> :
+            <div className="divide-y divide-line">{runs.map((run) => <div key={run.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+              <div className="min-w-0"><div className="text-sm font-medium">{run.question}</div><div className="mt-1 text-[11px] text-muted">{run.id.slice(0, 8)} · {new Date(run.created_at).toLocaleString()}</div></div>
+              <div className="flex items-center gap-2"><StatusPill tone="blue">{run.mode}</StatusPill><StatusPill>{run.status}</StatusPill></div>
+            </div>)}</div>}
+          </section>
           <div className="mt-5 grid gap-4 xl:grid-cols-3"><div className="surface p-5"><div className="flex items-center gap-2 text-sm font-semibold"><Network size={17} className="text-accent"/> Evidence graph</div><p className="mt-2 text-xs leading-5 text-muted">Trace a conclusion through claims and passages. Model-inferred edges will be labelled separately.</p><button onClick={() => setView("Evidence graph")} className="mt-4 text-xs font-semibold text-accent">Explore graph →</button></div><div className="surface p-5"><div className="flex items-center gap-2 text-sm font-semibold"><History size={17} className="text-accent"/> Temporal intelligence</div><p className="mt-2 text-xs leading-5 text-muted">Future source events will trigger targeted reassessment, preserving previous report versions.</p><button onClick={() => setView("Source timeline")} className="mt-4 text-xs font-semibold text-accent">View timeline →</button></div><div className="surface p-5"><div className="flex items-center gap-2 text-sm font-semibold"><FlaskConical size={17} className="text-accent"/> Hypothesis lab</div><p className="mt-2 text-xs leading-5 text-muted">Candidate research opportunities will be grounded in retrieved literature and marked as hypotheses, not discoveries.</p><button onClick={() => setView("Hypothesis lab")} className="mt-4 text-xs font-semibold text-accent">Open lab →</button></div></div>
         </>}
 
