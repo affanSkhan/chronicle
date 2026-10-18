@@ -240,6 +240,10 @@ export interface LibraryPaper {
   source_provider: string;
   external_id: string | null;
   landing_url: string | null;
+  monitoring_enabled: boolean;
+  monitor_interval_minutes: number;
+  last_status_check_at: string | null;
+  next_status_check_at: string | null;
 }
 
 export interface SourceEventRecord {
@@ -325,9 +329,19 @@ export interface SourceStatusSignal {
 export interface PaperStatusCheck {
   paper_id: string;
   doi: string | null;
-  providers: Record<string, string>;
+  providers?: Record<string, string>;
+  provider_states?: Record<string, string>;
   signals: SourceStatusSignal[];
   note: string;
+  id?: string;
+  checked_at?: string;
+  trigger_type?: string;
+  outcome?: string;
+  change_detected?: boolean;
+  previous_result_hash?: string | null;
+  result_hash?: string;
+  monitoring_enabled?: boolean;
+  next_status_check_at?: string | null;
 }
 
 export async function checkPaperStatus(paperId: string): Promise<PaperStatusCheck> {
@@ -370,4 +384,57 @@ export async function listRunAuditEvents(runId: string, limit = 100): Promise<Au
   if (!response.ok) throw new Error(await readError(response));
   const payload = await response.json() as { events: AuditEventRecord[] };
   return payload.events;
+}
+
+
+
+export async function recordPaperStatusCheck(paperId: string): Promise<PaperStatusCheck> {
+  const response = await apiFetch(`${API_BASE}/api/v1/sources/papers/${paperId}/status-check`, { method: "POST" });
+  if (!response.ok) throw new Error(await readError(response));
+  const result = await response.json() as PaperStatusCheck;
+  return { ...result, providers: result.provider_states ?? result.providers ?? {} };
+}
+
+export async function configurePaperMonitoring(
+  paperId: string,
+  enabled: boolean,
+  intervalMinutes = 1440
+): Promise<LibraryPaper> {
+  const response = await apiFetch(`${API_BASE}/api/v1/sources/papers/${paperId}/monitoring`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled, interval_minutes: intervalMinutes })
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  const config = await response.json() as {
+    paper_id: string; monitoring_enabled: boolean; monitor_interval_minutes: number;
+    last_status_check_at: string | null; next_status_check_at: string | null;
+  };
+  const existing = (await listLibraryPapers(100)).find((paper) => paper.id === paperId);
+  if (!existing) throw new Error("Saved paper was not found after monitoring settings were updated.");
+  return { ...existing, ...config };
+}
+
+export interface SourceStatusCheckRecord extends PaperStatusCheck {
+  id: string;
+  paper_id: string;
+  paper_title: string;
+  checked_at: string;
+  trigger_type: "manual" | "scheduled" | string;
+  outcome: "ok" | "partial" | "unavailable" | "failed" | "no_doi" | string;
+  provider_states: Record<string, string>;
+  change_detected: boolean;
+  result_hash: string;
+  error_message: string | null;
+}
+
+export async function listSourceStatusChecks(
+  limit = 50,
+  changesOnly = false
+): Promise<SourceStatusCheckRecord[]> {
+  const params = new URLSearchParams({ limit: String(limit), changes_only: String(changesOnly) });
+  const response = await apiFetch(`${API_BASE}/api/v1/sources/status-checks?${params.toString()}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  const payload = await response.json() as { checks: SourceStatusCheckRecord[] };
+  return payload.checks;
 }
