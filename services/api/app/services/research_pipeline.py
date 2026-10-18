@@ -233,12 +233,13 @@ async def execute_research_run(run_id: str) -> None:
         extracted_claims: list[dict] = []
         llm_note = "LLM extraction skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured."
         extraction_error: str | None = None
-        if settings.openai_api_key and settings.openai_model.strip() and passages_for_extraction:
+        api_key = settings.openai_api_key.get_secret_value().strip() if settings.openai_api_key else ""
+        if api_key and settings.openai_model.strip() and passages_for_extraction:
             try:
                 extracted_claims = await extract_claims_from_passages(
                     question=question,
                     passages=passages_for_extraction,
-                    api_key=settings.openai_api_key.get_secret_value(),
+                    api_key=api_key,
                     api_base=settings.openai_api_base,
                     model=settings.openai_model.strip(),
                 )
