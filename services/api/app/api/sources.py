@@ -188,7 +188,6 @@ async def record_paper_status_check(
         .order_by(SourceStatusCheck.checked_at.desc())
     )
     previous_hash = latest.result_hash if latest else None
-    change_detected = previous_hash is not None and previous_hash != result_hash
     states = list(provider_states.values())
     if not paper.doi:
         outcome = "no_doi"
@@ -198,6 +197,13 @@ async def record_paper_status_check(
         outcome = "partial"
     else:
         outcome = "ok"
+    complete_provider_result = any(state in {"ok", "not_found"} for state in states)
+    change_detected = bool(
+        previous_hash is not None
+        and complete_provider_result
+        and outcome in {"ok", "partial"}
+        and previous_hash != result_hash
+    )
 
     check = SourceStatusCheck(
         paper_id=paper.id,
