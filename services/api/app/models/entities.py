@@ -186,6 +186,8 @@ class SourceEvent(Base):
     verification_status: Mapped[str] = mapped_column(String(40), default="unverified", nullable=False)
     metadata_snapshot: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
 
+    paper: Mapped[Paper] = relationship(back_populates="source_events")
+
 
 class ReportVersion(Base):
     __tablename__ = "report_versions"
