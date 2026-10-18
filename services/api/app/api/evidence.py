@@ -307,6 +307,34 @@ def create_report_version(run_id: str, payload: dict, db: Session = Depends(get_
     content = str(payload.get("content_markdown", "")).strip()
     if len(title) < 2 or len(content) < 8:
         raise HTTPException(status_code=422, detail="Provide a title and report content of at least 8 characters.")
+    evidence_snapshot = payload.get("evidence_snapshot") if isinstance(payload.get("evidence_snapshot"), dict) else {}
+    paper_ids = evidence_snapshot.get("paper_ids", [])
+    if isinstance(paper_ids, list) and paper_ids:
+        owned_paper_ids = set(db.scalars(select(Paper.id).where(
+            Paper.owner_user_id == current_user.id,
+            Paper.id.in_([item for item in paper_ids if isinstance(item, str)]),
+        )).all())
+        if owned_paper_ids != set(paper_ids):
+            raise HTTPException(status_code=422, detail="Evidence snapshot contains a paper outside your account.")
+    passage_ids = evidence_snapshot.get("passage_ids", [])
+    if isinstance(passage_ids, list) and passage_ids:
+        owned_passage_ids = set(db.scalars(
+            select(Passage.id)
+            .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+            .join(Paper, PaperVersion.paper_id == Paper.id)
+            .where(Paper.owner_user_id == current_user.id, Passage.id.in_([item for item in passage_ids if isinstance(item, str)]))
+        ).all())
+        if owned_passage_ids != set(passage_ids):
+            raise HTTPException(status_code=422, detail="Evidence snapshot contains a passage outside your account.")
+    claim_ids = evidence_snapshot.get("claim_ids", [])
+    if isinstance(claim_ids, list) and claim_ids:
+        owned_claim_ids = set(db.scalars(select(Claim.id).where(
+            Claim.run_id == run_id,
+            Claim.id.in_([item for item in claim_ids if isinstance(item, str)]),
+        )).all())
+        if owned_claim_ids != set(claim_ids):
+            raise HTTPException(status_code=422, detail="Evidence snapshot contains a claim outside this research run.")
+
     latest = db.scalar(select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number.desc()))
     version = ReportVersion(
         run_id=run_id,
@@ -314,7 +342,7 @@ def create_report_version(run_id: str, payload: dict, db: Session = Depends(get_
         parent_version_id=latest.id if latest else None,
         title=title[:500],
         content_markdown=content,
-        evidence_snapshot=payload.get("evidence_snapshot") if isinstance(payload.get("evidence_snapshot"), dict) else {},
+        evidence_snapshot=evidence_snapshot,
         change_summary=payload.get("change_summary"),
     )
     db.add(version)
