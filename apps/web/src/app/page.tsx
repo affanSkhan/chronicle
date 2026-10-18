@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createResearchRun, importPaper, listResearchRuns, searchAcademicSources, uploadPdf, type AcademicSearchResult, type ResearchMode as ApiResearchMode, type ResearchRun } from "@/lib/api";
+import { createResearchRun, importPaper, listReportVersions, listResearchRuns, searchAcademicSources, uploadPdf, type AcademicSearchResult, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun } from "@/lib/api";
 import {
   Activity, ArrowRight, BookOpen, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
   History, LayoutDashboard, Microscope, Network, Plus, Search,
@@ -57,10 +57,12 @@ export default function HomePage() {
   const [activeClaim, setActiveClaim] = useState("C-001");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("");
-  useEffect(() => { void listResearchRuns().then(setRuns).catch(() => undefined); }, []);
   const [submitting, setSubmitting] = useState(false);
   const [runs, setRuns] = useState<ResearchRun[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [currentReport, setCurrentReport] = useState<ReportVersionSummary | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
   const [sourceQuery, setSourceQuery] = useState("");
   const [sourceResults, setSourceResults] = useState<AcademicSearchResult[]>([]);
   const [sourceLoading, setSourceLoading] = useState(false);
@@ -70,6 +72,59 @@ export default function HomePage() {
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
   const claims = useMemo(() => demoClaims.filter(c => (c.title + c.state).toLowerCase().includes(searchTerm.toLowerCase())), [searchTerm]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadRuns = async () => {
+      try {
+        const latest = await listResearchRuns();
+        if (!cancelled) setRuns(latest);
+      } catch {
+        // The rest of the workspace remains usable when the backend is offline.
+      }
+    };
+    void loadRuns();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!activeRunId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const pollRun = async () => {
+      try {
+        const latestRuns = await listResearchRuns();
+        if (cancelled) return;
+        setRuns(latestRuns);
+        const active = latestRuns.find((run) => run.id === activeRunId);
+        if (active?.status === "completed") {
+          setReportLoading(true);
+          try {
+            const reports = await listReportVersions(activeRunId);
+            if (!cancelled) setCurrentReport(reports[0] ?? null);
+          } catch (error) {
+            if (!cancelled) setNotice(error instanceof Error ? error.message : "The report was completed but could not be loaded.");
+          } finally {
+            if (!cancelled) setReportLoading(false);
+          }
+          if (timer) clearInterval(timer);
+          setNotice("Academic discovery completed. Review the report and inspect its source metadata; any extracted claims remain unreviewed.");
+        } else if (active?.status === "failed") {
+          if (timer) clearInterval(timer);
+          setNotice(active.error_message ?? "The research run failed. Review the API status and server logs.");
+        }
+      } catch {
+        if (!cancelled) setNotice("Could not refresh this research run. Check the API connection.");
+      }
+    };
+    void pollRun();
+    timer = setInterval(() => { void pollRun(); }, 4000);
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [activeRunId]);
+
 
   async function refreshRuns() {
     setRunsLoading(true);
@@ -165,10 +220,14 @@ export default function HomePage() {
       const created = await createResearchRun({
         question: query.trim(),
         mode: modes[mode] ?? "deep",
-        max_sources: 10
+        max_sources: 10,
+        execute: true
       });
       setRuns((current) => [created, ...current.filter((run) => run.id !== created.id)]);
-      setNotice(`Run ${created.id.slice(0, 8)} was created by the API. It is currently a demo request; live research orchestration is not connected.`);
+      setActiveRunId(created.id);
+      setCurrentReport(null);
+      setView("Research workspace");
+      setNotice(`Run ${created.id.slice(0, 8)} submitted. Searching Crossref/OpenAlex and building an academic discovery snapshot…`);
       setShowNewRun(false);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not reach the Chronicle API. Check that the API is running.");
