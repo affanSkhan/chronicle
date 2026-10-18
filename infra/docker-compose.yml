@@ -6,6 +6,7 @@ services:
     environment:
       POSTGRES_DB: chronicle
       POSTGRES_USER: chronicle
+      # Local-development credential only. Use a strong secret outside local development.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chronicle-local-only}
     ports:
       - "5432:5432"
@@ -17,5 +18,52 @@ services:
       timeout: 3s
       retries: 10
 
+  api:
+    build:
+      context: ../services/api
+      dockerfile: Dockerfile
+    container_name: chronicle-api
+    restart: unless-stopped
+    environment:
+      APP_NAME: Chronicle API
+      APP_VERSION: 0.1.0
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      API_PREFIX: /api/v1
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://chronicle:chronicle-local-only@postgres:5432/chronicle}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
+      UPLOAD_DIR: /app/uploads
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - chronicle_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)"]
+      interval: 10s
+      timeout: 4s
+      retries: 10
+      start_period: 20s
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    container_name: chronicle-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
 volumes:
   chronicle_pgdata:
+  chronicle_uploads:
