@@ -20,6 +20,10 @@ class PaperRead(BaseModel):
     source_provider: str
     external_id: str | None
     landing_url: str | None
+    monitoring_enabled: bool = False
+    monitor_interval_minutes: int = 1440
+    last_status_check_at: datetime | None = None
+    next_status_check_at: datetime | None = None
 
 
 class PaperSearchResult(BaseModel):
@@ -152,3 +156,8 @@ class SourceEventRead(BaseModel):
 class EvidenceRelationReview(BaseModel):
     reviewer_status: Literal["accepted", "rejected", "needs_review"]
     reviewer_notes: str | None = Field(default=None, max_length=3000)
+
+
+class PaperMonitoringUpdate(BaseModel):
+    enabled: bool
+    interval_minutes: int = Field(default=1440, ge=60, le=10080)
