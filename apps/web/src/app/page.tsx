@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { checkPaperStatus, clearAccessToken, configurePaperMonitoring, createResearchRun, createSourceEvent, downloadEvidencePassport, fetchCurrentUser, getEvidenceGraph, hasSavedAccessToken, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listRunAuditEvents, listSourceEvents, listSourceStatusChecks, loginAccount, recordPaperStatusCheck, registerAccount, reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf, type AcademicSearchResult, type AuditEventRecord, type AuthUser, type EvidenceGraphResponse, type LibraryPaper, type PaperStatusCheck, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord, type SourceStatusCheckRecord } from "@/lib/api";
+import { clearAccessToken, configurePaperMonitoring, createResearchRun, createSourceEvent, downloadEvidencePassport, fetchCurrentUser, getEvidenceGraph, hasSavedAccessToken, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listRunAuditEvents, listSourceEvents, listSourceStatusChecks, loginAccount, recordPaperStatusCheck, registerAccount, reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf, type AcademicSearchResult, type AuditEventRecord, type AuthUser, type EvidenceGraphResponse, type LibraryPaper, type PaperStatusCheck, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord, type SourceStatusCheckRecord } from "@/lib/api";
 import {
   Activity, ArrowRight, BookOpen, CircleHelp, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
   History, LayoutDashboard, Microscope, Network, Plus, Search,
@@ -170,9 +170,6 @@ export default function HomePage() {
           setSourceEvents(events);
           setStatusChecks(checks);
           setEventPaperId((current) => current || papers[0]?.id || "");
-          const selectedId = eventPaperId || papers[0]?.id;
-          const selected = papers.find((paper) => paper.id === selectedId);
-          if (selected) setMonitorIntervalMinutes(selected.monitor_interval_minutes);
         }
       } catch (error) {
         if (!cancelled) setTimelineError(error instanceof Error ? error.message : "Could not load source lifecycle events.");
@@ -183,6 +180,11 @@ export default function HomePage() {
     void loadTimeline();
     return () => { cancelled = true; };
   }, [view, authUser]);
+
+  useEffect(() => {
+    const selected = libraryPapers.find((paper) => paper.id === eventPaperId);
+    if (selected) setMonitorIntervalMinutes(selected.monitor_interval_minutes);
+  }, [eventPaperId, libraryPapers]);
 
   async function reviewGraphRelation(
     relationId: string,
