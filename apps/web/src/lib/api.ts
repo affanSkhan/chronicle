@@ -158,3 +158,71 @@ export async function getEvidenceGraph(runId: string): Promise<EvidenceGraphResp
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<EvidenceGraphResponse>;
 }
+
+
+export interface LibraryPaper {
+  id: string;
+  doi: string | null;
+  title: string;
+  authors: string[];
+  abstract: string | null;
+  publication_year: number | null;
+  publisher: string | null;
+  source_provider: string;
+  external_id: string | null;
+  landing_url: string | null;
+}
+
+export interface SourceEventRecord {
+  id: string;
+  paper_id: string;
+  paper_title: string;
+  event_type: string;
+  event_date: string | null;
+  observed_at: string;
+  source_url: string | null;
+  description: string;
+  verification_status: string;
+  metadata_snapshot: Record<string, unknown>;
+}
+
+export async function listLibraryPapers(limit = 100): Promise<LibraryPaper[]> {
+  const response = await fetch(\`\${API_BASE}/api/v1/sources/papers?limit=\${limit}\`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<LibraryPaper[]>;
+}
+
+export async function listSourceEvents(limit = 50): Promise<SourceEventRecord[]> {
+  const response = await fetch(\`\${API_BASE}/api/v1/sources/events?limit=\${limit}\`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  const payload = await response.json() as { events: SourceEventRecord[] };
+  return payload.events;
+}
+
+export async function createSourceEvent(input: {
+  paperId: string;
+  event_type: "correction" | "retraction" | "expression_of_concern" | "new_version" | "metadata_change" | "conflicting_study";
+  description: string;
+  source_url?: string;
+  verification_status: "unverified" | "metadata_confirmed" | "human_verified";
+  event_date?: string;
+}): Promise<{
+  event: { id: string; paper_id: string; event_type: string; verification_status: string };
+  impact: {
+    impacted_paper_ids: string[];
+    affected_claim_ids: string[];
+    claims_flagged_for_review: number;
+    affected_run_ids: string[];
+    report_versions_flagged_for_review: number;
+  };
+  note: string;
+}> {
+  const { paperId, ...payload } = input;
+  const response = await fetch(\`\${API_BASE}/api/v1/sources/papers/\${paperId}/events\`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json();
+}
