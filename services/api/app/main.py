@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routes import router as research_router
 from app.core.config import get_settings
 from app.schemas.common import HealthResponse
 
@@ -28,5 +29,8 @@ def root() -> dict[str, str]:
 
 @app.get("/api/v1/health", response_model=HealthResponse, tags=["system"])
 def health() -> HealthResponse:
-    # Liveness only. Add a database readiness check after the persistence layer is connected.
+    # Liveness only. Add a database readiness check after persistence is connected.
     return HealthResponse(status="ok", service=settings.app_name, version=settings.app_version)
+
+
+app.include_router(research_router, prefix=settings.api_prefix)
