@@ -354,23 +354,40 @@ def export_evidence_passport(
     if run is None:
         raise HTTPException(status_code=404, detail="Research run not found.")
 
+    reports = list(db.scalars(select(ReportVersion).where(
+        ReportVersion.run_id == run_id
+    ).order_by(ReportVersion.version_number)).all())
+    latest_report = reports[-1] if reports else None
+    report_snapshot = latest_report.evidence_snapshot if latest_report and isinstance(latest_report.evidence_snapshot, dict) else {}
+    snapshot_paper_ids = {
+        item for item in report_snapshot.get("paper_ids", []) if isinstance(item, str)
+    }
+    snapshot_passage_ids = {
+        item for item in report_snapshot.get("passage_ids", []) if isinstance(item, str)
+    }
+
     claims = list(db.scalars(select(Claim).where(Claim.run_id == run_id).order_by(Claim.created_at)).all())
     claim_ids = {claim.id for claim in claims}
     relations = list(db.scalars(select(EvidenceRelation).where(
         EvidenceRelation.claim_id.in_(claim_ids)
     ).order_by(EvidenceRelation.created_at)).all()) if claim_ids else []
     passage_ids = {relation.passage_id for relation in relations if relation.passage_id}
+    passage_ids.update(snapshot_passage_ids)
     passages = list(db.scalars(select(Passage).where(Passage.id.in_(passage_ids))).all()) if passage_ids else []
     version_ids = {passage.paper_version_id for passage in passages}
-    versions = list(db.scalars(select(PaperVersion).where(PaperVersion.id.in_(version_ids))).all()) if version_ids else []
-    paper_ids = {version.paper_id for version in versions}
+    versions = list(db.scalars(select(PaperVersion).where(or_(
+        PaperVersion.id.in_(version_ids),
+        PaperVersion.paper_id.in_(snapshot_paper_ids),
+    ))).all()) if (version_ids or snapshot_paper_ids) else []
+    paper_ids = {version.paper_id for version in versions} | snapshot_paper_ids
     papers = list(db.scalars(select(Paper).where(Paper.id.in_(paper_ids))).all()) if paper_ids else []
     dependencies = list(db.scalars(select(PaperDependency).where(or_(
         PaperDependency.dependent_paper_id.in_(paper_ids),
         PaperDependency.depends_on_paper_id.in_(paper_ids),
     ))).all()) if paper_ids else []
-    source_events = list(db.scalars(select(SourceEvent).where(SourceEvent.paper_id.in_(paper_ids)).order_by(SourceEvent.observed_at.desc())).all()) if paper_ids else []
-    reports = list(db.scalars(select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number)).all())
+    source_events = list(db.scalars(select(SourceEvent).where(
+        SourceEvent.paper_id.in_(paper_ids)
+    ).order_by(SourceEvent.observed_at.desc())).all()) if paper_ids else []
 
     version_by_id = {version.id: version for version in versions}
     paper_by_id = {paper.id: paper for paper in papers}
