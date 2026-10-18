@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { checkPaperStatus, createResearchRun, createSourceEvent, getEvidenceGraph, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents, reviewEvidenceRelation, searchAcademicSources, uploadPdf, type AcademicSearchResult, type EvidenceGraphResponse, type LibraryPaper, type PaperStatusCheck, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord } from "@/lib/api";
+import { checkPaperStatus, createResearchRun, createSourceEvent, downloadEvidencePassport, getEvidenceGraph, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents, reviewEvidenceRelation, searchAcademicSources, uploadPdf, type AcademicSearchResult, type EvidenceGraphResponse, type LibraryPaper, type PaperStatusCheck, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord } from "@/lib/api";
 import {
   Activity, ArrowRight, BookOpen, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
   History, LayoutDashboard, Microscope, Network, Plus, Search,
@@ -81,6 +81,8 @@ export default function HomePage() {
   const [eventResult, setEventResult] = useState("");
   const [statusCheck, setStatusCheck] = useState<PaperStatusCheck | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [passportFormatLoading, setPassportFormatLoading] = useState<"markdown" | "json" | null>(null);
+  const [passportError, setPassportError] = useState("");
   const [reviewingRelationId, setReviewingRelationId] = useState<string | null>(null);
   const [sourceQuery, setSourceQuery] = useState("");
   const [sourceResults, setSourceResults] = useState<AcademicSearchResult[]>([]);
@@ -352,6 +354,19 @@ export default function HomePage() {
   }
 
 
+  async function exportPassport(format: "markdown" | "json") {
+    if (!activeRunId) return;
+    setPassportFormatLoading(format);
+    setPassportError("");
+    try {
+      await downloadEvidencePassport(activeRunId, format);
+    } catch (error) {
+      setPassportError(error instanceof Error ? error.message : "Evidence Passport export failed.");
+    } finally {
+      setPassportFormatLoading(null);
+    }
+  }
+
   async function openResearchRun(runId: string) {
     setActiveRunId(runId);
     setCurrentReport(null);
@@ -459,9 +474,9 @@ export default function HomePage() {
           {(currentReport || reportLoading) && <section className="mt-5 overflow-hidden rounded-2xl border border-line bg-white">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
               <div><div className="text-sm font-semibold">{currentReport?.title ?? "Loading report…"}</div><div className="mt-1 text-xs text-muted">{currentReport ? `Version ${currentReport.version_number} · ${new Date(currentReport.created_at).toLocaleString()}` : "Retrieving saved report version"}</div></div>
-              {currentReport && <StatusPill tone={currentReport.review_required ? "amber" : "blue"}>{currentReport.review_required ? "Review required" : "Discovery snapshot"}</StatusPill>}
+              {currentReport && <div className="flex flex-wrap items-center gap-2"><button onClick={()=>{void exportPassport("markdown");}} disabled={passportFormatLoading!==null} className="rounded-lg border border-line px-3 py-2 text-[11px] font-semibold hover:bg-paper disabled:opacity-50">{passportFormatLoading==="markdown"?"Preparing…":"Evidence Passport .md"}</button><button onClick={()=>{void exportPassport("json");}} disabled={passportFormatLoading!==null} className="rounded-lg border border-line px-3 py-2 text-[11px] font-semibold hover:bg-paper disabled:opacity-50">{passportFormatLoading==="json"?"Preparing…":"Export JSON"}</button><StatusPill tone={currentReport.review_required ? "amber" : "blue"}>{currentReport.review_required ? "Review required" : "Discovery snapshot"}</StatusPill></div>}
             </div>
-            {currentReport && <div className="space-y-3 px-5 py-5 text-sm leading-6 text-slate-700">
+            {passportError && <div role="status" className="mx-5 mt-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{passportError}</div>}{currentReport && <div className="space-y-3 px-5 py-5 text-sm leading-6 text-slate-700">
               {currentReport.change_summary && <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">{currentReport.change_summary}</p>}
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
                 h1: ({children}) => <h1 className="mt-4 text-2xl font-semibold tracking-tight text-ink">{children}</h1>,
