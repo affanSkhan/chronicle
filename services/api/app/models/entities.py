@@ -60,6 +60,8 @@ class Paper(Base):
     source_provider: Mapped[str] = mapped_column(String(40), default="manual", nullable=False)
     external_id: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)
     landing_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
