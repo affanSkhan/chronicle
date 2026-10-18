@@ -170,7 +170,7 @@ export default function HomePage() {
     }
   }
 
-  function useStatusSignal(signal: NonNullable<PaperStatusCheck["signals"]>[number]) {
+  function handleStatusSignal(signal: NonNullable<PaperStatusCheck["signals"]>[number]) {
     setEventPaperId(statusCheck?.paper_id ?? eventPaperId);
     setEventType(signal.event_type);
     setEventDescription(signal.description);
@@ -539,7 +539,7 @@ export default function HomePage() {
               <div className="flex flex-wrap items-start justify-between gap-2"><div><div className="text-sm font-semibold">External status-check preview</div><div className="mt-1 text-xs text-muted">DOI: {statusCheck.doi ?? "Unavailable"} · no source event is created automatically</div></div><StatusPill tone={statusCheck.signals.length ? "amber" : "blue"}>{statusCheck.signals.length ? `${statusCheck.signals.length} candidate signal(s)` : "No signal found"}</StatusPill></div>
               <div className="mt-2 text-[11px] leading-5 text-muted">Crossref: {statusCheck.providers.crossref ?? "not checked"} · OpenAlex: {statusCheck.providers.openalex ?? "not checked"}</div>
               {statusCheck.signals.length===0 && <p className="mt-3 text-xs leading-5 text-muted">No update signal was returned in this check. This is not proof that no correction or retraction exists.</p>}
-              <div className="mt-3 space-y-2">{statusCheck.signals.map((signal,index)=><div key={`${signal.provider}-${signal.update_type}-${index}`} className="rounded-lg bg-paper p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap gap-2"><StatusPill tone={signal.event_type==="retraction"?"red":"amber"}>{signal.event_type.replaceAll("_"," ")}</StatusPill><StatusPill>{signal.provider}</StatusPill></div><button type="button" onClick={()=>useStatusSignal(signal)} className="rounded-lg bg-accent px-3 py-1.5 text-[11px] font-semibold text-white">Review this signal</button></div><p className="mt-2 text-xs leading-5 text-slate-700">{signal.description}</p>{signal.source_url && <a href={signal.source_url} target="_blank" rel="noreferrer" className="mt-1 inline-block break-all text-[11px] font-semibold text-accent underline">{signal.source_url}</a>}</div>)}</div>
+              <div className="mt-3 space-y-2">{statusCheck.signals.map((signal,index)=><div key={`${signal.provider}-${signal.update_type}-${index}`} className="rounded-lg bg-paper p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap gap-2"><StatusPill tone={signal.event_type==="retraction"?"red":"amber"}>{signal.event_type.replaceAll("_"," ")}</StatusPill><StatusPill>{signal.provider}</StatusPill></div><button type="button" onClick={()=>handleStatusSignal(signal)} className="rounded-lg bg-accent px-3 py-1.5 text-[11px] font-semibold text-white">Review this signal</button></div><p className="mt-2 text-xs leading-5 text-slate-700">{signal.description}</p>{signal.source_url && <a href={signal.source_url} target="_blank" rel="noreferrer" className="mt-1 inline-block break-all text-[11px] font-semibold text-accent underline">{signal.source_url}</a>}</div>)}</div>
               <p className="mt-3 text-[11px] leading-5 text-muted">{statusCheck.note}</p>
             </div>}
 
