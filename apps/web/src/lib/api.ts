@@ -120,3 +120,41 @@ export async function listReportVersions(runId: string): Promise<ReportVersionSu
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<ReportVersionSummary[]>;
 }
+
+
+export interface EvidenceGraphNode {
+  id: string;
+  type: string;
+  label: string;
+  assessment?: string;
+  review_required?: boolean;
+  page_number?: number | null;
+  paper_version_id?: string;
+  publication_status?: string;
+  paper_id?: string;
+  doi?: string | null;
+}
+
+export interface EvidenceGraphEdge {
+  id?: string;
+  source: string;
+  target: string;
+  type: string;
+  provenance_basis?: string;
+  reviewer_status?: string;
+  confidence?: number | null;
+  rationale?: string | null;
+}
+
+export interface EvidenceGraphResponse {
+  run_id: string;
+  nodes: EvidenceGraphNode[];
+  edges: EvidenceGraphEdge[];
+  note: string;
+}
+
+export async function getEvidenceGraph(runId: string): Promise<EvidenceGraphResponse> {
+  const response = await fetch(\`\${API_BASE}/api/v1/evidence/runs/\${runId}/graph\`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<EvidenceGraphResponse>;
+}
