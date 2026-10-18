@@ -192,4 +192,4 @@ def test_manual_provider_outage_is_not_misclassified_as_source_change(monkeypatc
     assert second.status_code == 201
     assert second.json()["outcome"] == "unavailable"
     assert second.json()["change_detected"] is False
-    assert "unavailable" in second.json()["note"].lower()
+    assert second.json()["provider_states"] == {"crossref": "unavailable", "openalex": "unavailable"}
