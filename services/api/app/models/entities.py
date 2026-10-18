@@ -15,10 +15,22 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class User(Base):
+    __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("email", name="uq_users_email"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    email: Mapped[str] = mapped_column(String(254), nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(String(500), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
 class ResearchProject(Base):
     __tablename__ = "research_projects"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(240), nullable=False)
     research_question: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
@@ -31,6 +43,7 @@ class ResearchRun(Base):
     __tablename__ = "research_runs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     project_id: Mapped[str | None] = mapped_column(ForeignKey("research_projects.id", ondelete="CASCADE"), nullable=True, index=True)
     question: Mapped[str] = mapped_column(Text, nullable=False)
     mode: Mapped[str] = mapped_column(String(24), default="deep", nullable=False)
@@ -49,9 +62,10 @@ class ResearchRun(Base):
 
 class Paper(Base):
     __tablename__ = "papers"
-    __table_args__ = (UniqueConstraint("doi", name="uq_papers_doi"),)
+    __table_args__ = (UniqueConstraint("owner_user_id", "doi", name="uq_papers_owner_doi"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     doi: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     authors: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
@@ -62,7 +76,7 @@ class Paper(Base):
     external_id: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)
     landing_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
+    file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
