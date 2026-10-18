@@ -799,20 +799,79 @@ def export_evidence_passport(
 
 
 @router.post("/papers/{paper_id}/studies", status_code=201)
+@router.post("/papers/{paper_id}/studies", status_code=201)
 def create_study(paper_id: str, payload: StudyCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
-    if db.scalar(select(Paper.id).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id)) is None:
+    paper = db.scalar(select(Paper).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id))
+    if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found.")
+    if payload.source_passage_id:
+        passage = db.scalar(
+            select(Passage)
+            .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+            .where(Passage.id == payload.source_passage_id, PaperVersion.paper_id == paper_id)
+        )
+        if passage is None:
+            raise HTTPException(status_code=422, detail="The source passage must belong to this paper.")
     study = Study(
-        paper_id=paper_id, study_type=payload.study_type, population=payload.population,
+        paper_id=paper_id,
+        source_passage_id=payload.source_passage_id,
+        study_type=payload.study_type, population=payload.population,
         method=payload.method, intervention=payload.intervention, outcomes=payload.outcomes,
         limitations=payload.limitations, extraction_basis=payload.extraction_basis,
     )
     db.add(study)
+    db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=None,
+        target_entity_type="study",
+        target_entity_id=study.id,
+        action="study.context_recorded",
+        previous_value=None,
+        new_value={
+            "paper_id": study.paper_id,
+            "source_passage_id": study.source_passage_id,
+            "study_type": study.study_type,
+            "population": study.population,
+            "method": study.method,
+            "intervention": study.intervention,
+            "outcomes": study.outcomes,
+            "limitations": study.limitations,
+            "extraction_basis": study.extraction_basis,
+        },
+        reason="Study context recorded in the paper library.",
+        resolution_status="needs_review" if study.extraction_basis == "model_inferred" else "recorded",
+    )
     db.commit()
     db.refresh(study)
     return {
-        "id": study.id, "paper_id": study.paper_id, "study_type": study.study_type,
-        "population": study.population, "method": study.method,
+        "id": study.id, "paper_id": study.paper_id, "source_passage_id": study.source_passage_id,
+        "study_type": study.study_type, "population": study.population, "method": study.method,
         "intervention": study.intervention, "outcomes": study.outcomes,
         "limitations": study.limitations, "extraction_basis": study.extraction_basis,
+    }
+
+
+@router.get("/papers/{paper_id}/studies")
+def list_paper_studies(paper_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+    if db.scalar(select(Paper.id).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id)) is None:
+        raise HTTPException(status_code=404, detail="Paper not found.")
+    rows = db.scalars(select(Study).where(Study.paper_id == paper_id).order_by(Study.created_at.asc())).all()
+    return {
+        "paper_id": paper_id,
+        "count": len(rows),
+        "studies": [{
+            "id": item.id,
+            "source_passage_id": item.source_passage_id,
+            "study_type": item.study_type,
+            "population": item.population,
+            "method": item.method,
+            "intervention": item.intervention,
+            "outcomes": item.outcomes,
+            "limitations": item.limitations,
+            "extraction_basis": item.extraction_basis,
+            "created_at": item.created_at.isoformat(),
+        } for item in rows],
+        "note": "Model-inferred context is a candidate extraction from the linked passage and must be checked against the full paper.",
     }
