@@ -106,6 +106,7 @@ class Study(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     paper_id: Mapped[str] = mapped_column(ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_passage_id: Mapped[str | None] = mapped_column(ForeignKey("passages.id", ondelete="SET NULL"), nullable=True, index=True)
     study_type: Mapped[str | None] = mapped_column(String(160), nullable=True)
     population: Mapped[str | None] = mapped_column(Text, nullable=True)
     method: Mapped[str | None] = mapped_column(Text, nullable=True)
