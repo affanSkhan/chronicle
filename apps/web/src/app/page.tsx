@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createResearchRun, listResearchRuns, type ResearchMode as ApiResearchMode, type ResearchRun } from "@/lib/api";
+import { createResearchRun, importPaper, listResearchRuns, searchAcademicSources, uploadPdf, type AcademicSearchResult, type ResearchMode as ApiResearchMode, type ResearchRun } from "@/lib/api";
 import {
   Activity, ArrowRight, BookOpen, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
   History, LayoutDashboard, Microscope, Network, Plus, Search,
-  ShieldCheck, Sparkles, Workflow, AlertTriangle, CircleDashed
+  ShieldCheck, Sparkles, Upload, Workflow, AlertTriangle, CircleDashed
 } from "lucide-react";
 
 type View = "Overview" | "Research workspace" | "Evidence graph" | "Source timeline" | "Hypothesis lab";
@@ -61,6 +61,14 @@ export default function HomePage() {
   const [submitting, setSubmitting] = useState(false);
   const [runs, setRuns] = useState<ResearchRun[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
+  const [sourceQuery, setSourceQuery] = useState("");
+  const [sourceResults, setSourceResults] = useState<AcademicSearchResult[]>([]);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [sourceError, setSourceError] = useState("");
+  const [savingPaperKey, setSavingPaperKey] = useState("");
+  const [savedPaperKeys, setSavedPaperKeys] = useState<string[]>([]);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState("");
   const claims = useMemo(() => demoClaims.filter(c => (c.title + c.state).toLowerCase().includes(searchTerm.toLowerCase())), [searchTerm]);
 
   async function refreshRuns() {
@@ -72,6 +80,70 @@ export default function HomePage() {
       // Keep demo UI usable if the API is offline; show the connection error in the workspace.
     } finally {
       setRunsLoading(false);
+    }
+  }
+
+  async function runAcademicSearch() {
+    if (sourceQuery.trim().length < 3) {
+      setSourceError("Enter at least three characters for an academic search.");
+      return;
+    }
+    setSourceLoading(true);
+    setSourceError("");
+    try {
+      const result = await searchAcademicSources(sourceQuery.trim(), 10, "all");
+      setSourceResults(result.results);
+      const failedProviders = Object.keys(result.provider_errors ?? {});
+      if (failedProviders.length) {
+        setSourceError(`Partial results: ${failedProviders.join(", ")} could not be reached.`);
+      }
+      if (!result.results.length && !failedProviders.length) {
+        setSourceError("No metadata results were returned for this query.");
+      }
+    } catch (error) {
+      setSourceResults([]);
+      setSourceError(error instanceof Error ? error.message : "Academic search failed. Check the API connection.");
+    } finally {
+      setSourceLoading(false);
+    }
+  }
+
+  function paperKey(paper: AcademicSearchResult) {
+    return (paper.doi ? `doi:${paper.doi.toLowerCase()}` : paper.external_id || paper.title).toLowerCase();
+  }
+
+  async function savePaper(paper: AcademicSearchResult) {
+    const key = paperKey(paper);
+    setSavingPaperKey(key);
+    setSourceError("");
+    try {
+      await importPaper(paper);
+      setSavedPaperKeys((current) => current.includes(key) ? current : [...current, key]);
+      setNotice(`Saved "${paper.title}" to the paper library.`);
+    } catch (error) {
+      setSourceError(error instanceof Error ? error.message : "Paper could not be imported.");
+    } finally {
+      setSavingPaperKey("");
+    }
+  }
+
+  async function handlePdfUpload(file?: File) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      setUploadMessage("Choose a PDF file.");
+      return;
+    }
+    setUploadingPdf(true);
+    setUploadMessage("");
+    try {
+      const result = await uploadPdf(file);
+      setUploadMessage(result.duplicate_upload
+        ? `This PDF is already in the library: ${result.title}.`
+        : `Added ${result.title}: ${result.page_count} pages and ${result.passages_created} evidence passages extracted. Claims have not been verified.`);
+    } catch (error) {
+      setUploadMessage(error instanceof Error ? error.message : "PDF upload failed.");
+    } finally {
+      setUploadingPdf(false);
     }
   }
 
@@ -152,7 +224,42 @@ export default function HomePage() {
           <div className="mt-5 grid gap-4 xl:grid-cols-3"><div className="surface p-5"><div className="flex items-center gap-2 text-sm font-semibold"><Network size={17} className="text-accent"/> Evidence graph</div><p className="mt-2 text-xs leading-5 text-muted">Trace a conclusion through claims and passages. Model-inferred edges will be labelled separately.</p><button onClick={() => setView("Evidence graph")} className="mt-4 text-xs font-semibold text-accent">Explore graph →</button></div><div className="surface p-5"><div className="flex items-center gap-2 text-sm font-semibold"><History size={17} className="text-accent"/> Temporal intelligence</div><p className="mt-2 text-xs leading-5 text-muted">Future source events will trigger targeted reassessment, preserving previous report versions.</p><button onClick={() => setView("Source timeline")} className="mt-4 text-xs font-semibold text-accent">View timeline →</button></div><div className="surface p-5"><div className="flex items-center gap-2 text-sm font-semibold"><FlaskConical size={17} className="text-accent"/> Hypothesis lab</div><p className="mt-2 text-xs leading-5 text-muted">Candidate research opportunities will be grounded in retrieved literature and marked as hypotheses, not discoveries.</p><button onClick={() => setView("Hypothesis lab")} className="mt-4 text-xs font-semibold text-accent">Open lab →</button></div></div>
         </>}
 
-        {view === "Research workspace" && <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(310px,0.8fr)]"><section className="surface p-5 md:p-6"><div className="flex items-center justify-between"><div><div className="eyebrow">Research workspace</div><h1 className="mt-2 text-xl font-semibold">AI-assisted learning outcomes</h1><p className="mt-1 text-xs text-muted">Example project · all records are illustrative</p></div><StatusPill tone="amber">Demo</StatusPill></div><div className="mt-6 flex flex-wrap gap-2">{["Overview","Claims","Evidence","Limitations"].map(tab=><button key={tab} onClick={()=>setNotice(`${tab} section is represented by the current demo data; live retrieval is not connected.`)} className="rounded-lg border border-line px-3 py-2 text-xs font-semibold hover:bg-paper">{tab}</button>)}</div><div className="mt-5"><label className="text-xs font-semibold">Research question</label><textarea value={query} onChange={e=>setQuery(e.target.value)} rows={3} placeholder="Ask a focused scientific question..." className="field mt-2 resize-y"/><div className="mt-3 flex flex-wrap items-center justify-between gap-3"><label className="text-xs text-muted">Research mode <select value={mode} onChange={e=>setMode(e.target.value)} className="ml-2 rounded-lg border border-line bg-white px-2 py-1.5 text-xs text-ink"><option>Quick scan</option><option>Deep research</option><option>Academic review</option><option>Forensic analysis</option></select></label><button onClick={startResearch} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-50"><Sparkles size={14}/> {submitting ? "Creating..." : "Create run"}</button></div></div><div className="mt-7 border-t border-line pt-5"><div className="flex items-center justify-between"><div className="font-semibold">Claim ledger</div><div className="relative"><Search size={14} className="absolute left-3 top-2.5 text-muted"/><input className="field w-52 pl-8 py-2 text-xs" value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Filter claims"/></div></div><div className="mt-3 space-y-3">{claims.map(c=><button key={c.id} onClick={()=>setActiveClaim(c.id)} className={`w-full rounded-xl border p-4 text-left ${activeClaim===c.id ? "border-accent bg-accent-soft/40" : "border-line hover:bg-paper"}`}><div className="flex items-start justify-between gap-3"><div><div className="text-[10px] font-semibold text-muted">{c.id}</div><div className="mt-1 text-sm font-semibold">{c.title}</div></div><StatusPill tone={c.tone}>{c.state}</StatusPill></div><div className="mt-2 text-xs leading-5 text-muted">{c.summary}</div></button>)}</div></div></section><aside className="surface h-fit p-5"><div className="flex items-center gap-2 font-semibold"><FileSearch size={17} className="text-accent"/> Claim inspector</div><p className="mt-1 text-xs text-muted">Select a claim to inspect its evidence status.</p>{(()=>{const c=demoClaims.find(x=>x.id===activeClaim)??demoClaims[0];return <><div className="mt-5 rounded-xl bg-paper p-4"><div className="text-[10px] font-semibold text-muted">{c.id}</div><div className="mt-1 text-sm font-semibold">{c.title}</div><div className="mt-3"><StatusPill tone={c.tone}>{c.state}</StatusPill></div></div><div className="mt-5"><div className="text-xs font-semibold">Evidence assessment</div><p className="mt-2 text-xs leading-5 text-muted">{c.summary}</p></div><div className="mt-5"><div className="text-xs font-semibold">Provenance basis</div><div className="mt-2 rounded-xl border border-dashed border-line p-3 text-xs leading-5 text-muted">No live source passages are attached in this UI prototype. Verified provenance will be displayed here when ingestion is implemented.</div></div></>})()}<div className="mt-5 flex gap-2 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900"><AlertTriangle size={16} className="mt-0.5 shrink-0"/> Demo evidence must not be treated as a scientific finding.</div></aside></div>}
+        {view === "Research workspace" && <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(310px,0.8fr)]"><section className="surface p-5 md:p-6"><div className="flex items-center justify-between"><div><div className="eyebrow">Research workspace</div><h1 className="mt-2 text-xl font-semibold">AI-assisted learning outcomes</h1><p className="mt-1 text-xs text-muted">Example project · all records are illustrative</p></div><StatusPill tone="amber">Demo</StatusPill></div><div className="mt-6 flex flex-wrap gap-2">{["Overview","Claims","Evidence","Limitations"].map(tab=><button key={tab} onClick={()=>setNotice(`${tab} section is represented by the current demo data; live retrieval is not connected.`)} className="rounded-lg border border-line px-3 py-2 text-xs font-semibold hover:bg-paper">{tab}</button>)}</div><div className="mt-5"><label className="text-xs font-semibold">Research question</label><textarea value={query} onChange={e=>setQuery(e.target.value)} rows={3} placeholder="Ask a focused scientific question..." className="field mt-2 resize-y"/><div className="mt-3 flex flex-wrap items-center justify-between gap-3"><label className="text-xs text-muted">Research mode <select value={mode} onChange={e=>setMode(e.target.value)} className="ml-2 rounded-lg border border-line bg-white px-2 py-1.5 text-xs text-ink"><option>Quick scan</option><option>Deep research</option><option>Academic review</option><option>Forensic analysis</option></select></label><button onClick={startResearch} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-50"><Sparkles size={14}/> {submitting ? "Creating..." : "Create run"}</button></div></div>
+          <div className="mt-5 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <section className="rounded-2xl border border-line bg-white p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold"><Search size={16} className="text-accent"/> Find academic papers</div>
+              <p className="mt-1 text-xs leading-5 text-muted">Search Crossref and OpenAlex metadata. Results are not automatically evidence for a claim.</p>
+              <form onSubmit={(event) => { event.preventDefault(); void runAcademicSearch(); }} className="mt-3 flex gap-2">
+                <input className="field min-w-0 flex-1" value={sourceQuery} onChange={(event) => setSourceQuery(event.target.value)} placeholder="Search papers, methods, or topics"/>
+                <button type="submit" disabled={sourceLoading} className="rounded-xl bg-accent px-3.5 py-2 text-xs font-semibold text-white disabled:opacity-50">{sourceLoading ? "Searching…" : "Search"}</button>
+              </form>
+              {sourceError && <div role="status" className="mt-3 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">{sourceError}</div>}
+              {sourceResults.length > 0 && <div className="mt-3 max-h-[460px] space-y-2 overflow-y-auto pr-1">{sourceResults.map((paper) => {
+                const key = paperKey(paper);
+                const saved = savedPaperKeys.includes(key);
+                return <article key={key} className="rounded-xl border border-line p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0"><div className="text-sm font-semibold leading-5">{paper.title}</div><div className="mt-1 text-[11px] text-muted">{paper.authors.slice(0, 4).join(", ")}{paper.authors.length > 4 ? " et al." : ""}{paper.publication_year ? ` · ${paper.publication_year}` : ""} · {paper.provider}</div></div>
+                    <button onClick={() => void savePaper(paper)} disabled={saved || savingPaperKey === key} className="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-semibold hover:bg-paper disabled:opacity-60">{saved ? "Saved" : savingPaperKey === key ? "Saving…" : "Add to library"}</button>
+                  </div>
+                  {paper.abstract && <p className="mt-2 line-clamp-3 text-xs leading-5 text-muted">{paper.abstract}</p>}
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-muted">{paper.doi && <span>DOI: {paper.doi}</span>}{paper.landing_url && <a href={paper.landing_url} target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">Open source ↗</a>}</div>
+                </article>;
+              })}</div>}
+            </section>
+            <section className="rounded-2xl border border-line bg-white p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold"><Upload size={16} className="text-accent"/> Ingest a research PDF</div>
+              <p className="mt-1 text-xs leading-5 text-muted">Extract selectable text into page-aware passages. Scanned PDFs need OCR, and extracted passages are not verified claims.</p>
+              <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-paper px-4 py-7 text-center transition hover:border-accent hover:bg-accent-soft/40">
+                <Upload size={22} className="text-muted"/>
+                <span className="mt-2 text-xs font-semibold">{uploadingPdf ? "Uploading and extracting…" : "Choose a PDF from your device"}</span>
+                <span className="mt-1 text-[10px] text-muted">PDF · configured maximum upload size applies</span>
+                <input className="sr-only" type="file" accept="application/pdf,.pdf" disabled={uploadingPdf} onChange={(event) => { const file = event.target.files?.[0]; void handlePdfUpload(file); event.currentTarget.value = ""; }}/>
+              </label>
+              {uploadMessage && <div role="status" className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-700">{uploadMessage}</div>}
+            </section>
+          </div>
+          <div className="mt-7 border-t border-line pt-5"><div className="flex items-center justify-between"><div className="font-semibold">Claim ledger</div><div className="relative"><Search size={14} className="absolute left-3 top-2.5 text-muted"/><input className="field w-52 pl-8 py-2 text-xs" value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Filter claims"/></div></div><div className="mt-3 space-y-3">{claims.map(c=><button key={c.id} onClick={()=>setActiveClaim(c.id)} className={`w-full rounded-xl border p-4 text-left ${activeClaim===c.id ? "border-accent bg-accent-soft/40" : "border-line hover:bg-paper"}`}><div className="flex items-start justify-between gap-3"><div><div className="text-[10px] font-semibold text-muted">{c.id}</div><div className="mt-1 text-sm font-semibold">{c.title}</div></div><StatusPill tone={c.tone}>{c.state}</StatusPill></div><div className="mt-2 text-xs leading-5 text-muted">{c.summary}</div></button>)}</div></div></section><aside className="surface h-fit p-5"><div className="flex items-center gap-2 font-semibold"><FileSearch size={17} className="text-accent"/> Claim inspector</div><p className="mt-1 text-xs text-muted">Select a claim to inspect its evidence status.</p>{(()=>{const c=demoClaims.find(x=>x.id===activeClaim)??demoClaims[0];return <><div className="mt-5 rounded-xl bg-paper p-4"><div className="text-[10px] font-semibold text-muted">{c.id}</div><div className="mt-1 text-sm font-semibold">{c.title}</div><div className="mt-3"><StatusPill tone={c.tone}>{c.state}</StatusPill></div></div><div className="mt-5"><div className="text-xs font-semibold">Evidence assessment</div><p className="mt-2 text-xs leading-5 text-muted">{c.summary}</p></div><div className="mt-5"><div className="text-xs font-semibold">Provenance basis</div><div className="mt-2 rounded-xl border border-dashed border-line p-3 text-xs leading-5 text-muted">No live source passages are attached in this UI prototype. Verified provenance will be displayed here when ingestion is implemented.</div></div></>})()}<div className="mt-5 flex gap-2 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900"><AlertTriangle size={16} className="mt-0.5 shrink-0"/> Demo evidence must not be treated as a scientific finding.</div></aside></div>}
 
         {view === "Evidence graph" && <section className="surface p-5 md:p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start"><div><div className="eyebrow">Provenance explorer</div><h1 className="mt-2 text-xl font-semibold">Evidence relationship map</h1><p className="mt-1 text-xs leading-5 text-muted">Conceptual graph for interface development. Edges are illustrative, not generated from published studies.</p></div><StatusPill tone="amber">Illustrative graph</StatusPill></div><div className="mt-6 grid gap-5 xl:grid-cols-[1fr_300px]"><div className="relative min-h-[430px] overflow-hidden rounded-2xl border border-line bg-[radial-gradient(#dfe4ee_1px,transparent_1px)] [background-size:20px_20px]"><svg className="absolute inset-0 h-full w-full" viewBox="0 0 760 430" preserveAspectRatio="xMidYMid meet" aria-label="Illustrative evidence graph"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9aa5bb"/></marker></defs><g stroke="#aab3c6" strokeWidth="1.7" markerEnd="url(#arrow)" fill="none"><path d="M190 90 L305 164"/><path d="M190 218 L305 187"/><path d="M445 173 L565 105"/><path d="M445 194 L565 270"/><path d="M190 340 L305 220"/><path d="M445 208 L565 350"/></g><g fontSize="11" fill="#65718a"><text x="223" y="115">supports</text><text x="225" y="211">qualifies</text><text x="478" y="127">derived from</text><text x="480" y="246">depends on</text><text x="218" y="297">cites</text></g>{[{x:36,y:58,w:155,h:64,title:"Paper A",sub:"Paper version"},{x:36,y:187,w:155,h:64,title:"Paper B",sub:"Study record"},{x:305,y:143,w:140,h:76,title:"Claim C-001",sub:"Atomic claim"},{x:565,y:72,w:160,h:66,title:"Passage P-04",sub:"Page / section"},{x:565,y:236,w:160,h:66,title:"Conclusion R-01",sub:"Report version"},{x:36,y:308,w:155,h:64,title:"Source event",sub:"Correction / update"},{x:565,y:322,w:160,h:66,title:"Impact queue",sub:"Requires reassessment"}].map((n,i)=><g key={n.title} onClick={()=>setNotice(`${n.title}: illustrative node. Actual graph data will come from stored evidence records.`)} className="cursor-pointer"><rect x={n.x} y={n.y} width={n.w} height={n.h} rx="12" fill={i===2?"#eef0ff":"#ffffff"} stroke={i===2?"#7082ed":"#d9dfeb"} strokeWidth={i===2?2:1.2}/><text x={n.x+12} y={n.y+27} fontSize="13" fontWeight="600" fill="#172033">{n.title}</text><text x={n.x+12} y={n.y+47} fontSize="10" fill="#65718a">{n.sub}</text></g>)}</svg></div><aside className="space-y-4"><div className="rounded-xl border border-line p-4"><div className="text-sm font-semibold">Relationship legend</div>{[["supports","bg-teal-500"],["contradicts","bg-red-500"],["qualifies","bg-amber-500"],["derived from","bg-indigo-500"],["depends on","bg-slate-500"]].map(([label,color])=><div key={label} className="mt-3 flex items-center gap-2 text-xs text-muted"><span className={`h-2 w-2 rounded-full ${color}`}/>{label}</div>)}</div><div className="rounded-xl border border-line p-4"><div className="text-sm font-semibold">Graph safeguards</div><ul className="mt-3 space-y-2 text-xs leading-5 text-muted"><li>• Explicit and inferred edges are distinguished.</li><li>• Missing relationships are not treated as evidence of absence.</li><li>• Source events trigger reassessment, not automatic invalidation.</li></ul></div><div className="rounded-xl bg-paper p-4"><div className="text-xs font-semibold">Next milestone</div><p className="mt-2 text-xs leading-5 text-muted">Persist papers, passages, claims and edge provenance before connecting the graph UI to a live database.</p></div></aside></div></section>}
 
