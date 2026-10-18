@@ -28,3 +28,6 @@ coverage/
 .idea/
 .vscode/
 *.swp
+
+# User-uploaded research documents
+uploads/
