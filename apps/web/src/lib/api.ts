@@ -343,3 +343,24 @@ export async function downloadEvidencePassport(runId: string, format: "markdown"
   link.remove();
   URL.revokeObjectURL(objectUrl);
 }
+
+
+export interface AuditEventRecord {
+  id: string;
+  actor_user_id: string | null;
+  target_entity_type: string;
+  target_entity_id: string;
+  action: string;
+  previous_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  reason: string | null;
+  resolution_status: string;
+  created_at: string;
+}
+
+export async function listRunAuditEvents(runId: string, limit = 100): Promise<AuditEventRecord[]> {
+  const response = await apiFetch(`${API_BASE}/api/v1/evidence/runs/${runId}/audit?limit=${limit}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  const payload = await response.json() as { events: AuditEventRecord[] };
+  return payload.events;
+}
