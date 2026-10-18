@@ -1,3 +1,6 @@
+import asyncio
+from contextlib import asynccontextmanager, suppress
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,14 +11,31 @@ from app.api.documents import router as documents_router
 from app.api.evidence import router as evidence_router
 from app.core.config import get_settings
 from app.schemas.common import HealthResponse
+from app.services.status_monitor import scheduled_monitor_loop
 
 settings = get_settings()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    monitor_task = None
+    if settings.enable_scheduled_monitoring:
+        monitor_task = asyncio.create_task(scheduled_monitor_loop(), name="chronicle-source-monitor")
+    try:
+        yield
+    finally:
+        if monitor_task is not None:
+            monitor_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await monitor_task
+
 
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="Temporal evidence intelligence for scientific research.",
+    lifespan=lifespan,
 )
+
 
 app.add_middleware(
     CORSMiddleware,
