@@ -25,6 +25,7 @@ export async function createResearchRun(input: {
   mode: ResearchMode;
   max_sources?: number;
   project_id?: string | null;
+  execute?: boolean;
 }): Promise<ResearchRun> {
   const response = await fetch(\`\${API_BASE}/api/v1/research/runs\`, {
     method: "POST",
@@ -98,4 +99,23 @@ export async function uploadPdf(file: File): Promise<PDFUploadResult> {
   });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<PDFUploadResult>;
+}
+
+
+export interface ReportVersionSummary {
+  id: string;
+  run_id: string;
+  version_number: number;
+  parent_version_id: string | null;
+  title: string;
+  content_markdown: string;
+  change_summary: string | null;
+  review_required: boolean;
+  created_at: string;
+}
+
+export async function listReportVersions(runId: string): Promise<ReportVersionSummary[]> {
+  const response = await fetch(\`\${API_BASE}/api/v1/evidence/runs/\${runId}/reports\`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<ReportVersionSummary[]>;
 }
