@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://chronicle:chronicle@localhost:5432/chronicle"
     cors_origins: str = "http://localhost:3000"
     max_upload_mb: int = 25
+    upload_dir: str = "uploads"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
