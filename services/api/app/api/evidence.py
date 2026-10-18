@@ -338,6 +338,7 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
                     changed = True
 
     papers = list(db.scalars(select(Paper).where(Paper.id.in_(paper_ids))).all()) if paper_ids else []
+    studies = list(db.scalars(select(Study).where(Study.paper_id.in_(paper_ids)).order_by(Study.created_at.asc())).all()) if paper_ids else []
 
     nodes: list[dict] = [{
         "id": f"claim:{c.id}", "type": "claim", "label": c.statement,
@@ -354,6 +355,19 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
     nodes.extend({
         "id": f"paper:{p.id}", "type": "paper", "label": p.title, "doi": p.doi
     } for p in papers)
+    nodes.extend({
+        "id": f"study:{study.id}",
+        "type": "study",
+        "label": study.study_type or "Study context",
+        "paper_id": study.paper_id,
+        "source_passage_id": study.source_passage_id,
+        "extraction_basis": study.extraction_basis,
+        "population": study.population,
+        "method": study.method,
+        "intervention": study.intervention,
+        "outcomes": study.outcomes or [],
+        "limitations": study.limitations or [],
+    } for study in studies)
     edges: list[dict] = []
     for relation in relations:
         if relation.passage_id:
@@ -370,6 +384,20 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
         edges.append({"source": f"paper-version:{passage.paper_version_id}", "target": f"passage:{passage.id}", "type": "contains"})
     for version in versions:
         edges.append({"source": f"paper:{version.paper_id}", "target": f"paper-version:{version.id}", "type": "has_version"})
+    for study in studies:
+        edges.append({
+            "source": f"paper:{study.paper_id}",
+            "target": f"study:{study.id}",
+            "type": "has_study_context",
+            "provenance_basis": study.extraction_basis,
+        })
+        if study.source_passage_id:
+            edges.append({
+                "source": f"passage:{study.source_passage_id}",
+                "target": f"study:{study.id}",
+                "type": "characterizes_study",
+                "provenance_basis": study.extraction_basis,
+            })
     for dependency in relevant_dependencies:
         edges.append({
             "id": dependency.id,
@@ -582,6 +610,7 @@ def export_evidence_passport(
     source_events = list(db.scalars(select(SourceEvent).where(
         SourceEvent.paper_id.in_(paper_ids)
     ).order_by(SourceEvent.observed_at.desc())).all()) if paper_ids else []
+    studies = list(db.scalars(select(Study).where(Study.paper_id.in_(paper_ids)).order_by(Study.created_at.asc())).all()) if paper_ids else []
 
     version_by_id = {version.id: version for version in versions}
     paper_by_id = {paper.id: paper for paper in papers}
@@ -632,6 +661,20 @@ def export_evidence_passport(
                 "metadata_snapshot": version.metadata_snapshot or {},
             } for version in versions if version.paper_id == paper.id],
         } for paper in papers],
+        "studies": [{
+            "id": study.id,
+            "paper_id": study.paper_id,
+            "source_passage_id": study.source_passage_id,
+            "source_passage_text": passage_by_id[study.source_passage_id].text if study.source_passage_id in passage_by_id else None,
+            "study_type": study.study_type,
+            "population": study.population,
+            "method": study.method,
+            "intervention": study.intervention,
+            "outcomes": study.outcomes or [],
+            "limitations": study.limitations or [],
+            "extraction_basis": study.extraction_basis,
+            "created_at": iso(study.created_at),
+        } for study in studies],
         "claims": [{
             "id": claim.id,
             "statement": claim.statement,
@@ -737,6 +780,26 @@ def export_evidence_passport(
             lines.extend(["", "**Abstract:**", "", paper["abstract"], ""])
         for version in paper["versions"]:
             lines.append(f"- **Version/status:** {version['version_label']} / {version['publication_status']} (retrieved {version['retrieved_at']})")
+        lines.append("")
+    lines.extend(["## Study context", ""])
+    if not passport["studies"]:
+        lines.append("No structured study-context records are linked to the included papers.")
+    for study in passport["studies"]:
+        lines.extend([f"### {study['study_type'] or 'Study context'}", "", f"- **Paper ID:** {study['paper_id']}", f"- **Extraction basis:** {study['extraction_basis']}"])
+        if study["source_passage_id"]:
+            lines.append(f"- **Source passage ID:** {study['source_passage_id']}")
+        if study["population"]:
+            lines.append(f"- **Population:** {study['population']}")
+        if study["method"]:
+            lines.append(f"- **Method:** {study['method']}")
+        if study["intervention"]:
+            lines.append(f"- **Intervention:** {study['intervention']}")
+        if study["outcomes"]:
+            lines.append("- **Outcomes:** " + "; ".join(study["outcomes"]))
+        if study["limitations"]:
+            lines.append("- **Limitations:** " + "; ".join(study["limitations"]))
+        if study["source_passage_text"]:
+            lines.append("  - **Linked passage text:** " + study["source_passage_text"].replace("\n", " "))
         lines.append("")
     lines.extend(["## Claims and evidence trace", ""])
     if not passport["claims"]:
