@@ -151,6 +151,26 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db)) -> dict:
     version_ids = {p.paper_version_id for p in passages}
     versions = list(db.scalars(select(PaperVersion).where(PaperVersion.id.in_(version_ids))).all()) if version_ids else []
     paper_ids = {v.paper_id for v in versions}
+    latest_report = db.scalar(select(ReportVersion).where(
+        ReportVersion.run_id == run_id
+    ).order_by(ReportVersion.version_number.desc()))
+    if latest_report and isinstance(latest_report.evidence_snapshot, dict):
+        snapshot_paper_ids = latest_report.evidence_snapshot.get("paper_ids", [])
+        if isinstance(snapshot_paper_ids, list):
+            paper_ids.update(item for item in snapshot_paper_ids if isinstance(item, str))
+
+    # Include every retrieved paper version and abstract passage from this run,
+    # even before claims have been extracted and human-reviewed.
+    if paper_ids:
+        versions = list(db.scalars(select(PaperVersion).where(PaperVersion.paper_id.in_(paper_ids))).all())
+        version_ids = {version.id for version in versions}
+        known_passage_ids = {passage.id for passage in passages}
+        if version_ids:
+            stored_passages = list(db.scalars(select(Passage).where(Passage.paper_version_id.in_(version_ids))).all())
+            for passage in stored_passages:
+                if passage.id not in known_passage_ids:
+                    passages.append(passage)
+                    known_passage_ids.add(passage.id)
 
     # Include the transitive paper-dependency neighborhood for the papers
     # referenced by this run's evidence. The relationship basis stays visible.
