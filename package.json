@@ -1,0 +1,11 @@
+{
+  "name": "chronicle",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "pnpm --filter @chronicle/web dev",
+    "build": "pnpm --filter @chronicle/web build",
+    "lint": "pnpm --filter @chronicle/web lint",
+    "typecheck": "pnpm --filter @chronicle/web typecheck"
+  }
+}
