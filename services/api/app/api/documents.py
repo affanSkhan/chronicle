@@ -39,7 +39,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         }
 
     try:
-        extracted = extract_pdf(data)
+        extracted = extract_pdf(data, max_pages=settings.max_pdf_pages)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
