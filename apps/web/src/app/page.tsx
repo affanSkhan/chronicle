@@ -246,8 +246,8 @@ export default function HomePage() {
     }
   }
 
-  function handleStatusSignal(signal: NonNullable<PaperStatusCheck["signals"]>[number]) {
-    setEventPaperId(statusCheck?.paper_id ?? eventPaperId);
+  function handleStatusSignal(signal: NonNullable<PaperStatusCheck["signals"]>[number], paperId = statusCheck?.paper_id ?? eventPaperId) {
+    setEventPaperId(paperId);
     setEventType(signal.event_type);
     setEventDescription(signal.description);
     setEventSourceUrl(signal.source_url ?? "");
