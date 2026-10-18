@@ -212,4 +212,4 @@ def test_optional_synthesis_persists_source_linked_study_context(monkeypatch, cl
 
     passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json").json()
     assert any(item["id"] == study_id and item["source_passage_id"] == passage_id for item in passport["studies"])
-    assert any(item["id"] == study_id for item in passport["audit_events"])
+    assert any(item["target_entity_id"] == study_id and item["action"] == "study.context_extracted" for item in passport["audit_events"])
