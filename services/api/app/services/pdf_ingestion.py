@@ -50,7 +50,7 @@ def _chunks(text: str, size: int = 1100, overlap: int = 140) -> list[tuple[str, 
     return chunks
 
 
-def extract_pdf(data: bytes) -> PDFExtraction:
+def extract_pdf(data: bytes, max_pages: int = 300) -> PDFExtraction:
     if not data.startswith(b"%PDF-"):
         raise ValueError("The uploaded file does not have a valid PDF signature.")
     try:
@@ -59,6 +59,8 @@ def extract_pdf(data: bytes) -> PDFExtraction:
         raise ValueError("The PDF could not be opened. It may be damaged or password-protected.") from exc
 
     try:
+        if len(document) > max_pages:
+            raise ValueError(f"PDF exceeds the {max_pages}-page limit.")
         metadata = document.metadata or {}
         passages: list[ExtractedPassage] = []
         all_text = []
