@@ -3,16 +3,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.entities import ResearchProject, ResearchRun
+from app.core.security import get_current_user
+from app.models.entities import ResearchProject, ResearchRun, User
 from app.schemas.research import ProjectCreate, ProjectRead, ResearchRun as ResearchRunSchema, ResearchRunCreate
 from app.services.research_pipeline import execute_research_run
 
-router = APIRouter(tags=["research"])
+router = APIRouter(tags=["research"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("/projects", response_model=ProjectRead, status_code=201)
-def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> ResearchProject:
-    project = ResearchProject(title=payload.title.strip(), research_question=payload.research_question.strip())
+def create_project(payload: ProjectCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> ResearchProject:
+    project = ResearchProject(owner_user_id=current_user.id, title=payload.title.strip(), research_question=payload.research_question.strip())
     db.add(project)
     db.commit()
     db.refresh(project)
@@ -20,23 +21,24 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Res
 
 
 @router.get("/projects", response_model=list[ProjectRead])
-def list_projects(db: Session = Depends(get_db)) -> list[ResearchProject]:
-    return list(db.scalars(select(ResearchProject).order_by(ResearchProject.updated_at.desc())).all())
+def list_projects(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[ResearchProject]:
+    return list(db.scalars(select(ResearchProject).where(ResearchProject.owner_user_id == current_user.id).order_by(ResearchProject.updated_at.desc())).all())
 
 
 @router.get("/projects/{project_id}", response_model=ProjectRead)
-def get_project(project_id: str, db: Session = Depends(get_db)) -> ResearchProject:
-    project = db.get(ResearchProject, project_id)
+def get_project(project_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> ResearchProject:
+    project = db.scalar(select(ResearchProject).where(ResearchProject.id == project_id, ResearchProject.owner_user_id == current_user.id))
     if project is None:
         raise HTTPException(status_code=404, detail="Research project not found.")
     return project
 
 
 @router.post("/research/runs", response_model=ResearchRunSchema, status_code=201)
-def create_research_run(payload: ResearchRunCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> ResearchRun:
-    if payload.project_id and db.get(ResearchProject, payload.project_id) is None:
+def create_research_run(payload: ResearchRunCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> ResearchRun:
+    if payload.project_id and db.scalar(select(ResearchProject.id).where(ResearchProject.id == payload.project_id, ResearchProject.owner_user_id == current_user.id)) is None:
         raise HTTPException(status_code=404, detail="Research project not found.")
     run = ResearchRun(
+        owner_user_id=current_user.id,
         project_id=payload.project_id,
         question=payload.question.strip(),
         mode=payload.mode.value,
@@ -54,13 +56,13 @@ def create_research_run(payload: ResearchRunCreate, background_tasks: Background
 
 
 @router.get("/research/runs", response_model=list[ResearchRunSchema])
-def list_research_runs(db: Session = Depends(get_db)) -> list[ResearchRun]:
-    return list(db.scalars(select(ResearchRun).order_by(ResearchRun.created_at.desc()).limit(100)).all())
+def list_research_runs(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[ResearchRun]:
+    return list(db.scalars(select(ResearchRun).where(ResearchRun.owner_user_id == current_user.id).order_by(ResearchRun.created_at.desc()).limit(100)).all())
 
 
 @router.get("/research/runs/{run_id}", response_model=ResearchRunSchema)
-def get_research_run(run_id: str, db: Session = Depends(get_db)) -> ResearchRun:
-    run = db.get(ResearchRun, run_id)
+def get_research_run(run_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> ResearchRun:
+    run = db.scalar(select(ResearchRun).where(ResearchRun.id == run_id, ResearchRun.owner_user_id == current_user.id))
     if run is None:
         raise HTTPException(status_code=404, detail="Research run not found.")
     return run
