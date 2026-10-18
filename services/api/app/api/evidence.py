@@ -151,6 +151,25 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db)) -> dict:
     version_ids = {p.paper_version_id for p in passages}
     versions = list(db.scalars(select(PaperVersion).where(PaperVersion.id.in_(version_ids))).all()) if version_ids else []
     paper_ids = {v.paper_id for v in versions}
+
+    # Include the transitive paper-dependency neighborhood for the papers
+    # referenced by this run's evidence. The relationship basis stays visible.
+    all_dependencies = list(db.scalars(select(PaperDependency)).all())
+    relevant_dependencies: list[PaperDependency] = []
+    changed = True
+    while changed:
+        changed = False
+        for dependency in all_dependencies:
+            if dependency in relevant_dependencies:
+                continue
+            if dependency.dependent_paper_id in paper_ids or dependency.depends_on_paper_id in paper_ids:
+                relevant_dependencies.append(dependency)
+                before = len(paper_ids)
+                paper_ids.add(dependency.dependent_paper_id)
+                paper_ids.add(dependency.depends_on_paper_id)
+                if len(paper_ids) != before:
+                    changed = True
+
     papers = list(db.scalars(select(Paper).where(Paper.id.in_(paper_ids))).all()) if paper_ids else []
 
     nodes: list[dict] = [{
@@ -170,9 +189,12 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db)) -> dict:
     } for p in papers)
     edges: list[dict] = []
     for relation in relations:
-        target = f"passage:{relation.passage_id}" if relation.passage_id else f"claim:{relation.related_claim_id}"
+        if relation.passage_id:
+            source, target = f"passage:{relation.passage_id}", f"claim:{relation.claim_id}"
+        else:
+            source, target = f"claim:{relation.claim_id}", f"claim:{relation.related_claim_id}"
         edges.append({
-            "id": relation.id, "source": f"claim:{relation.claim_id}", "target": target,
+            "id": relation.id, "source": source, "target": target,
             "type": relation.relation_type, "provenance_basis": relation.provenance_basis,
             "reviewer_status": relation.reviewer_status, "confidence": relation.confidence,
             "rationale": relation.rationale,
@@ -181,6 +203,16 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db)) -> dict:
         edges.append({"source": f"paper-version:{passage.paper_version_id}", "target": f"passage:{passage.id}", "type": "contains"})
     for version in versions:
         edges.append({"source": f"paper:{version.paper_id}", "target": f"paper-version:{version.id}", "type": "has_version"})
+    for dependency in relevant_dependencies:
+        edges.append({
+            "id": dependency.id,
+            "source": f"paper:{dependency.depends_on_paper_id}",
+            "target": f"paper:{dependency.dependent_paper_id}",
+            "type": dependency.relation_type,
+            "provenance_basis": dependency.provenance_basis,
+            "confidence": dependency.confidence,
+            "rationale": dependency.rationale,
+        })
     return {
         "run_id": run_id, "nodes": nodes, "edges": edges,
         "note": "Only persisted relationships are shown. Missing edges are not evidence that a relationship does not exist.",
