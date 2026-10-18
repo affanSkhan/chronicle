@@ -15,6 +15,67 @@ export interface ResearchRun {
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
+const SESSION_TOKEN_KEY = "chronicle.access-token";
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  created_at: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: "bearer" | string;
+  expires_in: number;
+  user: AuthUser;
+}
+
+export function hasSavedAccessToken(): boolean {
+  return typeof window !== "undefined" && Boolean(window.sessionStorage.getItem(SESSION_TOKEN_KEY));
+}
+
+export function saveAccessToken(token: string): void {
+  if (typeof window !== "undefined") window.sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+}
+
+export function clearAccessToken(): void {
+  if (typeof window !== "undefined") window.sessionStorage.removeItem(SESSION_TOKEN_KEY);
+}
+
+async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const token = typeof window !== "undefined" ? window.sessionStorage.getItem(SESSION_TOKEN_KEY) : null;
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  return fetch(input, { ...init, headers });
+}
+
+export async function registerAccount(email: string, password: string): Promise<AuthResponse> {
+  const response = await apiFetch(`${API_BASE}/api/v1/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<AuthResponse>;
+}
+
+export async function loginAccount(email: string, password: string): Promise<AuthResponse> {
+  const response = await apiFetch(`${API_BASE}/api/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<AuthResponse>;
+}
+
+export async function fetchCurrentUser(): Promise<AuthUser> {
+  const response = await apiFetch(`${API_BASE}/api/v1/auth/me`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<AuthUser>;
+}
+
+
 async function readError(response: Response): Promise<string> {
   const payload = await response.json().catch(() => null);
   if (typeof payload?.detail === "string") return payload.detail;
@@ -28,7 +89,7 @@ export async function createResearchRun(input: {
   project_id?: string | null;
   execute?: boolean;
 }): Promise<ResearchRun> {
-  const response = await fetch(`${API_BASE}/api/v1/research/runs`, {
+  const response = await apiFetch(`${API_BASE}/api/v1/research/runs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input)
@@ -38,7 +99,7 @@ export async function createResearchRun(input: {
 }
 
 export async function listResearchRuns(): Promise<ResearchRun[]> {
-  const response = await fetch(`${API_BASE}/api/v1/research/runs`, { cache: "no-store" });
+  const response = await apiFetch(`${API_BASE}/api/v1/research/runs`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<ResearchRun[]>;
 }
@@ -57,7 +118,7 @@ export interface AcademicSearchResult {
 
 export async function searchAcademicSources(query: string, limit = 10, provider = "all") {
   const params = new URLSearchParams({ q: query, limit: String(limit), provider });
-  const response = await fetch(`${API_BASE}/api/v1/sources/search?${params.toString()}`, { cache: "no-store" });
+  const response = await apiFetch(`${API_BASE}/api/v1/sources/search?${params.toString()}`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<{
     query: string;
@@ -68,7 +129,7 @@ export async function searchAcademicSources(query: string, limit = 10, provider 
 }
 
 export async function importPaper(paper: Omit<AcademicSearchResult, "provider"> & { provider: string }) {
-  const response = await fetch(`${API_BASE}/api/v1/sources/papers`, {
+  const response = await apiFetch(`${API_BASE}/api/v1/sources/papers`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(paper)
@@ -94,7 +155,7 @@ export interface PDFUploadResult {
 export async function uploadPdf(file: File): Promise<PDFUploadResult> {
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(`${API_BASE}/api/v1/documents/upload`, {
+  const response = await apiFetch(`${API_BASE}/api/v1/documents/upload`, {
     method: "POST",
     body: form
   });
@@ -117,7 +178,7 @@ export interface ReportVersionSummary {
 }
 
 export async function listReportVersions(runId: string): Promise<ReportVersionSummary[]> {
-  const response = await fetch(`${API_BASE}/api/v1/evidence/runs/${runId}/reports`, { cache: "no-store" });
+  const response = await apiFetch(`${API_BASE}/api/v1/evidence/runs/${runId}/reports`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<ReportVersionSummary[]>;
 }
@@ -155,7 +216,7 @@ export interface EvidenceGraphResponse {
 }
 
 export async function getEvidenceGraph(runId: string): Promise<EvidenceGraphResponse> {
-  const response = await fetch(`${API_BASE}/api/v1/evidence/runs/${runId}/graph`, { cache: "no-store" });
+  const response = await apiFetch(`${API_BASE}/api/v1/evidence/runs/${runId}/graph`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<EvidenceGraphResponse>;
 }
@@ -188,13 +249,13 @@ export interface SourceEventRecord {
 }
 
 export async function listLibraryPapers(limit = 100): Promise<LibraryPaper[]> {
-  const response = await fetch(`${API_BASE}/api/v1/sources/papers?limit=${limit}`, { cache: "no-store" });
+  const response = await apiFetch(`${API_BASE}/api/v1/sources/papers?limit=${limit}`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<LibraryPaper[]>;
 }
 
 export async function listSourceEvents(limit = 50): Promise<SourceEventRecord[]> {
-  const response = await fetch(`${API_BASE}/api/v1/sources/events?limit=${limit}`, { cache: "no-store" });
+  const response = await apiFetch(`${API_BASE}/api/v1/sources/events?limit=${limit}`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   const payload = await response.json() as { events: SourceEventRecord[] };
   return payload.events;
@@ -219,7 +280,7 @@ export async function createSourceEvent(input: {
   note: string;
 }> {
   const { paperId, ...payload } = input;
-  const response = await fetch(`${API_BASE}/api/v1/sources/papers/${paperId}/events`, {
+  const response = await apiFetch(`${API_BASE}/api/v1/sources/papers/${paperId}/events`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -234,7 +295,7 @@ export async function reviewEvidenceRelation(
   reviewerStatus: "accepted" | "rejected" | "needs_review",
   reviewerNotes?: string
 ): Promise<{ id: string; reviewer_status: string; provenance_basis: string; relation_type: string }> {
-  const response = await fetch(`${API_BASE}/api/v1/evidence/relations/${relationId}/review`, {
+  const response = await apiFetch(`${API_BASE}/api/v1/evidence/relations/${relationId}/review`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ reviewer_status: reviewerStatus, reviewer_notes: reviewerNotes })
@@ -263,14 +324,14 @@ export interface PaperStatusCheck {
 }
 
 export async function checkPaperStatus(paperId: string): Promise<PaperStatusCheck> {
-  const response = await fetch(`${API_BASE}/api/v1/sources/papers/${paperId}/status-check`, { cache: "no-store" });
+  const response = await apiFetch(`${API_BASE}/api/v1/sources/papers/${paperId}/status-check`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<PaperStatusCheck>;
 }
 
 
 export async function downloadEvidencePassport(runId: string, format: "markdown" | "json" = "markdown"): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/v1/evidence/runs/${runId}/passport?format=${format}`, { cache: "no-store" });
+  const response = await apiFetch(`${API_BASE}/api/v1/evidence/runs/${runId}/passport?format=${format}`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   const blob = await response.blob();
   const objectUrl = URL.createObjectURL(blob);
