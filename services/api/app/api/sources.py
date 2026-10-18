@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.models.entities import Paper, PaperDependency, PaperVersion, SourceEvent
+from app.models.entities import Paper, PaperDependency, PaperVersion, Passage, SourceEvent
 from app.schemas.evidence import PaperImport, PaperRead, PaperSearchResult, SourceEventCreate, SourceEventRead
 from app.services.academic_search import search_papers
 from app.services.temporal_impact import affected_report_runs, impacted_claims, impacted_papers, mark_review_required
