@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.entities import (
     AuditEvent, Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage,
-    ReportVersion, ResearchRun, SourceEvent, Study, User,
+    ReportVersion, ResearchRun, SourceEvent, SourceStatusCheck, Study, User,
 )
 from app.services.audit import record_audit_event
 from app.schemas.evidence import (
@@ -610,6 +610,9 @@ def export_evidence_passport(
     source_events = list(db.scalars(select(SourceEvent).where(
         SourceEvent.paper_id.in_(paper_ids)
     ).order_by(SourceEvent.observed_at.desc())).all()) if paper_ids else []
+    status_checks = list(db.scalars(select(SourceStatusCheck).where(
+        SourceStatusCheck.paper_id.in_(paper_ids)
+    ).order_by(SourceStatusCheck.checked_at.desc())).all()) if paper_ids else []
     studies = list(db.scalars(select(Study).where(Study.paper_id.in_(paper_ids)).order_by(Study.created_at.asc())).all()) if paper_ids else []
 
     version_by_id = {version.id: version for version in versions}
@@ -723,6 +726,19 @@ def export_evidence_passport(
             "verification_status": event.verification_status,
             "metadata_snapshot": event.metadata_snapshot or {},
         } for event in source_events],
+        "source_status_checks": [{
+            "id": check.id,
+            "paper_id": check.paper_id,
+            "checked_at": iso(check.checked_at),
+            "trigger_type": check.trigger_type,
+            "outcome": check.outcome,
+            "provider_states": check.provider_states or {},
+            "signals": check.signals or [],
+            "result_hash": check.result_hash,
+            "previous_result_hash": check.previous_result_hash,
+            "change_detected": check.change_detected,
+            "error_message": check.error_message,
+        } for check in status_checks],
         "audit_events": [{
             "id": row.id,
             "actor_user_id": row.actor_user_id,
@@ -836,6 +852,19 @@ def export_evidence_passport(
         summary = (event["metadata_snapshot"] or {}).get("impact_summary")
         if summary:
             lines.append(f"  - Impact summary: {summary}")
+    lines.extend(["", "## External source status checks", ""])
+    if not passport["source_status_checks"]:
+        lines.append("No saved Crossref/OpenAlex status checks are linked to the included papers.")
+    for check in passport["source_status_checks"]:
+        lines.append(f"- **{check['trigger_type']} check** for paper {check['paper_id']} at {check['checked_at']} (outcome: {check['outcome']}; change detected: {check['change_detected']})")
+        lines.append(f"  - Provider states: {check['provider_states']}")
+        if check["error_message"]:
+            lines.append(f"  - Provider issue: {check['error_message']}")
+        for signal in check["signals"]:
+            lines.append(f"  - Candidate signal: {signal.get('event_type')} from {signal.get('provider')} — {signal.get('description')}")
+            if signal.get("source_url"):
+                lines.append(f"    - Notice: {signal['source_url']}")
+        lines.append("")
     lines.extend(["", "## Review and audit history", ""])
     if not passport["audit_events"]:
         lines.append("No audit events were recorded for this run.")
