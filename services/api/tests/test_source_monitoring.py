@@ -155,3 +155,41 @@ def test_monitor_worker_ignores_disabled_papers(monkeypatch, client) -> None:
     assert asyncio.run(status_monitor.run_due_status_checks()) == []
     with TestingSessionLocal() as db:
         assert db.scalar(select(SourceStatusCheck).where(SourceStatusCheck.paper_id == paper["id"])) is None
+
+
+def test_manual_provider_outage_is_not_misclassified_as_source_change(monkeypatch, client) -> None:
+    paper = add_paper(client, "10.5555/provider-outage-test")
+    state = {"available": True}
+
+    async def fake_status(doi: str) -> dict:
+        if state["available"]:
+            return {
+                "providers": {"crossref": "ok", "openalex": "not_found"},
+                "signals": [{
+                    "provider": "crossref",
+                    "event_type": "correction",
+                    "update_type": "correction",
+                    "description": "A correction signal was previously reported.",
+                    "source_url": "https://publisher.example/correction",
+                    "verification_status": "metadata_confirmed",
+                    "metadata": {},
+                }],
+                "note": "Initial complete check.",
+            }
+        return {
+            "providers": {"crossref": "unavailable", "openalex": "unavailable"},
+            "signals": [],
+            "note": "Both public metadata providers were unavailable.",
+        }
+
+    monkeypatch.setattr("app.api.sources.fetch_paper_status_signals", fake_status)
+    first = client.post(f"/api/v1/sources/papers/{paper['id']}/status-check")
+    assert first.status_code == 201
+    assert first.json()["change_detected"] is False
+
+    state["available"] = False
+    second = client.post(f"/api/v1/sources/papers/{paper['id']}/status-check")
+    assert second.status_code == 201
+    assert second.json()["outcome"] == "unavailable"
+    assert second.json()["change_detected"] is False
+    assert "unavailable" in second.json()["note"].lower()
