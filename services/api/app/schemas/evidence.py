@@ -47,6 +47,7 @@ class PaperImport(BaseModel):
 
 
 class StudyCreate(BaseModel):
+    source_passage_id: str | None = None
     study_type: str | None = None
     population: str | None = None
     method: str | None = None
