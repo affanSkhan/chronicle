@@ -37,6 +37,8 @@ docker compose -f infra/docker-compose.yml up --build
 
 Open the workspace at http://localhost:3000, API docs at http://localhost:8000/docs, and health endpoint at http://localhost:8000/api/v1/health.
 
+Local Docker Compose enables scheduled source-status checks by default (`ENABLE_SCHEDULED_MONITORING=true`). Direct API runs default to disabled and can opt in via `.env`. The scheduler is single-process; do not enable it on multiple replicas until a distributed worker/leader lock is implemented.
+
 The default JWT and database secrets are for local development only. For any shared/public environment, set a strong random `JWT_SECRET_KEY` of at least 32 characters, a strong database password, HTTPS, and appropriate CORS origins. Uploaded files are stored in a local container volume and are not served directly by the API.
 
 ## Run the API directly
@@ -88,4 +90,4 @@ GitHub Actions runs API tests, frontend typecheck/lint/production build and Dock
 - Uploaded files are in local/container storage; configure private durable object storage and retention/deletion workflows before public use.
 - Research outputs and hypothesis suggestions are aids for human review, not claims of verified scientific truth.
 
-See [docs/implementation-status.md](docs/implementation-status.md) for the current implementation boundary.
+See [docs/implementation-status.md](docs/implementation-status.md) for the current implementation boundary and [docs/evaluation-protocol.md](docs/evaluation-protocol.md) for the reproducible benchmark protocol.
