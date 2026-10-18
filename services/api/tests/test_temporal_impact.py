@@ -141,6 +141,22 @@ def test_source_event_flags_dependent_claims_and_report() -> None:
     reports = client.get(f"/api/v1/evidence/runs/{run_id}/reports").json()
     assert reports[0]["review_required"] is True
 
+    passport_response = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json")
+    assert passport_response.status_code == 200, passport_response.text
+    passport = passport_response.json()
+    assert passport["scope"]["run_id"] == run_id
+    assert any(paper["id"] == dependent_id for paper in passport["papers"])
+    assert any(paper["id"] == origin_id for paper in passport["papers"])
+    assert any(claim["id"] == claim_id for claim in passport["claims"])
+    assert any(event["paper_id"] == origin_id for event in passport["source_events"])
+    assert any(report["review_required"] for report in passport["report_versions"])
+    assert any(dep["relation_type"] == "same_dataset" for dep in passport["paper_dependencies"])
+
+    markdown_passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=markdown")
+    assert markdown_passport.status_code == 200
+    assert "Chronicle Evidence Passport" in markdown_passport.text
+    assert "Exact text:" in markdown_passport.text
+
 
 def test_upload_rejects_non_pdf() -> None:
     response = client.post(
