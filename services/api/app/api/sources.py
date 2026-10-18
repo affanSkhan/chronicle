@@ -277,7 +277,21 @@ def record_source_event(
     run_ids = affected_report_runs(db, claim_ids)
 
     from app.models.entities import ReportVersion
-    report_versions = list(db.scalars(select(ReportVersion).where(ReportVersion.run_id.in_(run_ids))).all()) if run_ids else []
+    # A report may cite/discover a source without producing a claim for it yet.
+    # Include runs whose saved report snapshot contains any impacted paper or passage.
+    all_reports = list(db.scalars(select(ReportVersion)).all())
+    impacted_passage_ids = set(db.scalars(
+        select(Passage.id).join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+        .where(PaperVersion.paper_id.in_(paper_ids))
+    ).all()) if paper_ids else set()
+    for report in all_reports:
+        snapshot = report.evidence_snapshot if isinstance(report.evidence_snapshot, dict) else {}
+        snapshot_papers = set(snapshot.get("paper_ids", [])) if isinstance(snapshot.get("paper_ids"), list) else set()
+        snapshot_passages = set(snapshot.get("passage_ids", [])) if isinstance(snapshot.get("passage_ids"), list) else set()
+        if (snapshot_papers & paper_ids) or (snapshot_passages & impacted_passage_ids):
+            run_ids.add(report.run_id)
+
+    report_versions = [report for report in all_reports if report.run_id in run_ids]
     for report in report_versions:
         report.review_required = True
         if not report.change_summary:
