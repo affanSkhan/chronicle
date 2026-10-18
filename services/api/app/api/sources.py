@@ -162,7 +162,7 @@ async def check_paper_status(paper_id: str, db: Session = Depends(get_db)) -> di
         # Crossref update-to records indicate items that update this DOI, including
         # correction/retraction notices where those relationships were deposited.
         try:
-            response = await client.get(f"https://api.crossref.org/works/{quote(doi or '', safe='')}")
+            response = await client.get(f"https://api.crossref.org/works/{quote(doi or '', safe='/')}")
             response.raise_for_status()
             item = response.json().get("message", {})
             providers["crossref"] = "ok"
