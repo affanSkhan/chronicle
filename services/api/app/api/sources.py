@@ -341,8 +341,9 @@ def record_source_event(
     } if claim_ids else {}
     reviewed_count = mark_review_required(db, claim_ids)
     run_ids = affected_report_runs(db, claim_ids)
-    # A report may cite/discover a source without producing a claim for it yet.
-    # Include runs whose saved report snapshot contains any impacted paper or passage.
+
+    # Include runs whose saved report snapshot contains an impacted source,
+    # even when claim extraction did not produce a claim for that paper.
     all_reports = list(db.scalars(select(ReportVersion)).all())
     impacted_passage_ids = set(db.scalars(
         select(Passage.id).join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
@@ -355,25 +356,73 @@ def record_source_event(
         if (snapshot_papers & paper_ids) or (snapshot_passages & impacted_passage_ids):
             run_ids.add(report.run_id)
 
-    report_versions = [report for report in all_reports if report.run_id in run_ids]
-    reports_before = {report.id: {"review_required": report.review_required, "run_id": report.run_id} for report in report_versions}
-    for report in report_versions:
-        report.review_required = True
-        if not report.change_summary:
-            report.change_summary = "A source event affected evidence used by this report; review is required."
-    event.metadata_snapshot = {
-        **(event.metadata_snapshot or {}),
+    # A prior report is an immutable historical snapshot. Create one child
+    # version per affected run and flag the new version for human reassessment.
+    latest_by_run: dict[str, ReportVersion] = {}
+    for report in all_reports:
+        if report.run_id not in run_ids:
+            continue
+        prior = latest_by_run.get(report.run_id)
+        if prior is None or report.version_number > prior.version_number:
+            latest_by_run[report.run_id] = report
+
+    event_metadata = event.metadata_snapshot if isinstance(event.metadata_snapshot, dict) else {}
+    event_metadata = {
+        **event_metadata,
         "impact_summary": {
             "impacted_paper_count": len(paper_ids),
             "affected_claim_count": len(claim_ids),
             "claims_flagged_for_review": reviewed_count,
             "affected_run_count": len(run_ids),
-            "report_versions_flagged_for_review": len(report_versions),
+            "report_versions_flagged_for_review": len(latest_by_run),
         },
         "impacted_paper_ids": sorted(paper_ids),
         "affected_claim_ids": sorted(claim_ids),
         "affected_run_ids": sorted(run_ids),
     }
+    event.metadata_snapshot = event_metadata
+
+    new_report_versions: list[tuple[ReportVersion, ReportVersion]] = []
+    for prior in latest_by_run.values():
+        prior_snapshot = prior.evidence_snapshot if isinstance(prior.evidence_snapshot, dict) else {}
+        next_snapshot = {
+            **prior_snapshot,
+            "previous_report_version_id": prior.id,
+            "source_update_requires_review": True,
+            "last_source_event": {
+                "id": event.id,
+                "paper_id": paper_id,
+                "event_type": event.event_type,
+                "event_date": event.event_date.isoformat() if event.event_date else None,
+                "observed_at": event.observed_at.isoformat(),
+                "source_url": event.source_url,
+                "description": event.description,
+                "verification_status": event.verification_status,
+            },
+            "impact_summary": event_metadata["impact_summary"],
+        }
+        update_notice = (
+            f"\n\n---\n\n## Temporal source update\n\n"
+            f"Chronicle recorded a **{event.event_type.replace('_', ' ')}** event for a source in this report "
+            f"(verification status: **{event.verification_status}**).\n\n"
+            f"**Notice:** {event.description}\n\n"
+            "This version preserves the prior analysis and flags it for researcher review. "
+            "It does not assume that every dependent claim is false.\n"
+        )
+        revised = ReportVersion(
+            run_id=prior.run_id,
+            version_number=prior.version_number + 1,
+            parent_version_id=prior.id,
+            title=prior.title,
+            content_markdown=prior.content_markdown + update_notice,
+            evidence_snapshot=next_snapshot,
+            change_summary=f"Source event {event.id} ({event.event_type}) recorded; prior conclusions require reassessment.",
+            review_required=True,
+        )
+        db.add(revised)
+        db.flush()
+        new_report_versions.append((prior, revised))
+
     for claim_id in sorted(claim_ids):
         before = claims_before.get(claim_id, {})
         claim = db.get(Claim, claim_id)
@@ -391,20 +440,28 @@ def record_source_event(
             reason=f"Source event {event.id} may affect evidence linked to this claim.",
             resolution_status="needs_review",
         )
-    for report in report_versions:
-        before = reports_before.get(report.id, {})
+    for prior, revised in new_report_versions:
         record_audit_event(
             db,
             actor_user_id=current_user.id,
-            run_id=report.run_id,
+            run_id=revised.run_id,
             target_entity_type="report_version",
-            target_entity_id=report.id,
-            action="report_version.flagged_by_source_event",
-            previous_value={"review_required": before.get("review_required")},
-            new_value={"review_required": report.review_required, "version_number": report.version_number},
-            reason=f"Source event {event.id} may affect this saved report snapshot.",
+            target_entity_id=revised.id,
+            action="report_version.created_after_source_event",
+            previous_value={
+                "parent_report_version_id": prior.id,
+                "version_number": prior.version_number,
+                "review_required": prior.review_required,
+            },
+            new_value={
+                "parent_report_version_id": revised.parent_version_id,
+                "version_number": revised.version_number,
+                "review_required": revised.review_required,
+            },
+            reason=f"Source event {event.id} requires reassessment of the saved evidence snapshot.",
             resolution_status="needs_review",
         )
+    report_versions = [revised for _, revised in new_report_versions]
     db.commit()
     db.refresh(event)
 
