@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { checkPaperStatus, createResearchRun, createSourceEvent, downloadEvidencePassport, getEvidenceGraph, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents, reviewEvidenceRelation, searchAcademicSources, uploadPdf, type AcademicSearchResult, type EvidenceGraphResponse, type LibraryPaper, type PaperStatusCheck, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord } from "@/lib/api";
+import { checkPaperStatus, clearAccessToken, createResearchRun, createSourceEvent, downloadEvidencePassport, fetchCurrentUser, getEvidenceGraph, hasSavedAccessToken, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents, loginAccount, registerAccount, reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf, type AcademicSearchResult, type AuthUser, type EvidenceGraphResponse, type LibraryPaper, type PaperStatusCheck, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord } from "@/lib/api";
 import {
   Activity, ArrowRight, BookOpen, CircleHelp, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
   History, LayoutDashboard, Microscope, Network, Plus, Search,
-  ShieldCheck, Sparkles, Upload, Workflow, AlertTriangle, CircleDashed
+  ShieldCheck, Sparkles, Upload, Workflow, AlertTriangle, CircleDashed, LogOut
 } from "lucide-react";
 
 type View = "Overview" | "Research workspace" | "Evidence graph" | "Source timeline" | "Hypothesis lab";
@@ -58,6 +58,13 @@ export default function HomePage() {
   const [showNewRun, setShowNewRun] = useState(false);
   const [activeClaim, setActiveClaim] = useState("C-001");
   const [searchTerm, setSearchTerm] = useState("");
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authSubmitting, setAuthSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [runs, setRuns] = useState<ResearchRun[]>([]);
@@ -99,20 +106,48 @@ export default function HomePage() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadRuns = async () => {
+    const restoreSession = async () => {
+      if (!hasSavedAccessToken()) {
+        setAuthLoading(false);
+        return;
+      }
       try {
-        const latest = await listResearchRuns();
-        if (!cancelled) setRuns(latest);
+        const user = await fetchCurrentUser();
+        if (!cancelled) setAuthUser(user);
       } catch {
-        // The rest of the workspace remains usable when the backend is offline.
+        clearAccessToken();
+        if (!cancelled) setAuthUser(null);
+      } finally {
+        if (!cancelled) setAuthLoading(false);
       }
     };
-    void loadRuns();
+    void restoreSession();
     return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
-    if (view !== "Source timeline") return;
+    if (!authUser) {
+      setRuns([]);
+      return;
+    }
+    let cancelled = false;
+    const loadRuns = async () => {
+      setRunsLoading(true);
+      try {
+        const latest = await listResearchRuns();
+        if (!cancelled) setRuns(latest);
+      } catch (error) {
+        if (!cancelled) setNotice(error instanceof Error ? error.message : "Could not load saved research runs.");
+      } finally {
+        if (!cancelled) setRunsLoading(false);
+      }
+    };
+    void loadRuns();
+    return () => { cancelled = true; };
+  }, [authUser]);
+
+  useEffect(() => {
+    if (view !== "Source timeline" || !authUser) return;
     let cancelled = false;
     const loadTimeline = async () => {
       setTimelineLoading(true);
@@ -132,7 +167,7 @@ export default function HomePage() {
     };
     void loadTimeline();
     return () => { cancelled = true; };
-  }, [view]);
+  }, [view, authUser]);
 
   async function reviewGraphRelation(
     relationId: string,
@@ -220,7 +255,7 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    if (view !== "Evidence graph" || !activeRunId) {
+    if (view !== "Evidence graph" || !activeRunId || !authUser) {
       setGraphData(null);
       setGraphError("");
       return;
@@ -240,10 +275,10 @@ export default function HomePage() {
     };
     void loadGraph();
     return () => { cancelled = true; };
-  }, [view, activeRunId]);
+  }, [view, activeRunId, authUser]);
 
   useEffect(() => {
-    if (!activeRunId) return;
+    if (!activeRunId || !authUser) return;
     let cancelled = false;
     const pollRun = async () => {
       try {
@@ -394,6 +429,41 @@ export default function HomePage() {
     return rows;
   }, [showVersionCompare, latestReport, comparedReport]);
 
+  async function submitAuthentication(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthSubmitting(true);
+    setAuthError("");
+    try {
+      const result = authMode === "register"
+        ? await registerAccount(authEmail.trim(), authPassword)
+        : await loginAccount(authEmail.trim(), authPassword);
+      saveAccessToken(result.access_token);
+      setAuthUser(result.user);
+      setAuthPassword("");
+      setAuthMode("login");
+      setNotice(authMode === "register" ? "Account created. Your research records are private to this account." : "Signed in successfully.");
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Could not authenticate. Check your connection and credentials.");
+    } finally {
+      setAuthSubmitting(false);
+      setAuthLoading(false);
+    }
+  }
+
+  function signOut() {
+    clearAccessToken();
+    setAuthUser(null);
+    setActiveRunId(null);
+    setCurrentReport(null);
+    setReportVersions([]);
+    setGraphData(null);
+    setRuns([]);
+    setSourceEvents([]);
+    setLibraryPapers([]);
+    setView("Overview");
+    setNotice("");
+  }
+
   async function exportPassport(format: "markdown" | "json") {
     if (!activeRunId) return;
     setPassportFormatLoading(format);
@@ -461,6 +531,36 @@ export default function HomePage() {
     }
   }
 
+  if (authLoading) {
+    return <main className="flex min-h-screen items-center justify-center bg-paper p-6"><div className="rounded-2xl border border-line bg-white px-8 py-7 text-center shadow-sm"><div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-ink text-white"><History size={22}/></div><p className="mt-4 text-sm font-semibold">Opening your Chronicle workspace…</p><p className="mt-1 text-xs text-muted">Restoring your private session</p></div></main>;
+  }
+
+  if (!authUser) {
+    return <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-100 via-paper to-paper p-4 md:p-8">
+      <section className="grid w-full max-w-4xl overflow-hidden rounded-3xl border border-line bg-white shadow-xl md:grid-cols-[0.95fr_1.05fr]">
+        <div className="flex flex-col justify-between bg-ink p-7 text-white md:p-9">
+          <div><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10"><History size={22}/></div><div><div className="text-lg font-semibold">chronicle<span className="text-indigo-300">.</span></div><div className="text-[11px] text-slate-300">Temporal evidence intelligence</div></div></div>
+            <div className="mt-12"><div className="eyebrow text-indigo-200">Multi-agent research assistant</div><h1 className="mt-3 text-3xl font-semibold leading-tight">Make every conclusion traceable.</h1><p className="mt-4 text-sm leading-6 text-slate-300">Discover scholarly sources, connect claims to passages, inspect source lineage and keep track of evidence changes over time.</p></div>
+          </div>
+          <div className="mt-10 rounded-2xl border border-white/10 bg-white/5 p-4"><div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={16}/> Private research workspace</div><p className="mt-2 text-xs leading-5 text-slate-300">Your saved papers, runs, reports and uploaded documents are scoped to your account. This research prototype does not guarantee scientific truth and still requires human review.</p></div>
+        </div>
+        <div className="p-7 md:p-9">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">{authMode === "login" ? "Welcome back" : "Get started"}</div>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight">{authMode === "login" ? "Sign in to Chronicle" : "Create your account"}</h2>
+          <p className="mt-2 text-sm leading-6 text-muted">{authMode === "login" ? "Continue to your private research projects and evidence ledger." : "Create an account to save and revisit your research."}</p>
+          <form onSubmit={submitAuthentication} className="mt-7 space-y-4">
+            <label className="block text-xs font-semibold">Email address<input type="email" required autoComplete="email" value={authEmail} onChange={(event)=>setAuthEmail(event.target.value)} className="field mt-1.5" placeholder="you@university.edu"/></label>
+            <label className="block text-xs font-semibold">Password<input type="password" required minLength={authMode === "register" ? 12 : 1} maxLength={128} autoComplete={authMode === "login" ? "current-password" : "new-password"} value={authPassword} onChange={(event)=>setAuthPassword(event.target.value)} className="field mt-1.5" placeholder={authMode === "register" ? "At least 12 characters" : "Enter your password"}/></label>
+            {authError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-800">{authError}</div>}
+            <button type="submit" disabled={authSubmitting} className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50">{authSubmitting ? "Please wait…" : authMode === "login" ? "Sign in" : "Create account"} <ArrowRight size={15}/></button>
+          </form>
+          <div className="mt-5 text-center text-xs text-muted">{authMode === "login" ? "New to Chronicle?" : "Already have an account?"} <button onClick={()=>{setAuthMode((mode)=>mode==="login"?"register":"login");setAuthError("");}} className="font-semibold text-accent hover:underline">{authMode === "login" ? "Create an account" : "Sign in"}</button></div>
+          <p className="mt-6 text-[10px] leading-5 text-muted">Use a unique password. Provider credentials are managed on the server. Reported findings and hypotheses remain research aids for human review.</p>
+        </div>
+      </section>
+    </main>;
+  }
+
   return <div className="min-h-screen bg-paper text-ink">
     <aside className="fixed inset-y-0 left-0 z-20 hidden w-[248px] flex-col border-r border-line bg-white px-4 py-5 lg:flex">
       <div className="flex items-center gap-3 px-2">
@@ -481,7 +581,7 @@ export default function HomePage() {
     <main className="min-h-screen lg:pl-[248px]">
       <header className="sticky top-0 z-10 flex h-[72px] items-center justify-between border-b border-line bg-white/90 px-5 backdrop-blur md:px-8">
         <div><div className="text-sm font-semibold">{view}</div><div className="mt-0.5 text-[11px] text-muted">Temporal Evidence Intelligence <span className="mx-1">/</span> Prototype</div></div>
-        <div className="flex items-center gap-2"><span className="hidden rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-medium text-amber-800 sm:inline-flex">Demo data</span><button onClick={() => setShowNewRun(true)} className="inline-flex items-center gap-2 rounded-xl bg-accent px-3.5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"><Plus size={15}/> New research</button></div>
+        <div className="flex items-center gap-2"><span className="hidden max-w-[180px] truncate rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-medium text-slate-700 sm:inline-flex" title={authUser.email}>{authUser.email}</span><button onClick={signOut} className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3 py-2.5 text-xs font-semibold hover:bg-paper" aria-label="Sign out"><LogOut size={14}/><span className="hidden sm:inline">Sign out</span></button><button onClick={() => setShowNewRun(true)} className="inline-flex items-center gap-2 rounded-xl bg-accent px-3.5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"><Plus size={15}/> New research</button></div>
       </header>
 
       <div className="mx-auto max-w-[1500px] px-5 py-7 md:px-8">
