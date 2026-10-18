@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     openai_model: str = ""
     jwt_secret_key: SecretStr = SecretStr("development-only-change-this-secret-key")
     jwt_access_token_expire_minutes: int = 480
+    enable_scheduled_monitoring: bool = False
+    source_monitor_poll_seconds: int = 60
+    source_monitor_batch_size: int = 20
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
