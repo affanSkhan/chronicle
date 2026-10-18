@@ -114,6 +114,7 @@ def test_source_event_flags_dependent_claims_and_report(client) -> None:
         json={"title": "Initial report", "content_markdown": "The report concludes that the intervention may help."},
     )
     assert report_response.status_code == 201, report_response.text
+    original_report_id = report_response.json()["id"]
 
     event_response = client.post(
         f"/api/v1/sources/papers/{origin_id}/events",
@@ -156,7 +157,12 @@ def test_source_event_flags_dependent_claims_and_report(client) -> None:
     claims = client.get(f"/api/v1/evidence/runs/{run_id}/claims").json()
     assert next(c for c in claims if c["id"] == claim_id)["review_required"] is True
     reports = client.get(f"/api/v1/evidence/runs/{run_id}/reports").json()
+    assert len(reports) == 2
     assert reports[0]["review_required"] is True
+    assert reports[0]["parent_version_id"] == original_report_id
+    assert reports[1]["id"] == original_report_id
+    assert reports[1]["review_required"] is False
+    assert "Temporal source update" in reports[0]["content_markdown"]
 
     passport_response = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json")
     assert passport_response.status_code == 200, passport_response.text
@@ -168,7 +174,7 @@ def test_source_event_flags_dependent_claims_and_report(client) -> None:
     assert any(event["paper_id"] == origin_id for event in passport["source_events"])
     assert any(report["review_required"] for report in passport["report_versions"])
     assert any(item["action"] == "claim.flagged_by_source_event" for item in passport["audit_events"])
-    assert any(item["action"] == "report_version.flagged_by_source_event" for item in passport["audit_events"])
+    assert any(item["action"] == "report_version.created_after_source_event" for item in passport["audit_events"])
     assert any(dep["relation_type"] == "same_dataset" for dep in passport["paper_dependencies"])
 
     markdown_passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=markdown")
