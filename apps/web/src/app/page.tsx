@@ -481,12 +481,31 @@ export default function HomePage() {
     setActiveRunId(null);
     setCurrentReport(null);
     setReportVersions([]);
+    setCompareReportId("");
+    setShowVersionCompare(false);
     setGraphData(null);
+    setGraphError("");
+    setAuditEvents([]);
+    setAuditError("");
     setRuns([]);
     setSourceEvents([]);
     setLibraryPapers([]);
-    setView("Overview");
+    setSourceResults([]);
+    setSourceQuery("");
+    setSourceError("");
+    setSavedPaperKeys([]);
+    setUploadMessage("");
+    setEventPaperId("");
+    setEventDescription("");
+    setEventSourceUrl("");
+    setEventVerification("unverified");
+    setEventResult("");
+    setStatusCheck(null);
+    setTimelineError("");
+    setPassportError("");
+    setQuery("");
     setNotice("");
+    setView("Overview");
   }
 
   async function exportPassport(format: "markdown" | "json") {
