@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { checkPaperStatus, clearAccessToken, createResearchRun, createSourceEvent, downloadEvidencePassport, fetchCurrentUser, getEvidenceGraph, hasSavedAccessToken, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents, loginAccount, registerAccount, reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf, type AcademicSearchResult, type AuthUser, type EvidenceGraphResponse, type LibraryPaper, type PaperStatusCheck, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord } from "@/lib/api";
+import { checkPaperStatus, clearAccessToken, createResearchRun, createSourceEvent, downloadEvidencePassport, fetchCurrentUser, getEvidenceGraph, hasSavedAccessToken, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listRunAuditEvents, listSourceEvents, loginAccount, registerAccount, reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf, type AcademicSearchResult, type AuditEventRecord, type AuthUser, type EvidenceGraphResponse, type LibraryPaper, type PaperStatusCheck, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord } from "@/lib/api";
 import {
   Activity, ArrowRight, BookOpen, CircleHelp, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
   History, LayoutDashboard, Microscope, Network, Plus, Search,
@@ -75,6 +75,9 @@ export default function HomePage() {
   const [compareReportId, setCompareReportId] = useState("");
   const [showVersionCompare, setShowVersionCompare] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
+  const [auditEvents, setAuditEvents] = useState<AuditEventRecord[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState("");
   const [graphData, setGraphData] = useState<EvidenceGraphResponse | null>(null);
   const [graphLoading, setGraphLoading] = useState(false);
   const [graphError, setGraphError] = useState("");
@@ -253,6 +256,28 @@ export default function HomePage() {
       setRecordingEvent(false);
     }
   }
+
+  useEffect(() => {
+    if (!activeRunId || !authUser) {
+      setAuditEvents([]);
+      return;
+    }
+    let cancelled = false;
+    const loadAudit = async () => {
+      setAuditLoading(true);
+      setAuditError("");
+      try {
+        const events = await listRunAuditEvents(activeRunId, 100);
+        if (!cancelled) setAuditEvents(events);
+      } catch (error) {
+        if (!cancelled) setAuditError(error instanceof Error ? error.message : "Could not load audit history.");
+      } finally {
+        if (!cancelled) setAuditLoading(false);
+      }
+    };
+    void loadAudit();
+    return () => { cancelled = true; };
+  }, [activeRunId, authUser]);
 
   useEffect(() => {
     if (view !== "Evidence graph" || !activeRunId || !authUser) {
@@ -616,6 +641,21 @@ export default function HomePage() {
             </div>
             {runs.find((run) => run.id === activeRunId)?.status === "running" || runs.find((run) => run.id === activeRunId)?.status === "queued" ? <p className="mt-3 text-xs leading-5 text-muted">Searching scholarly metadata, saving paper versions and abstract passages, and preparing a versioned discovery snapshot. This can take a short while.</p> : null}
             {runs.find((run) => run.id === activeRunId)?.error_message && <p className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-800">{runs.find((run) => run.id === activeRunId)?.error_message}</p>}
+          </section>}
+          {activeRunId && <section className="mt-5 overflow-hidden rounded-2xl border border-line bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+              <div><div className="text-sm font-semibold">Review & audit history</div><div className="mt-1 text-xs text-muted">Material changes with actor, timestamp, before/after state, and reason</div></div>
+              <button onClick={async()=>{setAuditLoading(true);setAuditError("");try{setAuditEvents(await listRunAuditEvents(activeRunId,100));}catch(error){setAuditError(error instanceof Error?error.message:"Could not refresh audit history.");}finally{setAuditLoading(false);}}} disabled={auditLoading} className="rounded-lg border border-line px-3 py-2 text-[11px] font-semibold hover:bg-paper disabled:opacity-50">{auditLoading ? "Refreshing…" : "Refresh history"}</button>
+            </div>
+            {auditError && <div role="status" className="m-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{auditError}</div>}
+            {auditLoading && auditEvents.length===0 && <p className="p-5 text-xs text-muted">Loading audit history…</p>}
+            {!auditLoading && auditEvents.length===0 && <p className="p-5 text-xs leading-5 text-muted">No audit events are recorded for this run yet. Creating a run, saving a report, adding a claim/evidence relation, or reviewing a relation will appear here.</p>}
+            {auditEvents.length>0 && <div className="max-h-[480px] divide-y divide-line overflow-y-auto">{[...auditEvents].reverse().map((event)=><article key={event.id} className="px-5 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="text-xs font-semibold">{event.action.replaceAll("_"," ")}</div><div className="mt-1 break-all text-[10px] text-muted">{event.target_entity_type} · {event.target_entity_id}</div></div><div className="flex flex-wrap items-center gap-2"><StatusPill tone={event.resolution_status==="accepted"||event.resolution_status==="recorded"?"teal":event.resolution_status==="needs_review"||event.resolution_status==="unreviewed"?"amber":"slate"}>{event.resolution_status.replaceAll("_"," ")}</StatusPill><span className="text-[10px] text-muted">{new Date(event.created_at).toLocaleString()}</span></div></div>
+              {event.reason && <p className="mt-2 text-xs leading-5 text-slate-600">{event.reason}</p>}
+              {(event.previous_value || event.new_value) && <div className="mt-3 grid gap-2 md:grid-cols-2">{event.previous_value && <div className="rounded-lg bg-red-50/70 p-3"><div className="text-[10px] font-semibold uppercase tracking-wide text-red-700">Previous state</div><pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-4 text-slate-700">{JSON.stringify(event.previous_value,null,2)}</pre></div>}{event.new_value && <div className="rounded-lg bg-teal-50/70 p-3"><div className="text-[10px] font-semibold uppercase tracking-wide text-teal-700">New state</div><pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-4 text-slate-700">{JSON.stringify(event.new_value,null,2)}</pre></div>}</div>}
+              <div className="mt-2 break-all text-[10px] text-muted">Actor: {event.actor_user_id ?? "unavailable"} · Audit ID: {event.id}</div>
+            </article>)}</div>}
           </section>}
           {(currentReport || reportLoading) && <section className="mt-5 overflow-hidden rounded-2xl border border-line bg-white">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
