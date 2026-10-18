@@ -1,0 +1,30 @@
+# secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+.turbo/
+coverage/
+
+# editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
