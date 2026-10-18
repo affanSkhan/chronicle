@@ -226,6 +226,8 @@ def list_report_versions(run_id: str, db: Session = Depends(get_db)) -> list[dic
     return [{
         "id": row.id, "run_id": row.run_id, "version_number": row.version_number,
         "parent_version_id": row.parent_version_id, "title": row.title,
+        "content_markdown": row.content_markdown,
+        "evidence_snapshot": row.evidence_snapshot,
         "change_summary": row.change_summary, "review_required": row.review_required,
         "created_at": row.created_at.isoformat(),
     } for row in rows]
