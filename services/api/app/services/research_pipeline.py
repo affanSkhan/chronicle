@@ -14,6 +14,7 @@ from app.core.database import SessionLocal
 from app.models.entities import Claim, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun
 from app.services.academic_search import search_papers
 from app.services.claim_extraction import extract_claims_from_passages
+from app.services.evidence_synthesis import synthesize_evidence
 
 
 def _normalize_doi(value: str | None) -> str | None:
@@ -33,6 +34,8 @@ def _markdown_report(
     created_at: str,
     extracted_claims: list[dict],
     llm_note: str,
+    synthesis: dict | None,
+    synthesis_note: str,
 ) -> str:
     lines = [
         "# Academic Discovery Snapshot",
@@ -69,6 +72,52 @@ def _markdown_report(
             lines.extend(["", "**Abstract**", "", "> " + abstract.replace("\n", "\n> "), ""])
         else:
             lines.extend(["", "_No abstract was available from the metadata provider._", ""])
+
+    lines.extend(["## Evidence-bounded synthesis", ""])
+    if not synthesis:
+        lines.append("No model-generated synthesis was produced. " + synthesis_note)
+    else:
+        lines.append("**Draft status:** This model-assisted synthesis uses retrieved abstracts, not a complete full-text review. Every listed finding below has at least one validated passage ID; the summary remains subject to human review.")
+        lines.extend(["", "### Summary", "", synthesis.get("executive_summary", "No summary supplied."), ""])
+        lines.extend(["### Evidence-linked findings", ""])
+        findings = synthesis.get("findings", [])
+        if not findings:
+            lines.append("No findings with valid source passage references were returned.")
+        for index, finding in enumerate(findings, start=1):
+            lines.append(f"{index}. **{finding['statement']}**")
+            lines.append(f"   - Relationship assessment: {finding.get('relation_type', 'qualifies')}")
+            if finding.get("context_note"):
+                lines.append(f"   - Context: {finding['context_note']}")
+            for passage_id in finding.get("evidence_passage_ids", []):
+                paper = next((item for item in papers if item.get("passage_id") == passage_id), None)
+                if paper:
+                    doi = _normalize_doi(paper.get("doi"))
+                    source_url = f"https://doi.org/{doi}" if doi else (paper.get("landing_url") or "")
+                    title = paper.get("title") or "Source paper"
+                    source_label = f"[{title}]({source_url})" if source_url else title
+                    lines.append(f"   - Evidence trace: {source_label} · abstract passage ID {passage_id}")
+                else:
+                    lines.append(f"   - Evidence trace: abstract passage ID {passage_id}")
+            lines.append("")
+        disagreements = synthesis.get("disagreements", [])
+        if disagreements:
+            lines.extend(["### Possible disagreements and comparability", ""])
+            for disagreement in disagreements:
+                lines.append(f"- {disagreement['description']}")
+                if disagreement.get("comparability_note"):
+                    lines.append(f"  - Comparability: {disagreement['comparability_note']}")
+                lines.append("  - Passage IDs: " + ", ".join(disagreement.get("evidence_passage_ids", [])))
+        limitations = synthesis.get("limitations", [])
+        if limitations:
+            lines.extend(["", "### Limitations reported by the synthesis", ""])
+            lines.extend(f"- {item}" for item in limitations)
+        questions = synthesis.get("candidate_research_questions", [])
+        if questions:
+            lines.extend(["", "### Candidate research questions (not novelty claims)", ""])
+            lines.extend(f"- {item}" for item in questions)
+        lines.extend(["", "**Uncertainty:** " + synthesis.get("uncertainty_statement", "Uncertainty was not provided."), ""])
+    lines.append(synthesis_note)
+    lines.append("")
 
     lines.extend(["## Candidate claims", ""])
     if not extracted_claims:
@@ -248,6 +297,23 @@ async def execute_research_run(run_id: str) -> None:
                 extraction_error = type(exc).__name__
                 llm_note = "LLM extraction failed; the bibliographic discovery report was completed without model-generated claims."
 
+        synthesis_result: dict | None = None
+        synthesis_note = "Model synthesis skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured."
+        synthesis_error: str | None = None
+        if api_key and settings.openai_model.strip() and passages_for_extraction:
+            try:
+                synthesis_result = await synthesize_evidence(
+                    question=question,
+                    passages=passages_for_extraction,
+                    api_key=api_key,
+                    api_base=settings.openai_api_base,
+                    model=settings.openai_model.strip(),
+                )
+                synthesis_note = "Model synthesis completed; draft findings and candidate research questions still require human review."
+            except Exception as exc:
+                synthesis_error = type(exc).__name__
+                synthesis_note = "Model synthesis failed; the bibliographic discovery report was completed without it."
+
         persisted_claims: list[dict] = []
         if extracted_claims:
             allowed_passage_ids = {str(p["id"]) for p in passages_for_extraction}
@@ -303,7 +369,7 @@ async def execute_research_run(run_id: str) -> None:
                 title="Academic Discovery Snapshot",
                 content_markdown=_markdown_report(
                     question, mode, saved_papers, provider_result.get("provider_errors", {}),
-                    generated_at, persisted_claims, llm_note,
+                    generated_at, persisted_claims, llm_note, synthesis_result, synthesis_note,
                 ),
                 evidence_snapshot={
                     "query": question,
@@ -316,6 +382,8 @@ async def execute_research_run(run_id: str) -> None:
                     "generated_at": generated_at,
                     "claim_verification_completed": False,
                     "llm_extraction_error": extraction_error,
+                    "model_synthesis_completed": synthesis_result is not None,
+                    "model_synthesis_error": synthesis_error,
                 },
                 change_summary="Initial scholarly discovery snapshot; extracted claims remain unreviewed candidates.",
             )
