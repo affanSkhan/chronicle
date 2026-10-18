@@ -37,6 +37,11 @@ def test_source_event_flags_dependent_claims_and_report() -> None:
     origin_id = origin["paper_id"]
     dependent_id = dependent["paper_id"]
 
+    status_preview = client.get(f"/api/v1/sources/papers/{origin_id}/status-check")
+    assert status_preview.status_code == 200, status_preview.text
+    assert status_preview.json()["signals"] == []
+    assert status_preview.json()["providers"]["crossref"] == "skipped_no_doi"
+
     passage_response = client.get(f"/api/v1/documents/papers/{dependent_id}/passages")
     assert passage_response.status_code == 200, passage_response.text
     passage_id = passage_response.json()["passages"][0]["id"]
