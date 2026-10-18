@@ -195,6 +195,13 @@ export interface EvidenceGraphNode {
   publication_status?: string;
   paper_id?: string;
   doi?: string | null;
+  source_passage_id?: string | null;
+  extraction_basis?: string;
+  population?: string | null;
+  method?: string | null;
+  intervention?: string | null;
+  outcomes?: string[];
+  limitations?: string[];
 }
 
 export interface EvidenceGraphEdge {
