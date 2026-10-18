@@ -199,6 +199,7 @@ class ReportVersion(Base):
     content_markdown: Mapped[str] = mapped_column(Text, nullable=False)
     evidence_snapshot: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     change_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     run: Mapped[ResearchRun] = relationship(back_populates="report_versions")
