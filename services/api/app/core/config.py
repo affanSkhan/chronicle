@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     environment: str = "development"
     api_prefix: str = "/api/v1"
-    database_url: str = "postgresql+psycopg://chronicle:chronicle@localhost:5432/chronicle"
+    database_url: str = "postgresql+psycopg://chronicle:chronicle-local-only@localhost:5432/chronicle"
     cors_origins: str = "http://localhost:3000"
     max_upload_mb: int = 25
     upload_dir: str = "uploads"
