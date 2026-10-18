@@ -135,6 +135,95 @@ def get_paper(paper_id: str, db: Session = Depends(get_db)) -> Paper:
     return paper
 
 
+@router.get("/sources/papers/{paper_id}/status-check")
+async def check_paper_status(paper_id: str, db: Session = Depends(get_db)) -> dict:
+    """Preview post-publication signals without auto-changing saved evidence status."""
+    paper = db.get(Paper, paper_id)
+    if paper is None:
+        raise HTTPException(status_code=404, detail="Paper not found.")
+    if not paper.doi:
+        return {
+            "paper_id": paper.id,
+            "doi": None,
+            "signals": [],
+            "providers": {"crossref": "skipped_no_doi", "openalex": "skipped_no_doi"},
+            "note": "This paper has no DOI. No automatic status signal could be checked; use the source notice form for manual review.",
+        }
+
+    from urllib.parse import quote
+
+    doi = normalize_doi(paper.doi)
+    headers = {"User-Agent": "Chronicle/0.1.0 (https://github.com/affanSkhan/chronicle)", "Accept": "application/json"}
+    timeout = httpx.Timeout(20.0, connect=8.0)
+    providers: dict[str, str] = {}
+    signals: list[dict] = []
+
+    async with httpx.AsyncClient(headers=headers, timeout=timeout, follow_redirects=True) as client:
+        # Crossref update-to records indicate items that update this DOI, including
+        # correction/retraction notices where those relationships were deposited.
+        try:
+            response = await client.get(f"https://api.crossref.org/works/{quote(doi or '', safe='')}")
+            response.raise_for_status()
+            item = response.json().get("message", {})
+            providers["crossref"] = "ok"
+            for update in item.get("update-to") or []:
+                update_type_raw = str(update.get("type") or "metadata_change").strip().lower()
+                mapped = {
+                    "retraction": "retraction",
+                    "correction": "correction",
+                    "expression-of-concern": "expression_of_concern",
+                    "expression_of_concern": "expression_of_concern",
+                    "removal": "retraction",
+                }.get(update_type_raw, "metadata_change")
+                update_doi = normalize_doi(update.get("DOI"))
+                signals.append({
+                    "provider": "crossref",
+                    "event_type": mapped,
+                    "update_type": update_type_raw,
+                    "description": str(update.get("label") or f"Crossref reports an update relationship of type '{update_type_raw}'."),
+                    "source_url": f"https://doi.org/{update_doi}" if update_doi else None,
+                    "verification_status": "metadata_confirmed",
+                    "metadata": update,
+                })
+        except Exception:
+            providers["crossref"] = "unavailable"
+
+        # OpenAlex exposes is_retracted based on Retraction Watch coverage.
+        try:
+            response = await client.get(
+                "https://api.openalex.org/works",
+                params={
+                    "filter": f"doi:https://doi.org/{doi}",
+                    "per-page": 1,
+                    "select": "id,doi,title,is_retracted,updated_date",
+                },
+            )
+            response.raise_for_status()
+            results = response.json().get("results") or []
+            matched = results[0] if results else None
+            providers["openalex"] = "ok" if matched else "not_found"
+            if matched and matched.get("is_retracted") is True and not any(signal["event_type"] == "retraction" for signal in signals):
+                signals.append({
+                    "provider": "openalex",
+                    "event_type": "retraction",
+                    "update_type": "is_retracted",
+                    "description": "OpenAlex marks this work as retracted. Confirm the underlying notice before recording a verified event.",
+                    "source_url": matched.get("id"),
+                    "verification_status": "metadata_confirmed",
+                    "metadata": {"openalex_id": matched.get("id"), "updated_date": matched.get("updated_date")},
+                })
+        except Exception:
+            providers["openalex"] = "unavailable"
+
+    return {
+        "paper_id": paper.id,
+        "doi": doi,
+        "providers": providers,
+        "signals": signals,
+        "note": "This is a metadata status-check preview, not exhaustive surveillance. No event or publication status was changed. Verify the source notice and record an event to trigger downstream impact analysis.",
+    }
+
+
 @router.post("/sources/papers/{paper_id}/events", response_model=dict, status_code=201)
 def record_source_event(
     paper_id: str,
