@@ -11,8 +11,9 @@ from sqlalchemy import func, select
 
 from app.core.config import get_settings
 from app.core.database import SessionLocal
-from app.models.entities import Claim, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun
+from app.models.entities import Claim, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun, Study
 from app.services.academic_search import search_papers
+from app.services.audit import record_audit_event
 from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
 
@@ -36,6 +37,7 @@ def _markdown_report(
     llm_note: str,
     synthesis: dict | None,
     synthesis_note: str,
+    study_contexts: list[dict],
 ) -> str:
     lines = [
         "# Academic Discovery Snapshot",
@@ -79,6 +81,25 @@ def _markdown_report(
     else:
         lines.append("**Draft status:** This model-assisted synthesis uses retrieved abstracts, not a complete full-text review. Every listed finding below has at least one validated passage ID; the summary remains subject to human review.")
         lines.extend(["", "### Summary", "", synthesis.get("executive_summary", "No summary supplied."), ""])
+        lines.extend(["### Extracted study context", ""])
+        if not study_contexts:
+            lines.append("No source-linked structured study-context records were extracted for this run.")
+        else:
+            lines.append("The following context fields were extracted from the linked abstract passages. Model-inferred fields remain unreviewed and may omit information available only in the full paper.")
+            lines.append("")
+            for item in study_contexts:
+                source = next((paper for paper in papers if paper.get("paper_id") == item.get("paper_id")), None)
+                title = source.get("title") if source else item.get("paper_id", "Unknown paper")
+                lines.append(f"- **{title}** · study record `{item['id']}` · abstract passage `{item.get('source_passage_id') or 'unavailable'}`")
+                for field, label in (("study_type", "Study type"), ("population", "Population"), ("method", "Method"), ("intervention", "Intervention")):
+                    if item.get(field):
+                        lines.append(f"  - {label}: {item[field]}")
+                if item.get("outcomes"):
+                    lines.append("  - Outcomes: " + "; ".join(item["outcomes"]))
+                if item.get("limitations"):
+                    lines.append("  - Limitations: " + "; ".join(item["limitations"]))
+                lines.append(f"  - Extraction basis: {item.get('extraction_basis', 'unreviewed')}")
+            lines.append("")
         lines.extend(["### Evidence-linked findings", ""])
         findings = synthesis.get("findings", [])
         if not findings:
@@ -261,6 +282,7 @@ async def execute_research_run(run_id: str) -> None:
                     passage_id = passage.id
                     passages_for_extraction.append({
                         "id": passage_id,
+                        "paper_id": paper.id,
                         "paper_title": paper.title,
                         "doi": paper.doi,
                         "text": abstract,
@@ -317,6 +339,66 @@ async def execute_research_run(run_id: str) -> None:
                 synthesis_error = type(exc).__name__
                 synthesis_note = "Model synthesis failed; the bibliographic discovery report was completed without it."
 
+        persisted_studies: list[dict] = []
+        if synthesis_result and synthesis_result.get("study_characterizations"):
+            source_by_passage = {str(item["id"]): item for item in passages_for_extraction}
+            with SessionLocal() as db:
+                for characterization in synthesis_result.get("study_characterizations", []):
+                    passage_id = str(characterization.get("passage_id") or "")
+                    source = source_by_passage.get(passage_id)
+                    if source is None:
+                        continue
+                    values = {
+                        "study_type": characterization.get("study_type"),
+                        "population": characterization.get("population"),
+                        "method": characterization.get("method"),
+                        "intervention": characterization.get("intervention"),
+                        "outcomes": characterization.get("outcomes") or [],
+                        "limitations": characterization.get("limitations") or [],
+                    }
+                    if not any([values["study_type"], values["population"], values["method"], values["intervention"], values["outcomes"], values["limitations"]]):
+                        continue
+                    study = db.scalar(select(Study).where(Study.source_passage_id == passage_id))
+                    if study is None:
+                        study = Study(
+                            paper_id=source["paper_id"],
+                            source_passage_id=passage_id,
+                            **values,
+                            extraction_basis="model_inferred",
+                        )
+                        db.add(study)
+                        db.flush()
+                        record_audit_event(
+                            db,
+                            actor_user_id=None,
+                            run_id=run_id,
+                            target_entity_type="study",
+                            target_entity_id=study.id,
+                            action="study.context_extracted",
+                            previous_value=None,
+                            new_value={
+                                "paper_id": study.paper_id,
+                                "source_passage_id": study.source_passage_id,
+                                **values,
+                                "extraction_basis": study.extraction_basis,
+                            },
+                            reason="Optional model extraction generated candidate study context from an abstract passage.",
+                            resolution_status="needs_review",
+                        )
+                    persisted_studies.append({
+                        "id": study.id,
+                        "paper_id": study.paper_id,
+                        "source_passage_id": study.source_passage_id,
+                        "study_type": study.study_type,
+                        "population": study.population,
+                        "method": study.method,
+                        "intervention": study.intervention,
+                        "outcomes": study.outcomes or [],
+                        "limitations": study.limitations or [],
+                        "extraction_basis": study.extraction_basis,
+                    })
+                db.commit()
+
         persisted_claims: list[dict] = []
         if extracted_claims:
             allowed_passage_ids = {str(p["id"]) for p in passages_for_extraction}
@@ -372,7 +454,7 @@ async def execute_research_run(run_id: str) -> None:
                 title="Academic Discovery Snapshot",
                 content_markdown=_markdown_report(
                     question, mode, saved_papers, provider_result.get("provider_errors", {}),
-                    generated_at, persisted_claims, llm_note, synthesis_result, synthesis_note,
+                    generated_at, persisted_claims, llm_note, synthesis_result, synthesis_note, persisted_studies,
                 ),
                 evidence_snapshot={
                     "query": question,
@@ -382,6 +464,7 @@ async def execute_research_run(run_id: str) -> None:
                     "paper_ids": [paper["paper_id"] for paper in saved_papers],
                     "passage_ids": [paper["passage_id"] for paper in saved_papers if paper["passage_id"]],
                     "claim_ids": [claim["id"] for claim in persisted_claims],
+                    "study_ids": [study["id"] for study in persisted_studies],
                     "generated_at": generated_at,
                     "claim_verification_completed": False,
                     "llm_extraction_error": extraction_error,
@@ -403,6 +486,7 @@ async def execute_research_run(run_id: str) -> None:
                 "paper_count": len(saved_papers),
                 "passage_count": sum(1 for paper in saved_papers if paper["passage_id"]),
                 "claim_candidate_count": len(persisted_claims),
+                "study_context_count": len(persisted_studies),
                 "provider_errors": provider_result.get("provider_errors", {}),
                 "llm_extraction_error": extraction_error,
                 "claim_verification_completed": False,
