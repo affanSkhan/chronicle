@@ -219,3 +219,19 @@ class ReportVersion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     run: Mapped[ResearchRun] = relationship(back_populates="report_versions")
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    actor_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    run_id: Mapped[str | None] = mapped_column(ForeignKey("research_runs.id", ondelete="CASCADE"), nullable=True, index=True)
+    target_entity_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    target_entity_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    previous_value: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    new_value: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolution_status: Mapped[str] = mapped_column(String(40), default="recorded", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
