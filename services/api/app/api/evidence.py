@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.entities import (
-    Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage,
+    AuditEvent, Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage,
     ReportVersion, ResearchRun, SourceEvent, Study, User,
 )
+from app.services.audit import record_audit_event
 from app.schemas.evidence import (
     ClaimCreate, ClaimRead, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
     PaperDependencyCreate, StudyCreate,
@@ -29,6 +30,18 @@ def create_claim(payload: ClaimCreate, db: Session = Depends(get_db), current_us
         review_required=False,
     )
     db.add(claim)
+    db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=claim.run_id,
+        target_entity_type="claim",
+        target_entity_id=claim.id,
+        action="claim.created",
+        previous_value=None,
+        new_value={"statement": claim.statement, "scope": claim.scope, "assessment": claim.assessment},
+        reason="Claim record created in the research workspace.",
+    )
     db.commit()
     db.refresh(claim)
     return claim
@@ -61,7 +74,13 @@ def add_claim_relation(
         raise HTTPException(status_code=404, detail="Claim not found.")
 
     if payload.passage_id:
-        if db.get(Passage, payload.passage_id) is None:
+        passage = db.scalar(
+            select(Passage)
+            .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+            .join(Paper, PaperVersion.paper_id == Paper.id)
+            .where(Passage.id == payload.passage_id, Paper.owner_user_id == current_user.id)
+        )
+        if passage is None:
             raise HTTPException(status_code=404, detail="Evidence passage not found.")
     if payload.related_claim_id:
         other = db.scalar(select(Claim).join(ResearchRun, Claim.run_id == ResearchRun.id).where(Claim.id == payload.related_claim_id, ResearchRun.owner_user_id == current_user.id))
@@ -83,6 +102,25 @@ def add_claim_relation(
         rationale=payload.rationale,
     )
     db.add(relation)
+    db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=claim.run_id,
+        target_entity_type="evidence_relation",
+        target_entity_id=relation.id,
+        action="evidence_relation.created",
+        previous_value=None,
+        new_value={
+            "claim_id": relation.claim_id,
+            "passage_id": relation.passage_id,
+            "related_claim_id": relation.related_claim_id,
+            "relation_type": relation.relation_type,
+            "provenance_basis": relation.provenance_basis,
+            "reviewer_status": relation.reviewer_status,
+        },
+        reason="Evidence relationship added to a claim.",
+    )
 
     # Only a human-accepted edge changes the top-level assessment label.
     if payload.reviewer_status == "accepted":
@@ -96,6 +134,29 @@ def add_claim_relation(
         if payload.relation_type in accepted_assessments:
             claim.assessment = accepted_assessments[payload.relation_type]
             claim.review_required = False
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=claim.run_id if claim is not None else None,
+        target_entity_type="evidence_relation",
+        target_entity_id=relation.id,
+        action="evidence_relation.reviewed",
+        previous_value={
+            "reviewer_status": previous_status,
+            "provenance_basis": previous_provenance,
+            "claim_state": previous_claim_state,
+        },
+        new_value={
+            "reviewer_status": relation.reviewer_status,
+            "provenance_basis": relation.provenance_basis,
+            "claim_state": ({
+                "assessment": claim.assessment,
+                "review_required": claim.review_required,
+            } if claim is not None else None),
+        },
+        reason=payload.reviewer_notes,
+        resolution_status=payload.reviewer_status,
+    )
     db.commit()
     db.refresh(relation)
     return relation
@@ -113,6 +174,16 @@ def review_evidence_relation(
         raise HTTPException(status_code=404, detail="Evidence relationship not found.")
 
     previous_status = relation.reviewer_status
+    previous_provenance = relation.provenance_basis
+    claim = db.get(Claim, relation.claim_id)
+    previous_claim_state = {
+        "assessment": claim.assessment,
+        "review_required": claim.review_required,
+    } if claim is not None else None
+    relation.metadata_snapshot = {
+        **(relation.metadata_snapshot or {}),
+        "original_provenance_basis": (relation.metadata_snapshot or {}).get("original_provenance_basis", previous_provenance),
+    }
     relation.reviewer_status = payload.reviewer_status
     if payload.reviewer_notes:
         relation.metadata_snapshot = {
@@ -131,12 +202,10 @@ def review_evidence_relation(
             "not_comparable": "not_comparable",
             "insufficient_evidence": "insufficient_evidence",
         }
-        claim = db.get(Claim, relation.claim_id)
         if claim is not None and relation.relation_type in assessment_map:
             claim.assessment = assessment_map[relation.relation_type]
             claim.review_required = False
     elif payload.reviewer_status in {"rejected", "needs_review"}:
-        claim = db.get(Claim, relation.claim_id)
         if claim is not None:
             claim.review_required = True
             claim.assessment = "needs_review"
@@ -370,6 +439,42 @@ def list_report_versions(run_id: str, db: Session = Depends(get_db), current_use
         "change_summary": row.change_summary, "review_required": row.review_required,
         "created_at": row.created_at.isoformat(),
     } for row in rows]
+
+
+@router.get("/runs/{run_id}/audit")
+def list_run_audit_events(
+    run_id: str,
+    limit: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    run = db.scalar(select(ResearchRun).where(
+        ResearchRun.id == run_id,
+        ResearchRun.owner_user_id == current_user.id,
+    ))
+    if run is None:
+        raise HTTPException(status_code=404, detail="Research run not found.")
+    rows = db.scalars(
+        select(AuditEvent).where(AuditEvent.run_id == run_id)
+        .order_by(AuditEvent.created_at.asc()).limit(limit)
+    ).all()
+    return {
+        "run_id": run_id,
+        "count": len(rows),
+        "events": [{
+            "id": row.id,
+            "actor_user_id": row.actor_user_id,
+            "target_entity_type": row.target_entity_type,
+            "target_entity_id": row.target_entity_id,
+            "action": row.action,
+            "previous_value": row.previous_value,
+            "new_value": row.new_value,
+            "reason": row.reason,
+            "resolution_status": row.resolution_status,
+            "created_at": row.created_at.isoformat(),
+        } for row in rows],
+        "note": "Audit events record material operations and review transitions; they complement, rather than replace, the current-state records.",
+    }
 
 
 @router.get("/runs/{run_id}/passport")
