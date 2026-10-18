@@ -14,6 +14,7 @@ from app.core.security import get_current_user
 from app.models.entities import Paper, PaperDependency, PaperVersion, Passage, SourceEvent, User
 from app.schemas.evidence import PaperImport, PaperRead, PaperSearchResult, SourceEventCreate, SourceEventRead
 from app.services.academic_search import search_papers
+from app.services.audit import record_audit_event
 from app.services.temporal_impact import affected_report_runs, impacted_claims, impacted_papers, mark_review_required
 
 router = APIRouter(tags=["sources"], dependencies=[Depends(get_current_user)])
@@ -252,6 +253,24 @@ def record_source_event(
     )
     db.add(event)
     db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=None,
+        target_entity_type="source_event",
+        target_entity_id=event.id,
+        action="source_event.recorded",
+        previous_value=None,
+        new_value={
+            "paper_id": paper_id,
+            "event_type": event.event_type,
+            "verification_status": event.verification_status,
+            "source_url": event.source_url,
+            "description": event.description,
+        },
+        reason="Source lifecycle event recorded by a researcher.",
+        resolution_status=event.verification_status,
+    )
 
     latest = db.scalar(select(PaperVersion).where(PaperVersion.paper_id == paper_id).order_by(PaperVersion.retrieved_at.desc()))
     status_map = {
@@ -280,10 +299,17 @@ def record_source_event(
 
     paper_ids, paper_reasons = impacted_papers(db, paper_id)
     claim_ids, claim_reasons = impacted_claims(db, paper_ids)
+    from app.models.entities import Claim, ReportVersion
+    claims_before = {
+        claim.id: {
+            "assessment": claim.assessment,
+            "review_required": claim.review_required,
+            "run_id": claim.run_id,
+        }
+        for claim in db.scalars(select(Claim).where(Claim.id.in_(claim_ids))).all()
+    } if claim_ids else {}
     reviewed_count = mark_review_required(db, claim_ids)
     run_ids = affected_report_runs(db, claim_ids)
-
-    from app.models.entities import ReportVersion
     # A report may cite/discover a source without producing a claim for it yet.
     # Include runs whose saved report snapshot contains any impacted paper or passage.
     all_reports = list(db.scalars(select(ReportVersion)).all())
@@ -299,6 +325,7 @@ def record_source_event(
             run_ids.add(report.run_id)
 
     report_versions = [report for report in all_reports if report.run_id in run_ids]
+    reports_before = {report.id: {"review_required": report.review_required, "run_id": report.run_id} for report in report_versions}
     for report in report_versions:
         report.review_required = True
         if not report.change_summary:
@@ -316,6 +343,37 @@ def record_source_event(
         "affected_claim_ids": sorted(claim_ids),
         "affected_run_ids": sorted(run_ids),
     }
+    for claim_id in sorted(claim_ids):
+        before = claims_before.get(claim_id, {})
+        claim = db.get(Claim, claim_id)
+        if claim is None:
+            continue
+        record_audit_event(
+            db,
+            actor_user_id=current_user.id,
+            run_id=claim.run_id,
+            target_entity_type="claim",
+            target_entity_id=claim.id,
+            action="claim.flagged_by_source_event",
+            previous_value={"assessment": before.get("assessment"), "review_required": before.get("review_required")},
+            new_value={"assessment": claim.assessment, "review_required": claim.review_required},
+            reason=f"Source event {event.id} may affect evidence linked to this claim.",
+            resolution_status="needs_review",
+        )
+    for report in report_versions:
+        before = reports_before.get(report.id, {})
+        record_audit_event(
+            db,
+            actor_user_id=current_user.id,
+            run_id=report.run_id,
+            target_entity_type="report_version",
+            target_entity_id=report.id,
+            action="report_version.flagged_by_source_event",
+            previous_value={"review_required": before.get("review_required")},
+            new_value={"review_required": report.review_required, "version_number": report.version_number},
+            reason=f"Source event {event.id} may affect this saved report snapshot.",
+            resolution_status="needs_review",
+        )
     db.commit()
     db.refresh(event)
 
