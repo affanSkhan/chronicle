@@ -77,6 +77,10 @@ class Paper(Base):
     landing_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    monitoring_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    monitor_interval_minutes: Mapped[int] = mapped_column(Integer, default=1440, nullable=False)
+    last_status_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_status_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
@@ -236,3 +240,19 @@ class AuditEvent(Base):
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     resolution_status: Mapped[str] = mapped_column(String(40), default="recorded", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class SourceStatusCheck(Base):
+    __tablename__ = "source_status_checks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    paper_id: Mapped[str] = mapped_column(ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, index=True)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    trigger_type: Mapped[str] = mapped_column(String(24), default="manual", nullable=False)
+    outcome: Mapped[str] = mapped_column(String(24), default="ok", nullable=False)
+    provider_states: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    signals: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    result_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    previous_result_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    change_detected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
