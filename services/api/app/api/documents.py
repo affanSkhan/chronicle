@@ -19,8 +19,8 @@ settings = get_settings()
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)) -> dict:
     if file.content_type not in {"application/pdf", "application/octet-stream"}:
         raise HTTPException(status_code=415, detail="Upload a PDF file.")
-    data = await file.read()
     max_bytes = settings.max_upload_mb * 1024 * 1024
+    data = await file.read(max_bytes + 1)
     if len(data) > max_bytes:
         raise HTTPException(status_code=413, detail=f"PDF exceeds the {settings.max_upload_mb} MB upload limit.")
     if not data.startswith(b"%PDF-"):
