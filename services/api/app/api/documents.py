@@ -8,15 +8,16 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.models.entities import Paper, PaperVersion, Passage
+from app.core.security import get_current_user
+from app.models.entities import Paper, PaperVersion, Passage, User
 from app.services.pdf_ingestion import extract_pdf
 
-router = APIRouter(prefix="/documents", tags=["documents"])
+router = APIRouter(prefix="/documents", tags=["documents"], dependencies=[Depends(get_current_user)])
 settings = get_settings()
 
 
 @router.post("/upload", status_code=201)
-async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)) -> dict:
+async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     if file.content_type not in {"application/pdf", "application/octet-stream"}:
         raise HTTPException(status_code=415, detail="Upload a PDF file.")
     max_bytes = settings.max_upload_mb * 1024 * 1024
@@ -27,7 +28,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         raise HTTPException(status_code=415, detail="The uploaded file does not have a valid PDF signature.")
 
     file_hash = hashlib.sha256(data).hexdigest()
-    existing = db.scalar(select(Paper).where(Paper.file_sha256 == file_hash))
+    existing = db.scalar(select(Paper).where(Paper.file_sha256 == file_hash, Paper.owner_user_id == current_user.id))
     if existing:
         version = db.scalar(select(PaperVersion).where(PaperVersion.paper_id == existing.id).order_by(PaperVersion.retrieved_at.desc()))
         return {
@@ -52,6 +53,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     title = extracted.title or safe_stem
     author_list = [extracted.author] if extracted.author else []
     paper = Paper(
+        owner_user_id=current_user.id,
         title=title,
         authors=author_list,
         publisher="User-uploaded PDF",
@@ -115,8 +117,9 @@ def list_passages(
     page: int | None = None,
     limit: int = 100,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
-    paper = db.get(Paper, paper_id)
+    paper = db.scalar(select(Paper).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id))
     if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found.")
     limit = max(1, min(limit, 250))
