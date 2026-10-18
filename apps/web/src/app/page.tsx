@@ -316,7 +316,7 @@ export default function HomePage() {
       cancelled = true;
       if (timer) clearInterval(timer);
     };
-  }, [activeRunId]);
+  }, [activeRunId, authUser]);
 
 
   async function refreshRuns() {
