@@ -26,9 +26,20 @@ class SynthesisDisagreement(BaseModel):
     comparability_note: str | None = Field(default=None, max_length=2000)
 
 
+class StudyCharacterization(BaseModel):
+    passage_id: str
+    study_type: str | None = Field(default=None, max_length=500)
+    population: str | None = Field(default=None, max_length=2000)
+    method: str | None = Field(default=None, max_length=2500)
+    intervention: str | None = Field(default=None, max_length=2000)
+    outcomes: list[str] = Field(default_factory=list, max_length=20)
+    limitations: list[str] = Field(default_factory=list, max_length=20)
+
+
 class EvidenceSynthesis(BaseModel):
     executive_summary: str = Field(min_length=10, max_length=6000)
     findings: list[SynthesisFinding] = Field(default_factory=list, max_length=15)
+    study_characterizations: list[StudyCharacterization] = Field(default_factory=list, max_length=25)
     disagreements: list[SynthesisDisagreement] = Field(default_factory=list, max_length=10)
     limitations: list[str] = Field(default_factory=list, max_length=12)
     candidate_research_questions: list[str] = Field(default_factory=list, max_length=8)
@@ -68,7 +79,9 @@ async def synthesize_evidence(
         "Return one JSON object with fields: executive_summary (string), findings (array of objects with "
         "statement, evidence_passage_ids, relation_type, context_note), disagreements (array with description, "
         "evidence_passage_ids, comparability_note), limitations (array of strings), "
-        "candidate_research_questions (array of strings), uncertainty_statement (string)."
+        "candidate_research_questions (array of strings), uncertainty_statement (string), and study_characterizations "
+        "(array with passage_id, study_type, population, method, intervention, outcomes, limitations). "
+        "Only populate a study field when the supplied passage directly supports it; use null or empty lists if unclear."
     )
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0), headers=headers) as client:
@@ -109,6 +122,14 @@ async def synthesize_evidence(
                 "evidence_passage_ids": refs,
             })
 
+    study_characterizations = []
+    seen_study_passages: set[str] = set()
+    for characterization in parsed.study_characterizations:
+        ref = characterization.passage_id
+        if ref in allowed_ids and ref not in seen_study_passages:
+            study_characterizations.append(characterization.model_dump())
+            seen_study_passages.add(ref)
+
     disagreements = []
     for disagreement in parsed.disagreements:
         refs = [ref for ref in disagreement.evidence_passage_ids if ref in allowed_ids]
@@ -121,6 +142,7 @@ async def synthesize_evidence(
     return {
         "executive_summary": parsed.executive_summary,
         "findings": findings,
+        "study_characterizations": study_characterizations,
         "disagreements": disagreements,
         "limitations": parsed.limitations,
         "candidate_research_questions": parsed.candidate_research_questions,
