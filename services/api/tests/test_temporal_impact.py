@@ -125,6 +125,18 @@ def test_source_event_flags_dependent_claims_and_report(client) -> None:
         },
     )
     assert event_response.status_code == 201, event_response.text
+    repeated_event = client.post(
+        f"/api/v1/sources/papers/{origin_id}/events",
+        json={
+            "event_type": "retraction",
+            "description": "Publisher metadata indicates the original study has been retracted.",
+            "source_url": "https://example.org/retraction-notice",
+            "verification_status": "human_verified",
+        },
+    )
+    assert repeated_event.status_code == 201, repeated_event.text
+    assert repeated_event.json()["duplicate"] is True
+    assert repeated_event.json()["event"]["id"] == event_response.json()["event"]["id"]
     impact = event_response.json()["impact"]
 
     assert origin_id in impact["impacted_paper_ids"]
