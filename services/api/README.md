@@ -33,10 +33,16 @@ uvicorn app.main:app --reload --port 8000
 - `PATCH /api/v1/evidence/relations/{relation_id}/review` — record human review.
 - `POST /api/v1/evidence/paper-dependencies` — record source dependence.
 - `GET /api/v1/evidence/runs/{run_id}/graph` — persisted graph.
-- `GET /api/v1/sources/papers/{paper_id}/status-check` — Crossref/OpenAlex status-signal preview; does not modify source status.
+- `GET /api/v1/sources/papers/{paper_id}/status-check` — read-only Crossref/OpenAlex status preview.
+- `POST /api/v1/sources/papers/{paper_id}/status-check` — persist a manual status check and compare signal fingerprints.
+- `PATCH /api/v1/sources/papers/{paper_id}/monitoring` — enable/disable scheduled checks and configure interval.
+- `GET /api/v1/sources/status-checks` and `GET /api/v1/sources/papers/{paper_id}/status-checks` — view persisted check history.
 - `POST /api/v1/sources/papers/{paper_id}/events` — record an event and trigger impact review.
 - `GET /api/v1/evidence/runs/{run_id}/reports` — report history.
 - `GET /api/v1/evidence/runs/{run_id}/passport?format=markdown|json` — Evidence Passport export.
+
+## Scheduled source monitoring
+Direct API runs leave the scheduler disabled by default. Set `ENABLE_SCHEDULED_MONITORING=true` to start the in-process poller, with `SOURCE_MONITOR_POLL_SECONDS` and `SOURCE_MONITOR_BATCH_SIZE` controlling the loop. The local Docker Compose configuration enables it by default. The current poller is single-process; do not enable it on multiple API replicas until a distributed worker/leader lock is implemented. It persists metadata signals and change hashes but never auto-marks a paper retracted or creates a SourceEvent.
 
 ## Optional LLM configuration
 Set `OPENAI_API_KEY`, `OPENAI_API_BASE`, and `OPENAI_MODEL` on the backend only. With no configured key/model, discovery still retrieves metadata and abstract passages and saves a report without model-generated claims or synthesis.
