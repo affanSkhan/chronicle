@@ -22,6 +22,7 @@ class ResearchRunCreate(BaseModel):
     question: str = Field(min_length=8, max_length=2000)
     mode: ResearchMode = ResearchMode.DEEP
     max_sources: int = Field(default=10, ge=1, le=50)
+    execute: bool = False
 
 
 class ResearchRun(BaseModel):
@@ -34,6 +35,7 @@ class ResearchRun(BaseModel):
     max_sources: int
     created_at: datetime
     demo: bool = False
+    error_message: str | None = None
 
 
 class ProjectCreate(BaseModel):
