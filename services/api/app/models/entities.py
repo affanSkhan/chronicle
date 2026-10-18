@@ -36,6 +36,7 @@ class ResearchRun(Base):
     mode: Mapped[str] = mapped_column(String(24), default="deep", nullable=False)
     status: Mapped[str] = mapped_column(String(24), default="queued", nullable=False, index=True)
     max_sources: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+    demo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     configuration: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
