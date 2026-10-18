@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     database_url: str = "postgresql+psycopg://chronicle:chronicle-local-only@localhost:5432/chronicle"
     cors_origins: str = "http://localhost:3000"
-    max_upload_mb: int = 25
+    max_upload_mb: int = 50
+    max_pdf_pages: int = 300
     upload_dir: str = "uploads"
     openai_api_key: SecretStr | None = None
     openai_api_base: str = "https://api.openai.com/v1"
