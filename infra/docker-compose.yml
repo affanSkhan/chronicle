@@ -29,6 +29,8 @@ services:
       APP_VERSION: 0.1.0
       ENVIRONMENT: ${ENVIRONMENT:-development}
       API_PREFIX: /api/v1
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-development-only-change-this-secret-key}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-480}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://chronicle:chronicle-local-only@postgres:5432/chronicle}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
