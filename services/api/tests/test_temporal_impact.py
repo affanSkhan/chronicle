@@ -74,6 +74,23 @@ def test_source_event_flags_dependent_claims_and_report() -> None:
     )
     assert dependency_response.status_code == 201, dependency_response.text
 
+    graph_response = client.get(f"/api/v1/evidence/runs/{run_id}/graph")
+    assert graph_response.status_code == 200, graph_response.text
+    graph = graph_response.json()
+    assert any(node["id"] == f"paper:{origin_id}" for node in graph["nodes"])
+    assert any(
+        edge["source"] == f"paper:{origin_id}"
+        and edge["target"] == f"paper:{dependent_id}"
+        and edge["type"] == "same_dataset"
+        for edge in graph["edges"]
+    )
+    assert any(
+        edge["source"] == f"passage:{passage_id}"
+        and edge["target"] == f"claim:{claim_id}"
+        and edge["type"] == "supports"
+        for edge in graph["edges"]
+    )
+
     report_response = client.post(
         f"/api/v1/evidence/runs/{run_id}/reports",
         json={"title": "Initial report", "content_markdown": "The report concludes that the intervention may help."},
@@ -97,6 +114,14 @@ def test_source_event_flags_dependent_claims_and_report() -> None:
     assert claim_id in impact["affected_claim_ids"]
     assert impact["claims_flagged_for_review"] >= 1
     assert impact["report_versions_flagged_for_review"] == 1
+    assert event_response.json()["event"]["metadata_snapshot"]["impact_summary"]["claims_flagged_for_review"] >= 1
+
+    timeline_response = client.get("/api/v1/sources/events")
+    assert timeline_response.status_code == 200, timeline_response.text
+    timeline = timeline_response.json()
+    assert timeline["count"] == 1
+    assert timeline["events"][0]["paper_id"] == origin_id
+    assert timeline["events"][0]["metadata_snapshot"]["impact_summary"]["report_versions_flagged_for_review"] == 1
 
     claims = client.get(f"/api/v1/evidence/runs/{run_id}/claims").json()
     assert next(c for c in claims if c["id"] == claim_id)["review_required"] is True
