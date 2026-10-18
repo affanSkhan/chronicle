@@ -74,3 +74,28 @@ export async function importPaper(paper: Omit<AcademicSearchResult, "provider"> 
   if (!response.ok) throw new Error(await readError(response));
   return response.json();
 }
+
+
+export interface PDFUploadResult {
+  paper_id: string;
+  paper_version_id?: string;
+  title: string;
+  page_count?: number;
+  text_characters?: number;
+  passages_created?: number;
+  sha256?: string;
+  duplicate_upload: boolean;
+  note?: string;
+  message?: string;
+}
+
+export async function uploadPdf(file: File): Promise<PDFUploadResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(\`\${API_BASE}/api/v1/documents/upload\`, {
+    method: "POST",
+    body: form
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<PDFUploadResult>;
+}
