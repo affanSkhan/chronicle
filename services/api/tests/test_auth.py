@@ -51,6 +51,25 @@ def test_runs_are_isolated_between_two_users(client) -> None:
     assert private_run.status_code == 404
     assert private_claims.status_code == 404
 
+    imported = client.post(
+        "/api/v1/sources/papers",
+        json={
+            "provider": "manual",
+            "title": "Account-scoped private paper",
+            "authors": ["Test Author"],
+            "abstract": "A sample abstract owned by the first account.",
+            "publication_year": 2025,
+        },
+    )
+    assert imported.status_code == 201, imported.text
+    paper_id = imported.json()["id"]
+    with TestClient(app, headers={"Authorization": f"Bearer {second_token}"}) as second_client:
+        other_papers = second_client.get("/api/v1/sources/papers")
+        private_paper = second_client.get(f"/api/v1/sources/papers/{paper_id}")
+    assert other_papers.status_code == 200
+    assert other_papers.json() == []
+    assert private_paper.status_code == 404
+
 
 def test_registration_validates_password_and_duplicate_email(client) -> None:
     weak_password = client.post(
