@@ -38,4 +38,10 @@ def isolated_database():
 @pytest.fixture
 def client():
     with TestClient(app) as test_client:
+        response = test_client.post(
+            "/api/v1/auth/register",
+            json={"email": "fixture-user@example.test", "password": "test-password-at-least-12"},
+        )
+        assert response.status_code == 201, response.text
+        test_client.headers.update({"Authorization": f"Bearer {response.json()['access_token']}"})
         yield test_client
