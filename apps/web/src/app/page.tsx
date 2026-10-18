@@ -92,7 +92,6 @@ export default function HomePage() {
   useEffect(() => {
     if (!activeRunId) return;
     let cancelled = false;
-    let timer: ReturnType<typeof setInterval> | undefined;
     const pollRun = async () => {
       try {
         const latestRuns = await listResearchRuns();
@@ -119,8 +118,8 @@ export default function HomePage() {
         if (!cancelled) setNotice("Could not refresh this research run. Check the API connection.");
       }
     };
+    const timer = setInterval(() => { void pollRun(); }, 4000);
     void pollRun();
-    timer = setInterval(() => { void pollRun(); }, 4000);
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
