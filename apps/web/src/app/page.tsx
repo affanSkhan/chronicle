@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { createResearchRun, createSourceEvent, getEvidenceGraph, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents, reviewEvidenceRelation, searchAcademicSources, uploadPdf, type AcademicSearchResult, type EvidenceGraphResponse, type LibraryPaper, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord } from "@/lib/api";
+import { checkPaperStatus, createResearchRun, createSourceEvent, getEvidenceGraph, importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents, reviewEvidenceRelation, searchAcademicSources, uploadPdf, type AcademicSearchResult, type EvidenceGraphResponse, type LibraryPaper, type PaperStatusCheck, type ReportVersionSummary, type ResearchMode as ApiResearchMode, type ResearchRun, type SourceEventRecord } from "@/lib/api";
 import {
   Activity, ArrowRight, BookOpen, Clock3, FileSearch, FlaskConical, GitBranch, GitCompare,
   History, LayoutDashboard, Microscope, Network, Plus, Search,
@@ -79,6 +79,8 @@ export default function HomePage() {
   const [eventVerification, setEventVerification] = useState<"unverified" | "metadata_confirmed" | "human_verified">("unverified");
   const [recordingEvent, setRecordingEvent] = useState(false);
   const [eventResult, setEventResult] = useState("");
+  const [statusCheck, setStatusCheck] = useState<PaperStatusCheck | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
   const [reviewingRelationId, setReviewingRelationId] = useState<string | null>(null);
   const [sourceQuery, setSourceQuery] = useState("");
   const [sourceResults, setSourceResults] = useState<AcademicSearchResult[]>([]);
@@ -149,6 +151,33 @@ export default function HomePage() {
     } finally {
       setReviewingRelationId(null);
     }
+  }
+
+  async function runPaperStatusCheck() {
+    if (!eventPaperId) {
+      setTimelineError("Select a saved paper before checking external metadata.");
+      return;
+    }
+    setCheckingStatus(true);
+    setTimelineError("");
+    setStatusCheck(null);
+    try {
+      setStatusCheck(await checkPaperStatus(eventPaperId));
+    } catch (error) {
+      setTimelineError(error instanceof Error ? error.message : "Could not check external source metadata.");
+    } finally {
+      setCheckingStatus(false);
+    }
+  }
+
+  function useStatusSignal(signal: NonNullable<PaperStatusCheck["signals"]>[number]) {
+    setEventPaperId(statusCheck?.paper_id ?? eventPaperId);
+    setEventType(signal.event_type);
+    setEventDescription(signal.description);
+    setEventSourceUrl(signal.source_url ?? "");
+    // A provider signal is a candidate. Leave it unverified until the researcher inspects the notice.
+    setEventVerification("unverified");
+    setEventResult("Candidate source signal loaded into the form. Verify the underlying notice before marking the event as confirmed.");
   }
 
   async function submitSourceEvent(event: React.FormEvent<HTMLFormElement>) {
@@ -495,7 +524,7 @@ export default function HomePage() {
             <form onSubmit={submitSourceEvent} className="mt-5 rounded-2xl border border-line bg-paper p-4">
               <div className="text-sm font-semibold">Record a source event</div><p className="mt-1 text-xs leading-5 text-muted">This version accepts manual events; it does not automatically monitor publishers.</p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <label className="text-xs font-semibold">Saved paper<select value={eventPaperId} onChange={(e)=>setEventPaperId(e.target.value)} className="field mt-1.5" disabled={!libraryPapers.length}><option value="">Select paper…</option>{libraryPapers.map(p=><option key={p.id} value={p.id}>{p.title.slice(0,90)}{p.doi ? ` · ${p.doi}` : ""}</option>)}</select></label>
+                <label className="text-xs font-semibold">Saved paper<select value={eventPaperId} onChange={(e)=>setEventPaperId(e.target.value)} className="field mt-1.5" disabled={!libraryPapers.length}><option value="">Select paper…</option>{libraryPapers.map(p=><option key={p.id} value={p.id}>{p.title.slice(0,90)}{p.doi ? ` · ${p.doi}` : ""}</option>)}</select><button type="button" onClick={()=>{void runPaperStatusCheck();}} disabled={!eventPaperId || checkingStatus} className="mt-2 rounded-lg border border-line px-3 py-1.5 text-[11px] font-semibold hover:bg-white disabled:opacity-50">{checkingStatus ? "Checking Crossref/OpenAlex…" : "Check external status"}</button></label>
                 <label className="text-xs font-semibold">Event type<select value={eventType} onChange={(e)=>setEventType(e.target.value as typeof eventType)} className="field mt-1.5"><option value="retraction">Retraction</option><option value="correction">Correction</option><option value="expression_of_concern">Expression of concern</option><option value="new_version">New version</option><option value="metadata_change">Metadata change</option><option value="conflicting_study">Conflicting study</option></select></label>
               </div>
               <label className="mt-3 block text-xs font-semibold">Description<textarea value={eventDescription} onChange={(e)=>setEventDescription(e.target.value)} className="field mt-1.5 resize-y" rows={3} minLength={8} placeholder="Describe the notice or conflicting result and why it requires review."/></label>
@@ -506,6 +535,14 @@ export default function HomePage() {
               <div className="mt-4 flex justify-end"><button type="submit" disabled={recordingEvent || !libraryPapers.length} className="rounded-xl bg-accent px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{recordingEvent ? "Recording…" : "Record event & analyse impact"}</button></div>
             </form>
             {timelineError && <div role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-900">{timelineError}</div>}
+            {statusCheck && <div className="mt-4 rounded-xl border border-line p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2"><div><div className="text-sm font-semibold">External status-check preview</div><div className="mt-1 text-xs text-muted">DOI: {statusCheck.doi ?? "Unavailable"} · no source event is created automatically</div></div><StatusPill tone={statusCheck.signals.length ? "amber" : "blue"}>{statusCheck.signals.length ? `${statusCheck.signals.length} candidate signal(s)` : "No signal found"}</StatusPill></div>
+              <div className="mt-2 text-[11px] leading-5 text-muted">Crossref: {statusCheck.providers.crossref ?? "not checked"} · OpenAlex: {statusCheck.providers.openalex ?? "not checked"}</div>
+              {statusCheck.signals.length===0 && <p className="mt-3 text-xs leading-5 text-muted">No update signal was returned in this check. This is not proof that no correction or retraction exists.</p>}
+              <div className="mt-3 space-y-2">{statusCheck.signals.map((signal,index)=><div key={`${signal.provider}-${signal.update_type}-${index}`} className="rounded-lg bg-paper p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap gap-2"><StatusPill tone={signal.event_type==="retraction"?"red":"amber"}>{signal.event_type.replaceAll("_"," ")}</StatusPill><StatusPill>{signal.provider}</StatusPill></div><button type="button" onClick={()=>useStatusSignal(signal)} className="rounded-lg bg-accent px-3 py-1.5 text-[11px] font-semibold text-white">Review this signal</button></div><p className="mt-2 text-xs leading-5 text-slate-700">{signal.description}</p>{signal.source_url && <a href={signal.source_url} target="_blank" rel="noreferrer" className="mt-1 inline-block break-all text-[11px] font-semibold text-accent underline">{signal.source_url}</a>}</div>)}</div>
+              <p className="mt-3 text-[11px] leading-5 text-muted">{statusCheck.note}</p>
+            </div>}
+
             {eventResult && <div role="status" className="mt-3 rounded-lg border border-teal-200 bg-teal-50 p-3 text-xs leading-5 text-teal-900">{eventResult}</div>}
             <div className="mt-7 flex items-center justify-between gap-3"><div><div className="text-sm font-semibold">Recorded events</div><div className="mt-1 text-xs text-muted">Source events and their persisted impact summaries</div></div><button onClick={async()=>{setTimelineLoading(true);try{const [papers,events]=await Promise.all([listLibraryPapers(100),listSourceEvents(50)]);setLibraryPapers(papers);setSourceEvents(events);setTimelineError("");}catch(error){setTimelineError(error instanceof Error?error.message:"Refresh failed.");}finally{setTimelineLoading(false);}}} disabled={timelineLoading} className="rounded-lg border border-line px-3 py-2 text-xs font-semibold hover:bg-paper disabled:opacity-50">{timelineLoading ? "Loading…" : "Refresh"}</button></div>
             {timelineLoading && <p className="mt-3 text-xs text-muted">Loading source events…</p>}
