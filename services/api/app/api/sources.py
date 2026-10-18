@@ -242,12 +242,43 @@ def record_source_event(
     if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found.")
 
+    normalized_description = payload.description.strip()
+    duplicate = db.scalar(select(SourceEvent).where(
+        SourceEvent.paper_id == paper_id,
+        SourceEvent.event_type == payload.event_type,
+        SourceEvent.event_date == payload.event_date,
+        SourceEvent.source_url == payload.source_url,
+        SourceEvent.description == normalized_description,
+        SourceEvent.verification_status == payload.verification_status,
+    ).order_by(SourceEvent.observed_at.desc()))
+    if duplicate is not None:
+        snapshot = duplicate.metadata_snapshot if isinstance(duplicate.metadata_snapshot, dict) else {}
+        impact_summary = snapshot.get("impact_summary", {}) if isinstance(snapshot.get("impact_summary"), dict) else {}
+        impacted_paper_ids = snapshot.get("impacted_paper_ids", [paper_id])
+        affected_claim_ids = snapshot.get("affected_claim_ids", [])
+        affected_run_ids = snapshot.get("affected_run_ids", [])
+        return {
+            "event": SourceEventRead.model_validate(duplicate).model_dump(mode="json"),
+            "source_status_updated": duplicate.verification_status != "unverified",
+            "duplicate": True,
+            "impact": {
+                "impacted_paper_ids": impacted_paper_ids,
+                "paper_reasons": {},
+                "affected_claim_ids": affected_claim_ids,
+                "claim_reasons": {},
+                "claims_flagged_for_review": impact_summary.get("claims_flagged_for_review", 0),
+                "affected_run_ids": affected_run_ids,
+                "report_versions_flagged_for_review": impact_summary.get("report_versions_flagged_for_review", 0),
+            },
+            "note": "The same source event and verification status were already recorded; the existing event was returned without duplicating versions or audit records.",
+        }
+
     event = SourceEvent(
         paper_id=paper_id,
         event_type=payload.event_type,
         event_date=payload.event_date,
         source_url=payload.source_url,
-        description=payload.description.strip(),
+        description=normalized_description,
         verification_status=payload.verification_status,
         metadata_snapshot=payload.metadata_snapshot,
     )
