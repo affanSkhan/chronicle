@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.entities import ResearchProject, ResearchRun
 from app.schemas.research import ProjectCreate, ProjectRead, ResearchRun as ResearchRunSchema, ResearchRunCreate
+from app.services.research_pipeline import execute_research_run
 
 router = APIRouter(tags=["research"])
 
@@ -32,7 +33,7 @@ def get_project(project_id: str, db: Session = Depends(get_db)) -> ResearchProje
 
 
 @router.post("/research/runs", response_model=ResearchRunSchema, status_code=201)
-def create_research_run(payload: ResearchRunCreate, db: Session = Depends(get_db)) -> ResearchRun:
+def create_research_run(payload: ResearchRunCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> ResearchRun:
     if payload.project_id and db.get(ResearchProject, payload.project_id) is None:
         raise HTTPException(status_code=404, detail="Research project not found.")
     run = ResearchRun(
@@ -41,12 +42,14 @@ def create_research_run(payload: ResearchRunCreate, db: Session = Depends(get_db
         mode=payload.mode.value,
         status="queued",
         max_sources=payload.max_sources,
-        demo=True,
-        configuration={"pipeline": "foundation-demo", "max_sources": payload.max_sources},
+        demo=not payload.execute,
+        configuration={"pipeline": "scholarly-metadata-discovery" if payload.execute else "request-only-demo", "max_sources": payload.max_sources},
     )
     db.add(run)
     db.commit()
     db.refresh(run)
+    if payload.execute:
+        background_tasks.add_task(execute_research_run, run.id)
     return run
 
 
