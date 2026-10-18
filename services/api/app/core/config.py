@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openai_api_base: str = "https://api.openai.com/v1"
     openai_model: str = ""
+    jwt_secret_key: SecretStr = SecretStr("development-only-change-this-secret-key")
+    jwt_access_token_expire_minutes: int = 480
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
