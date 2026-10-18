@@ -154,7 +154,7 @@ export interface EvidenceGraphResponse {
 }
 
 export async function getEvidenceGraph(runId: string): Promise<EvidenceGraphResponse> {
-  const response = await fetch(\`\${API_BASE}/api/v1/evidence/runs/\${runId}/graph\`, { cache: "no-store" });
+  const response = await fetch(`${API_BASE}/api/v1/evidence/runs/${runId}/graph`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<EvidenceGraphResponse>;
 }
@@ -187,13 +187,13 @@ export interface SourceEventRecord {
 }
 
 export async function listLibraryPapers(limit = 100): Promise<LibraryPaper[]> {
-  const response = await fetch(\`\${API_BASE}/api/v1/sources/papers?limit=\${limit}\`, { cache: "no-store" });
+  const response = await fetch(`${API_BASE}/api/v1/sources/papers?limit=${limit}`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<LibraryPaper[]>;
 }
 
 export async function listSourceEvents(limit = 50): Promise<SourceEventRecord[]> {
-  const response = await fetch(\`\${API_BASE}/api/v1/sources/events?limit=\${limit}\`, { cache: "no-store" });
+  const response = await fetch(`${API_BASE}/api/v1/sources/events?limit=${limit}`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   const payload = await response.json() as { events: SourceEventRecord[] };
   return payload.events;
@@ -218,7 +218,7 @@ export async function createSourceEvent(input: {
   note: string;
 }> {
   const { paperId, ...payload } = input;
-  const response = await fetch(\`\${API_BASE}/api/v1/sources/papers/\${paperId}/events\`, {
+  const response = await fetch(`${API_BASE}/api/v1/sources/papers/${paperId}/events`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
