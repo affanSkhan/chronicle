@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.entities import ResearchProject, ResearchRun, User
 from app.schemas.research import ProjectCreate, ProjectRead, ResearchRun as ResearchRunSchema, ResearchRunCreate
+from app.services.audit import record_audit_event
 from app.services.research_pipeline import execute_research_run
 
 router = APIRouter(tags=["research"], dependencies=[Depends(get_current_user)])
@@ -15,6 +16,18 @@ router = APIRouter(tags=["research"], dependencies=[Depends(get_current_user)])
 def create_project(payload: ProjectCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> ResearchProject:
     project = ResearchProject(owner_user_id=current_user.id, title=payload.title.strip(), research_question=payload.research_question.strip())
     db.add(project)
+    db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=None,
+        target_entity_type="research_project",
+        target_entity_id=project.id,
+        action="research_project.created",
+        previous_value=None,
+        new_value={"title": project.title, "research_question": project.research_question},
+        reason="Research workspace created.",
+    )
     db.commit()
     db.refresh(project)
     return project
@@ -48,6 +61,24 @@ def create_research_run(payload: ResearchRunCreate, background_tasks: Background
         configuration={"pipeline": "scholarly-metadata-discovery" if payload.execute else "request-only-demo", "max_sources": payload.max_sources},
     )
     db.add(run)
+    db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=run.id,
+        target_entity_type="research_run",
+        target_entity_id=run.id,
+        action="research_run.created",
+        previous_value=None,
+        new_value={
+            "question": run.question,
+            "mode": run.mode,
+            "status": run.status,
+            "max_sources": run.max_sources,
+            "execute": payload.execute,
+        },
+        reason="Research run submitted.",
+    )
     db.commit()
     db.refresh(run)
     if payload.execute:
