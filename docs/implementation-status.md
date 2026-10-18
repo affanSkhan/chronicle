@@ -1,24 +1,35 @@
-# Implementation status (2026-10-18)
+# Implementation status
+
+Last updated: 2026-10-18
 
 ## Implemented in repository
-- Project README, architecture, roadmap and initial stack decision record.
-- Next.js/React/TypeScript workspace prototype with overview, research workspace, illustrative evidence graph, source timeline and hypothesis-lab views.
-- FastAPI application with health endpoint.
-- Initial POST/list/get research-run endpoints backed by an in-memory dictionary.
-- Pydantic request/response models and API tests.
-- Local PostgreSQL Docker Compose configuration (the API is not connected to it yet).
-- API CI workflow.
+- Next.js + TypeScript workspace UI for overview, research workspace, evidence graph concept, source timeline and hypothesis-lab concept.
+- FastAPI application with health endpoint and typed request/response schemas.
+- Durable SQLAlchemy models for projects, runs, papers, paper versions, studies, passages, claims, evidence relations, paper dependencies, source events and report versions.
+- Alembic initial schema migration and local PostgreSQL Docker Compose configuration.
+- Research project/run create/list/get endpoints backed by the configured database.
+- Crossref/OpenAlex scholarly metadata search, DOI/external-ID de-duplication and paper import.
+- PDF upload with type/size checks, PyMuPDF text extraction, SHA-256 deduplication and page-aware passage records.
+- Claim creation, claim/passage relations, claim-to-claim dependencies, paper dependency records and persisted graph JSON endpoint.
+- Report version creation/listing.
+- Manual source-event ingestion with deterministic traversal to dependent papers, evidence-linked claims and report versions; affected records are flagged for review, not automatically declared false.
+- API tests for parser behavior, CRUD validation, PDF ingestion and temporal source-event impact.
+- GitHub Actions workflows for API tests and frontend lint/typecheck/build.
 
-## Explicitly not implemented yet
-- External web/academic search.
-- PDF uploads/text extraction.
-- Live citation or claim verification.
-- PostgreSQL persistence or migrations.
-- Evidence graph persistence and graph computation.
-- LLM calls or real agent orchestration.
-- Source correction/retraction polling.
-- Temporal impact propagation.
-- Authentication and multi-user access.
-- Report export / Evidence Passport.
+## Important limitation: demo versus research execution
+Research-run endpoints currently persist the request with status queued and demo=true. A worker/orchestrator has not yet executed the research question against returned papers. Creating a run does not yet produce a verified literature report.
+The frontend uses illustrative sample claims/graph/timeline for its dashboard panels. Academic search results and PDF ingestion are API-backed, but graph and timeline screens are not fully wired to live database data.
 
-All sample claims and graph edges in the frontend are illustrative and must not be interpreted as actual research findings.
+## Not implemented yet
+- End-to-end research job worker and cancellation/retry.
+- LLM-backed structured claim extraction, citation entailment and contextual contradiction assessment.
+- Embeddings, hybrid passage retrieval and grounded report synthesis.
+- Source-status polling/scheduled alerts.
+- Persistent object storage for uploaded PDFs in cloud deployment.
+- OCR for scanned PDFs.
+- Authentication, access control and multi-user project isolation.
+- Live graph and source-timeline frontend powered by stored records.
+- Exportable Evidence Passport / report export.
+- Deployment configuration and production observability.
+
+All demo claims and graph edges must not be interpreted as actual scientific findings.
