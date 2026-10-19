@@ -16,9 +16,10 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       DATABASE_URL: ${{ secrets.CHRONICLE_DATABASE_URL }}
+      SOURCE_MONITOR_BATCH_SIZE: "10"
     steps:
       - name: Check monitoring configuration
         id: config
