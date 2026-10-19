@@ -1,0 +1,57 @@
+name: Deployment Config CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "render.yaml"
+      - ".github/workflows/source-monitor.yml"
+      - ".github/workflows/deployment-config.yml"
+  pull_request:
+    paths:
+      - "render.yaml"
+      - ".github/workflows/source-monitor.yml"
+      - ".github/workflows/deployment-config.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install YAML parser
+        run: pip install pyyaml==6.0.2
+      - name: Validate deployment configuration
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          blueprint = yaml.safe_load(Path("render.yaml").read_text(encoding="utf-8"))
+          assert isinstance(blueprint, dict), "render.yaml must be a YAML object"
+          services = {item["name"]: item for item in blueprint.get("services", [])}
+          api = services.get("chronicle-research-api")
+          web = services.get("chronicle-research-web")
+          assert api and web, "Blueprint must define both Chronicle services"
+          assert all(item.get("plan") == "free" for item in (api, web)), "Both demo services must remain on Free plans"
+          assert all(item.get("region") == "singapore" for item in (api, web)), "Both demo services should stay in Singapore"
+          api_env = {item["key"]: item for item in api.get("envVars", [])}
+          web_env = {item["key"]: item for item in web.get("envVars", [])}
+          assert api_env["DATABASE_URL"].get("sync") is False, "Database URL must be supplied as a secret"
+          assert api_env["JWT_SECRET_KEY"].get("generateValue") is True, "JWT secret must be generated, not committed"
+          assert api_env["CORS_ORIGINS"]["fromService"]["name"] == web["name"]
+          assert web_env["NEXT_PUBLIC_API_BASE_URL"]["fromService"]["name"] == api["name"]
+          assert api_env["ENABLE_SCHEDULED_MONITORING"].get("value") == "false", "Free-hosted API worker remains disabled"
+          monitor = yaml.safe_load(Path(".github/workflows/source-monitor.yml").read_text(encoding="utf-8"))
+          assert isinstance(monitor, dict), "Source monitor workflow must be valid YAML"
+          workflow_on = monitor.get("on", monitor.get(True, {}))
+          assert workflow_on.get("schedule"), "Source monitor workflow must have an hourly schedule"
+          assert "CHRONICLE_DATABASE_URL" in str(monitor), "Scheduled runner must read a repository secret"
+          print("Deployment Blueprint and source-monitor workflow passed validation.")
+          PY
