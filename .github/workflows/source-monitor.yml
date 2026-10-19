@@ -1,0 +1,52 @@
+name: Scheduled Source Monitoring
+
+on:
+  schedule:
+    # Run hourly at minute 17. GitHub scheduled workflows may be delayed.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chronicle-source-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.CHRONICLE_DATABASE_URL }}
+    steps:
+      - name: Check monitoring configuration
+        id: config
+        shell: bash
+        run: |
+          if [[ -z "$DATABASE_URL" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Scheduled monitoring is skipped because the CHRONICLE_DATABASE_URL repository secret is not set."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out repository
+        if: steps.config.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: steps.config.outputs.enabled == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/api/requirements.txt
+
+      - name: Install API dependencies
+        if: steps.config.outputs.enabled == 'true'
+        run: pip install -r services/api/requirements.txt
+
+      - name: Run due source checks
+        if: steps.config.outputs.enabled == 'true'
+        run: python services/api/scripts/run_due_status_checks.py
