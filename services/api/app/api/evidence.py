@@ -891,7 +891,6 @@ def export_evidence_passport(
 
 
 @router.post("/papers/{paper_id}/studies", status_code=201)
-@router.post("/papers/{paper_id}/studies", status_code=201)
 def create_study(paper_id: str, payload: StudyCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     paper = db.scalar(select(Paper).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id))
     if paper is None:
