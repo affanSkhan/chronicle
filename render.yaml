@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: chronicle-research-api
+    runtime: python
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: pip install -r services/api/requirements.txt
+    startCommand: cd services/api && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: APP_NAME
+        value: Chronicle API
+      - key: APP_VERSION
+        value: 0.1.0
+      - key: ENVIRONMENT
+        value: production
+      - key: API_PREFIX
+        value: /api/v1
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 480
+      - key: CORS_ORIGINS
+        fromService:
+          type: web
+          name: chronicle-research-web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MAX_UPLOAD_MB
+        value: 50
+      - key: MAX_PDF_PAGES
+        value: 300
+      - key: UPLOAD_DIR
+        value: /tmp/chronicle-uploads
+      - key: ENABLE_SCHEDULED_MONITORING
+        value: false
+      - key: SOURCE_MONITOR_POLL_SECONDS
+        value: 60
+      - key: SOURCE_MONITOR_BATCH_SIZE
+        value: 20
+
+  - type: web
+    name: chronicle-research-web
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: corepack enable && corepack prepare pnpm@9.12.0 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @chronicle/web build
+    startCommand: pnpm --filter @chronicle/web start
+    autoDeploy: true
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE_URL
+        fromService:
+          type: web
+          name: chronicle-research-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NODE_VERSION
+        value: 22
+      - key: NEXT_TELEMETRY_DISABLED
+        value: 1
