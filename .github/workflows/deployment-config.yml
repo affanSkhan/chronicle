@@ -15,7 +15,11 @@ on:
     paths:
       - "render.yaml"
       - ".github/workflows/source-monitor.yml"
+      - ".github/workflows/database-migrations.yml"
       - ".github/workflows/deployment-config.yml"
+      - "services/api/index.py"
+      - "services/api/.python-version"
+      - "services/api/vercel.json"
   workflow_dispatch:
 
 permissions:
