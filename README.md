@@ -41,6 +41,12 @@ Local Docker Compose enables scheduled source-status checks by default (`ENABLE_
 
 The default JWT and database secrets are for local development only. For any shared/public environment, set a strong random `JWT_SECRET_KEY` of at least 32 characters, a strong database password, HTTPS, and appropriate CORS origins. Uploaded files are stored in a local container volume and are not served directly by the API.
 
+## Free-tier hosted demo
+
+A dedicated [Render Blueprint](render.yaml) is included for the API and Next.js frontend, with PostgreSQL hosted separately in Neon. Follow [docs/deployment-free-tier.md](docs/deployment-free-tier.md) to apply the Blueprint and configure the `DATABASE_URL` secret. The current hosted-demo design keeps the API worker scheduler off on free Render (free instances sleep); the optional hourly GitHub Actions workflow requires the repository Actions secret `CHRONICLE_DATABASE_URL`.
+
+Free-tier hosting is for a demonstrator, not production. Original uploaded PDFs are currently stored on the API filesystem and may be lost on restart/redeploy/spin-down even though extracted passages and other relational records persist in Neon.
+
 ## Run the API directly
 ```bash
 cd services/api
@@ -85,9 +91,9 @@ GitHub Actions runs API tests, frontend typecheck/lint/production build and Dock
 ## Current limitations
 - The research executor is a FastAPI background task, not a durable job queue; a process restart can interrupt a run.
 - Search is currently metadata/abstract-level; full-text verification, embeddings/hybrid retrieval and calibrated evidence-strength scoring are not implemented.
-- Scheduled external source-status monitoring, OCR for scanned PDFs, run cancellation/retry, PDF export, hypothesis novelty evaluation and benchmark experiments are not implemented.
+- OCR for scanned PDFs, run cancellation/retry, PDF export, hypothesis novelty evaluation and completed benchmark experiments are not implemented. Scheduled status checks are provided by the local worker or optional hourly GitHub Actions workflow, but public metadata monitoring is not exhaustive.
 - Authentication uses short-lived signed bearer tokens held in browser session storage for this prototype. Production deployment needs a reviewed session/cookie design, rate limiting, abuse protection, secure secret management and operational monitoring.
 - Uploaded files are in local/container storage; configure private durable object storage and retention/deletion workflows before public use.
 - Research outputs and hypothesis suggestions are aids for human review, not claims of verified scientific truth.
 
-See [docs/implementation-status.md](docs/implementation-status.md) for the current implementation boundary and [docs/evaluation-protocol.md](docs/evaluation-protocol.md) for the reproducible benchmark protocol.
+See [docs/implementation-status.md](docs/implementation-status.md) for the current implementation boundary, [docs/evaluation-protocol.md](docs/evaluation-protocol.md) for the reproducible benchmark protocol, and [docs/deployment-free-tier.md](docs/deployment-free-tier.md) for the free-tier deployment runbook.
