@@ -1,0 +1,51 @@
+name: Database Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type APPLY to migrate the database configured in CHRONICLE_DATABASE_URL"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    if: ${{ inputs.confirmation == 'APPLY' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.CHRONICLE_DATABASE_URL }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/api/requirements.txt
+
+      - name: Install API dependencies
+        run: python -m pip install --disable-pip-version-check -r services/api/requirements.txt
+
+      - name: Validate database secret and normalize driver scheme
+        shell: bash
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Configure the CHRONICLE_DATABASE_URL repository Actions secret first."
+            exit 1
+          fi
+          case "$DATABASE_URL" in
+            postgres://*) export DATABASE_URL="postgresql+psycopg://${DATABASE_URL#postgres://}" ;;
+            postgresql://*) export DATABASE_URL="postgresql+psycopg://${DATABASE_URL#postgresql://}" ;;
+          esac
+          echo "DATABASE_URL is configured; driver scheme normalized without printing credentials."
+          echo "DATABASE_URL=$DATABASE_URL" >> "$GITHUB_ENV"
+
+      - name: Apply Alembic migrations
+        working-directory: services/api
+        run: alembic upgrade head
