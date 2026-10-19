@@ -13,34 +13,34 @@ services:
       - key: APP_NAME
         value: Chronicle API
       - key: APP_VERSION
-        value: 0.1.0
+        value: "0.1.0"
       - key: ENVIRONMENT
         value: production
       - key: API_PREFIX
-        value: /api/v1
+        value: "/api/v1"
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: JWT_ACCESS_TOKEN_EXPIRE_MINUTES
-        value: 480
+        value: "480"
       - key: CORS_ORIGINS
         fromService:
           type: web
           name: chronicle-research-web
           envVarKey: RENDER_EXTERNAL_URL
       - key: MAX_UPLOAD_MB
-        value: 50
+        value: "50"
       - key: MAX_PDF_PAGES
-        value: 300
+        value: "300"
       - key: UPLOAD_DIR
-        value: /tmp/chronicle-uploads
+        value: "/tmp/chronicle-uploads"
       - key: ENABLE_SCHEDULED_MONITORING
-        value: false
+        value: "false"
       - key: SOURCE_MONITOR_POLL_SECONDS
-        value: 60
+        value: "60"
       - key: SOURCE_MONITOR_BATCH_SIZE
-        value: 20
+        value: "20"
 
   - type: web
     name: chronicle-research-web
@@ -58,6 +58,6 @@ services:
           name: chronicle-research-api
           envVarKey: RENDER_EXTERNAL_URL
       - key: NODE_VERSION
-        value: 22
+        value: "22"
       - key: NEXT_TELEMETRY_DISABLED
-        value: 1
+        value: "1"
