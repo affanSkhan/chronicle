@@ -42,13 +42,15 @@ uvicorn app.main:app --reload --port 8000
 - `GET /api/v1/evidence/runs/{run_id}/passport?format=markdown|json` — Evidence Passport export.
 
 ## Scheduled source monitoring
-Direct API runs leave the scheduler disabled by default. Set `ENABLE_SCHEDULED_MONITORING=true` to start the in-process poller, with `SOURCE_MONITOR_POLL_SECONDS` and `SOURCE_MONITOR_BATCH_SIZE` controlling the loop. The local Docker Compose configuration enables it by default. The current poller is single-process; do not enable it on multiple API replicas until a distributed worker/leader lock is implemented. It persists metadata signals and change hashes but never auto-marks a paper retracted or creates a SourceEvent.
+Direct API runs leave the scheduler disabled by default. Set `ENABLE_SCHEDULED_MONITORING=true` to start the in-process poller, with `SOURCE_MONITOR_POLL_SECONDS` and `SOURCE_MONITOR_BATCH_SIZE` controlling the loop. Local Docker Compose enables it by default. This poller is single-process; do not enable it on multiple API replicas until a distributed worker/leader lock is implemented.
+
+For free hosted environments that sleep, `.github/workflows/source-monitor.yml` runs the due-check script hourly when the repository secret `CHRONICLE_DATABASE_URL` is configured. See [docs/deployment-free-tier.md](../../docs/deployment-free-tier.md). Both approaches persist metadata signals and change hashes but never auto-mark a paper retracted or create a SourceEvent.
 
 ## Optional LLM configuration
 Set `OPENAI_API_KEY`, `OPENAI_API_BASE`, and `OPENAI_MODEL` on the backend only. With no configured key/model, discovery still retrieves metadata and abstract passages and saves a report without model-generated claims or synthesis.
 
 ## Limitations
-Crossref/OpenAlex records are not a complete index of all research, and abstract-level evidence is not full-text verification. Source status checks are not scheduled continuous monitoring. LLM-generated claims and research-question suggestions remain unreviewed candidates. PDF uploads are stored in local/container storage; use authenticated durable object storage before public deployment.
+Crossref/OpenAlex records are not a complete index of all research, and abstract-level evidence is not full-text verification. Crossref/OpenAlex monitoring is scheduled when the in-process worker or the optional GitHub Actions job is enabled, but does not provide exhaustive publisher surveillance. LLM-generated claims and research-question suggestions remain unreviewed candidates. PDF uploads are stored in local/container storage; use authenticated durable object storage before public deployment.
 
 ## Tests
 ```bash
