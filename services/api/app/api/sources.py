@@ -119,7 +119,7 @@ def list_recent_source_events(
             "metadata_snapshot": event.metadata_snapshot,
         } for event, paper_title in rows],
         "count": len(rows),
-        "note": "Events are recorded from manual submissions in the current version. Scheduled publisher/retraction-feed monitoring is not enabled.",
+        "note": "Source events are manually recorded. Scheduled Crossref/OpenAlex metadata checks are stored separately as status-check history and do not automatically create source events.",
     }
 
 
