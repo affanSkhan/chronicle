@@ -41,6 +41,10 @@ Local Docker Compose enables scheduled source-status checks by default (`ENABLE_
 
 The default JWT and database secrets are for local development only. For any shared/public environment, set a strong random `JWT_SECRET_KEY` of at least 32 characters, a strong database password, HTTPS, and appropriate CORS origins. Uploaded files are stored in a local container volume and are not served directly by the API.
 
+## Full Vercel deployment (frontend + API)
+
+For hosting the Next.js frontend and FastAPI backend as two Vercel projects while keeping PostgreSQL on Neon, follow [docs/deployment-vercel.md](docs/deployment-vercel.md). It covers Vercel project settings, environment variables, an explicit database migration workflow, and current file-upload/runtime limits.
+
 ## Free-tier hosted demo
 
 A dedicated [Render Blueprint](render.yaml) is included for the API and Next.js frontend, with PostgreSQL hosted separately in Neon. Follow [docs/deployment-free-tier.md](docs/deployment-free-tier.md) to apply the Blueprint and configure the `DATABASE_URL` secret. The current hosted-demo design keeps the API worker scheduler off on free Render (free instances sleep); the optional hourly GitHub Actions workflow requires the repository Actions secret `CHRONICLE_DATABASE_URL`.
