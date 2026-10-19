@@ -537,6 +537,11 @@ export default function HomePage() {
     setEventResult("");
     setStatusCheck(null);
     setTimelineError("");
+    setStatusCheck(null);
+    setStatusChecks([]);
+    setStatusChecksLoading(false);
+    setCheckingStatus(false);
+    setUpdatingMonitoring(false);
     setPassportError("");
     setQuery("");
     setNotice("");
