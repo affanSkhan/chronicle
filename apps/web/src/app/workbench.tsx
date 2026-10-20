@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  Activity, AlertCircle, ArrowRight, BookOpen, Check, ChevronDown, Clock3, FileSearch,
+  Activity, AlertCircle, ArrowRight, BookOpen, Check, ChevronDown, Clock3,
   FlaskConical, History, LayoutDashboard, LoaderCircle, LogOut, Network, Plus,
   RefreshCw, Search, ShieldCheck, Sparkles, Upload, X
 } from "lucide-react";
@@ -313,7 +313,7 @@ export default function ChronicleWorkbench() {
   }, [authUser]);
 
   useEffect(() => {
-    if (!authUser || !activeRunId || !activeRun || (activeRun.status !== "queued" && activeRun.status !== "running")) return;
+    if (!authUser || !activeRunId || (activeRun?.status !== "queued" && activeRun?.status !== "running")) return;
     let cancelled = false;
     const timer = setInterval(async () => {
       try {
