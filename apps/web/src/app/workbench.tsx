@@ -11,12 +11,12 @@ import {
 import type { LucideIcon } from "lucide-react";
 import {
   clearAccessToken, configurePaperMonitoring, createResearchRun, createSourceEvent,
-  downloadEvidencePassport, fetchCurrentUser, getEvidenceGraph, hasSavedAccessToken,
+  downloadEvidencePassport, fetchCurrentUser, getEvidenceGraph, getResearchRunPlan, hasSavedAccessToken,
   importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents,
   listSourceStatusChecks, loginAccount, recordPaperStatusCheck, registerAccount,
   reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf,
   type AcademicSearchResult, type AuthUser, type EvidenceGraphResponse, type LibraryPaper,
-  type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchRun,
+  type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchPlanResponse, type ResearchRun,
   type SourceEventRecord, type SourceStatusCheckRecord
 } from "@/lib/api";
 
@@ -52,6 +52,7 @@ const EVENT_TYPES: { value: EventKind; label: string }[] = [
 
 function statusTone(status: string): string {
   if (status === "completed" || status === "supported" || status === "human_verified" || status === "accepted") return "bg-emerald-50 text-emerald-700 ring-emerald-600/15";
+  if (status === "completed_with_limitations") return "bg-amber-50 text-amber-800 ring-amber-600/15";
   if (status === "failed" || status === "rejected" || status === "contradicted") return "bg-rose-50 text-rose-700 ring-rose-600/15";
   if (status === "running" || status === "queued" || status === "unverified" || status === "needs_review" || status === "qualified") return "bg-amber-50 text-amber-800 ring-amber-600/15";
   return "bg-slate-100 text-slate-600 ring-slate-500/10";
@@ -202,6 +203,8 @@ export default function ChronicleWorkbench() {
   const [maxSources, setMaxSources] = useState(10);
   const [creatingRun, setCreatingRun] = useState(false);
   const [reportVersions, setReportVersions] = useState<ReportVersionSummary[]>([]);
+  const [activeRunPlan, setActiveRunPlan] = useState<ResearchPlanResponse | null>(null);
+  const [planError, setPlanError] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
   const [exporting, setExporting] = useState<"markdown" | "json" | null>(null);
 
@@ -313,6 +316,27 @@ export default function ChronicleWorkbench() {
   }, [authUser]);
 
   useEffect(() => {
+    if (!authUser || !activeRunId) {
+      setActiveRunPlan(null);
+      setPlanError("");
+      return;
+    }
+    let cancelled = false;
+    getResearchRunPlan(activeRunId).then((result) => {
+      if (!cancelled) {
+        setActiveRunPlan(result);
+        setPlanError("");
+      }
+    }).catch((error) => {
+      if (!cancelled) {
+        setActiveRunPlan(null);
+        setPlanError(error instanceof Error ? error.message : "The execution plan could not be loaded.");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [authUser, activeRunId, activeRun?.status]);
+
+  useEffect(() => {
     if (!authUser || !activeRunId || (activeRun?.status !== "queued" && activeRun?.status !== "running")) return;
     let cancelled = false;
     const timer = setInterval(async () => {
@@ -330,7 +354,7 @@ export default function ChronicleWorkbench() {
   }, [authUser, activeRunId, activeRun?.status]);
 
   useEffect(() => {
-    if (!authUser || !activeRunId || activeRun?.status !== "completed") {
+    if (!authUser || !activeRunId || (activeRun?.status !== "completed" && activeRun?.status !== "completed_with_limitations")) {
       setReportVersions([]);
       return;
     }
@@ -741,11 +765,27 @@ export default function ChronicleWorkbench() {
             </section>
 
             {activeRun ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30 sm:p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Selected run</p><h3 className="mt-1.5 max-w-3xl text-lg font-semibold tracking-tight text-slate-950">{activeRun.question}</h3></div><StatusPill status={activeRun.status}>{activeRun.status}</StatusPill></div>
+              <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Selected run</p><h3 className="mt-1.5 max-w-3xl text-lg font-semibold tracking-tight text-slate-950">{activeRun.question}</h3></div><StatusPill status={activeRun.status}>{activeRun.status === "completed_with_limitations" ? "completed with limitations" : activeRun.status}</StatusPill></div>
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500"><span>{activeRun.mode} · up to {activeRun.max_sources} sources</span><span>{formatDate(activeRun.created_at)}</span><span className="font-mono">ID {activeRun.id.slice(0, 8)}</span></div>
               {activeRun.error_message ? <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{activeRun.error_message}</div> : null}
+              {activeRun.status === "completed_with_limitations" ? <div role="status" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">This run returned partial results or provider limitations. Inspect the execution plan and coverage notes before using the findings.</div> : null}
+              {planError ? <p role="status" className="mt-3 text-xs text-slate-500">{planError}</p> : null}
+              {activeRunPlan?.plan ? <section className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div><h4 className="text-sm font-semibold text-slate-900">Research execution plan</h4><p className="mt-1 text-xs text-slate-600">{activeRunPlan.plan.profile_name} · {activeRunPlan.plan.status}</p></div>
+                  <div className="text-right text-xs text-slate-500"><div>{activeRunPlan.plan.budgets.max_subqueries} planned searches</div><div>Cap: {activeRunPlan.plan.budgets.max_retrieved_sources} unique sources</div><div>{activeRunPlan.plan.budgets.deadline_seconds}s per subtask</div></div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1.5">{activeRunPlan.plan.enabled_modules.map((module) => <span key={module} className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 ring-1 ring-inset ring-slate-200">{module.replaceAll("_", " ")}</span>)}</div>
+                <ol className="mt-4 space-y-2">{activeRunPlan.plan.subtasks.map((task) => <li key={task.id} className="rounded-lg bg-white p-3 ring-1 ring-inset ring-slate-200">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-semibold text-slate-900">{task.purpose}</span><StatusPill status={task.status}>{task.status}</StatusPill></div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{task.query}</p>
+                  {task.status !== "planned" && task.status !== "pending" ? <p className="mt-1 text-[11px] text-slate-500">{task.result_count} candidate records</p> : null}
+                  {Object.entries(task.provider_errors ?? {}).map(([provider, reason]) => <p key={provider} className="mt-1 text-[11px] text-amber-800">{provider}: {reason}</p>)}
+                </li>)}</ol>
+                <p className="mt-3 text-[11px] leading-5 text-slate-500">{activeRunPlan.plan.planning_note}</p>
+              </section> : null}
               {activeRun.status === "queued" || activeRun.status === "running" ? <div role="status" aria-live="polite" className="mt-5 rounded-xl bg-indigo-50 px-4 py-3"><div className="flex items-center gap-2 text-sm font-medium text-indigo-800"><LoaderCircle size={16} className="animate-spin"/> Research is in progress</div><p className="mt-1 text-xs text-indigo-700">This panel updates automatically.</p></div> : null}
-              {activeRun.status === "completed" ? <div className="mt-5 space-y-4">
+              {activeRun.status === "completed" || activeRun.status === "completed_with_limitations" ? <div className="mt-5 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4"><div><p className="text-sm font-semibold text-slate-900">Research report</p><p className="mt-0.5 text-xs text-slate-500">{reportLoading ? "Loading latest report…" : activeReport ? "Latest saved version" : "No report version found for this run."}</p></div><div className="flex gap-2"><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("markdown")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "markdown" ? "Exporting…" : "Export .md"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("json")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "json" ? "Exporting…" : "Export .json"}</button></div></div>
                 {activeReport ? <div className="max-h-[460px] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/70 p-4 sm:p-5"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
                   h1: ({ children }) => <h1 className="mb-3 mt-5 text-xl font-semibold text-slate-900 first:mt-0">{children}</h1>,

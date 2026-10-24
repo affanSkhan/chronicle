@@ -1,5 +1,38 @@
 export type ResearchMode = "quick" | "deep" | "academic" | "forensic";
-export type RunStatus = "queued" | "running" | "completed" | "failed";
+export type RunStatus = "queued" | "running" | "completed" | "completed_with_limitations" | "failed";
+
+export interface ResearchPlanTask {
+  id: string;
+  purpose: string;
+  query: string;
+  status: string;
+  result_count: number;
+  provider_errors: Record<string, string>;
+}
+
+export interface ResearchPlanResponse {
+  run_id: string;
+  mode: ResearchMode;
+  run_status: RunStatus;
+  plan: {
+    planner_version: string;
+    profile_id: string;
+    profile_name: string;
+    enabled_modules: string[];
+    budgets: {
+      max_subqueries: number;
+      max_retrieved_sources: number;
+      per_subquery_result_limit: number;
+      max_workflow_steps: number;
+      deadline_seconds: number;
+    };
+    subtasks: ResearchPlanTask[];
+    status: string;
+    planning_note: string;
+    completed_subtask_count?: number;
+    retained_unique_source_count?: number;
+  };
+}
 
 export interface ResearchRun {
   id: string;
@@ -102,6 +135,12 @@ export async function listResearchRuns(): Promise<ResearchRun[]> {
   const response = await apiFetch(`${API_BASE}/api/v1/research/runs`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<ResearchRun[]>;
+}
+
+export async function getResearchRunPlan(runId: string): Promise<ResearchPlanResponse> {
+  const response = await apiFetch(`${API_BASE}/api/v1/research/runs/${encodeURIComponent(runId)}/plan`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<ResearchPlanResponse>;
 }
 
 export interface AcademicSearchResult {

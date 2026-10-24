@@ -8,6 +8,7 @@ from app.models.entities import ResearchProject, ResearchRun, User
 from app.schemas.research import ProjectCreate, ProjectRead, ResearchRun as ResearchRunSchema, ResearchRunCreate
 from app.services.audit import record_audit_event
 from app.services.research_pipeline import execute_research_run
+from app.services.research_planner import build_research_plan
 
 router = APIRouter(tags=["research"], dependencies=[Depends(get_current_user)])
 
@@ -58,7 +59,11 @@ def create_research_run(payload: ResearchRunCreate, background_tasks: Background
         status="queued",
         max_sources=payload.max_sources,
         demo=not payload.execute,
-        configuration={"pipeline": "scholarly-metadata-discovery" if payload.execute else "request-only-demo", "max_sources": payload.max_sources},
+        configuration={
+            "pipeline": "mode-aware-scholarly-discovery" if payload.execute else "request-only-demo",
+            "max_sources": payload.max_sources,
+            "research_plan": build_research_plan(payload.question.strip(), payload.mode.value, payload.max_sources),
+        },
     )
     db.add(run)
     db.flush()
@@ -97,3 +102,32 @@ def get_research_run(run_id: str, db: Session = Depends(get_db), current_user: U
     if run is None:
         raise HTTPException(status_code=404, detail="Research run not found.")
     return run
+
+
+
+@router.get("/research/runs/{run_id}/plan")
+def get_research_run_plan(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return the bounded, actionable plan associated with an owned research run."""
+    run = db.scalar(
+        select(ResearchRun).where(
+            ResearchRun.id == run_id,
+            ResearchRun.owner_user_id == current_user.id,
+        )
+    )
+    if run is None:
+        raise HTTPException(status_code=404, detail="Research run not found.")
+    configuration = run.configuration or {}
+    plan = configuration.get("research_plan")
+    if not plan:
+        # Backward-compatible response for runs created before plans were persisted.
+        plan = build_research_plan(run.question, run.mode, run.max_sources)
+    return {
+        "run_id": run.id,
+        "mode": run.mode,
+        "run_status": run.status,
+        "plan": plan,
+    }
