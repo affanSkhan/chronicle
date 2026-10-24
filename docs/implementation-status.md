@@ -30,3 +30,15 @@ This status separates completed prototype behavior from research objectives in t
 - **Evaluation:** a deterministic labelled-JSONL evaluation harness and protocol are included, but no reported benchmark results yet for SciFact/SciFact-Open, LitQA2, ScholarQABench, dependency precision/recall, contradiction per-class F1 or temporal impact precision/recall/false alarms.
 
 All sample/demo content and model-assisted claims must be treated as unverified research assistance. No benchmark or scientific-accuracy result should be claimed without conducting and documenting the specified experiment.
+
+
+## SRS implementation pass: planning and citation verification
+
+Branch: `feat/srs-research-planning-verification` (changes are staged for review; this note is not a claim of production deployment).
+
+- Added a deterministic Research Planner with four distinct, bounded execution profiles. It creates mode-specific scholarly subqueries, selects a documented set of workflow modules, persists the plan with the run/report snapshot, and displays the plan in the report.
+- The research runner now executes the planned Crossref/OpenAlex searches, merges duplicate DOI/title records across subqueries, retains the query trail, and uses the selected mode's focus in optional claim extraction and synthesis prompts.
+- Added a model-assisted claim-to-passage verification API. It requires a configured server-side model, checks that evidence pointers refer to supplied passage IDs, records the result in the claim and audit trail, and always marks it for human review. A missing model configuration returns a clear service-unavailable response without changing the claim.
+- Added tests for profile differentiation, query/source budgets, allowed citation-verdict labels, invalid passage-pointer downgrading, and provider response validation.
+
+Remaining SRS gaps that are **not** completed by this pass include durable background jobs/cancellation, scanned-PDF OCR, automatic study-family inference from source text, a graph-based adversarial search agent, comprehensive evaluation on SciFact/ALCE/LitQA2/ScholarQABench, load/security tests, and production storage/monitoring. Live scholarly-provider and LLM behavior still requires configured external services.

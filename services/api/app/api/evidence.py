@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.entities import (
@@ -9,6 +10,7 @@ from app.models.entities import (
     ReportVersion, ResearchRun, SourceEvent, SourceStatusCheck, Study, User,
 )
 from app.services.audit import record_audit_event
+from app.services.citation_verification import verify_claim_with_llm
 from app.schemas.evidence import (
     ClaimCreate, ClaimRead, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
     PaperDependencyCreate, StudyCreate,
@@ -60,6 +62,113 @@ def list_claim_relations(claim_id: str, db: Session = Depends(get_db), current_u
     if claim is None:
         raise HTTPException(status_code=404, detail="Claim not found.")
     return list(db.scalars(select(EvidenceRelation).where(EvidenceRelation.claim_id == claim_id).order_by(EvidenceRelation.created_at)).all())
+
+
+@router.post("/claims/{claim_id}/verify")
+async def verify_claim_citation_support(
+    claim_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Assess linked passages against one claim; model output always remains pending human review."""
+    claim = db.scalar(
+        select(Claim)
+        .join(ResearchRun, Claim.run_id == ResearchRun.id)
+        .where(Claim.id == claim_id, ResearchRun.owner_user_id == current_user.id)
+    )
+    if claim is None:
+        raise HTTPException(status_code=404, detail="Claim not found.")
+
+    relations = db.scalars(
+        select(EvidenceRelation).where(
+            EvidenceRelation.claim_id == claim.id,
+            EvidenceRelation.passage_id.is_not(None),
+            EvidenceRelation.reviewer_status != "rejected",
+        )
+    ).all()
+    passage_ids = {edge.passage_id for edge in relations if edge.passage_id}
+    if not passage_ids:
+        raise HTTPException(status_code=422, detail="Link at least one source passage before verifying this claim.")
+
+    rows = db.execute(
+        select(Passage, Paper.title, Paper.doi)
+        .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+        .join(Paper, PaperVersion.paper_id == Paper.id)
+        .where(Passage.id.in_(passage_ids), Paper.owner_user_id == current_user.id)
+    ).all()
+    passages = [
+        {
+            "id": passage.id,
+            "paper_title": title,
+            "doi": doi,
+            "page_number": passage.page_number,
+            "section_title": passage.section_title,
+            "text": passage.text[:8000],
+        }
+        for passage, title, doi in rows
+    ]
+    if not passages:
+        raise HTTPException(status_code=422, detail="No accessible source passages were found for this claim.")
+
+    settings = get_settings()
+    api_key = settings.openai_api_key.get_secret_value().strip() if settings.openai_api_key else ""
+    model = settings.openai_model.strip()
+    if not api_key or not model:
+        raise HTTPException(
+            status_code=503,
+            detail="Citation verification requires OPENAI_API_KEY and OPENAI_MODEL on the server. No assessment was changed.",
+        )
+
+    try:
+        result = await verify_claim_with_llm(
+            claim_statement=claim.statement,
+            claim_scope=claim.scope or {},
+            passages=passages,
+            api_key=api_key,
+            api_base=settings.openai_api_base,
+            model=model,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="The configured verifier returned an invalid result. No assessment was changed.") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Citation verification failed. No assessment was changed.") from exc
+
+    previous = {
+        "assessment": claim.assessment,
+        "review_required": claim.review_required,
+    }
+    claim.assessment = result["verdict"]
+    claim.review_required = True
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=claim.run_id,
+        target_entity_type="claim",
+        target_entity_id=claim.id,
+        action="claim.citation_verification_completed",
+        previous_value=previous,
+        new_value={
+            "assessment": claim.assessment,
+            "review_required": True,
+            "evidence_passage_ids": result["evidence_passage_ids"],
+            "rationale": result["rationale"],
+            "uncertainty_notes": result["uncertainty_notes"],
+            "model": model,
+            "provenance_basis": "model_inferred",
+        },
+        reason="Model-assisted claim-to-passage assessment; a human reviewer must confirm or revise the result.",
+        resolution_status="needs_review",
+    )
+    db.commit()
+    return {
+        **result,
+        "claim_id": claim.id,
+        "review_required": True,
+        "reviewer_status": "needs_review",
+        "provenance_basis": "model_inferred",
+        "verifier_model": model,
+        "notice": "This is a model-assisted evidence assessment, not proof of scientific truth. Human review is required.",
+    }
 
 
 @router.post("/claims/{claim_id}/relations", response_model=EvidenceRelationRead, status_code=201)
