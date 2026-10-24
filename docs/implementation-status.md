@@ -45,3 +45,11 @@ Remaining SRS gaps that are **not** completed by this pass include durable backg
 
 
 - The Evidence Graph now exposes the citation-support verifier on a selected claim and displays its assessment, rationale, evidence passage IDs, context notes and uncertainty while preserving the human-review warning.
+
+
+## SRS implementation pass: source-dependence candidates
+
+- Added a review-only dependency-candidate endpoint. It surfaces shared recognized dataset/study-registry identifiers and high-overlap abstracts, preserving the supporting signal and a cautious rationale.
+- Candidate discovery never writes graph edges automatically. A researcher must confirm a link before it enters the evidence graph.
+- Confirmed same_dataset and duplicate_or_overlap links are treated symmetrically during temporal impact traversal because neither paper is inherently upstream. This flags the other source for reassessment without automatically invalidating claims.
+- Remaining limitation: this is a high-specificity heuristic starter set, not general source-dependence detection. Its precision/recall must be measured against a labelled dataset before it is used as an evidence-strength metric.

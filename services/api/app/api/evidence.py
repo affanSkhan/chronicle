@@ -11,6 +11,7 @@ from app.models.entities import (
 )
 from app.services.audit import record_audit_event
 from app.services.citation_verification import verify_claim_with_llm
+from app.services.dependency_candidates import suggest_dependency_candidates
 from app.schemas.evidence import (
     ClaimCreate, ClaimRead, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
     PaperDependencyCreate, StudyCreate,
@@ -333,6 +334,24 @@ def review_evidence_relation(
     db.commit()
     db.refresh(relation)
     return relation
+
+
+@router.get("/dependency-candidates")
+def list_dependency_candidates(
+    limit: int = Query(default=30, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return heuristic dependency candidates for human adjudication; does not save graph edges."""
+    candidates = suggest_dependency_candidates(db, current_user.id, limit=limit)
+    return {
+        "count": len(candidates),
+        "candidates": candidates,
+        "note": (
+            "These are heuristic suggestions from shared dataset/registry identifiers or near-duplicate abstracts. "
+            "They are not verified dependencies or independent-evidence judgments. Confirm study context before saving."
+        ),
+    }
 
 
 @router.post("/paper-dependencies", status_code=201)
