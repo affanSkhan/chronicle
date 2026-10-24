@@ -23,7 +23,7 @@ export interface ResearchPlanResponse {
       max_subqueries: number;
       max_retrieved_sources: number;
       per_subquery_result_limit: number;
-      max_agent_iterations: number;
+      max_workflow_steps: number;
       deadline_seconds: number;
     };
     subtasks: ResearchPlanTask[];
