@@ -42,3 +42,6 @@ Branch: `feat/srs-research-planning-verification` (changes are staged for review
 - Added tests for profile differentiation, query/source budgets, allowed citation-verdict labels, invalid passage-pointer downgrading, and provider response validation.
 
 Remaining SRS gaps that are **not** completed by this pass include durable background jobs/cancellation, scanned-PDF OCR, automatic study-family inference from source text, a graph-based adversarial search agent, comprehensive evaluation on SciFact/ALCE/LitQA2/ScholarQABench, load/security tests, and production storage/monitoring. Live scholarly-provider and LLM behavior still requires configured external services.
+
+
+- The Evidence Graph now exposes the citation-support verifier on a selected claim and displays its assessment, rationale, evidence passage IDs, context notes and uncertainty while preserving the human-review warning.

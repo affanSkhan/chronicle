@@ -301,6 +301,31 @@ export async function createSourceEvent(input: {
 }
 
 
+
+
+export interface CitationVerificationResult {
+  claim_id: string;
+  verdict: "supported" | "partially_supported" | "contradicted" | "insufficient_evidence" | "unverifiable" | string;
+  rationale: string;
+  evidence_passage_ids: string[];
+  context_note?: string | null;
+  uncertainty_notes: string[];
+  review_required: boolean;
+  reviewer_status: string;
+  provenance_basis: string;
+  verifier_model: string;
+  notice: string;
+}
+
+export async function verifyClaimCitationSupport(claimId: string): Promise<CitationVerificationResult> {
+  const response = await apiFetch(
+    `${API_BASE}/api/v1/evidence/claims/${encodeURIComponent(claimId)}/verify`,
+    { method: "POST" }
+  );
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<CitationVerificationResult>;
+}
+
 export async function reviewEvidenceRelation(
   relationId: string,
   reviewerStatus: "accepted" | "rejected" | "needs_review",

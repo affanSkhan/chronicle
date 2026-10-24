@@ -15,7 +15,8 @@ import {
   importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents,
   listSourceStatusChecks, loginAccount, recordPaperStatusCheck, registerAccount,
   reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf,
-  type AcademicSearchResult, type AuthUser, type EvidenceGraphResponse, type LibraryPaper,
+  verifyClaimCitationSupport,
+  type AcademicSearchResult, type AuthUser, type CitationVerificationResult, type EvidenceGraphResponse, type LibraryPaper,
   type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchRun,
   type SourceEventRecord, type SourceStatusCheckRecord
 } from "@/lib/api";
@@ -235,6 +236,8 @@ export default function ChronicleWorkbench() {
   const [showAdvancedSourceSearch, setShowAdvancedSourceSearch] = useState(false);
   const [showPdfUpload, setShowPdfUpload] = useState(false);
   const [reviewingRelationId, setReviewingRelationId] = useState<string | null>(null);
+  const [verifyingClaimId, setVerifyingClaimId] = useState<string | null>(null);
+  const [verificationByClaim, setVerificationByClaim] = useState<Record<string, CitationVerificationResult>>({});
 
   const activeRun = useMemo(() => runs.find((run) => run.id === activeRunId) ?? null, [runs, activeRunId]);
   const activeReport = reportVersions[0] ?? null;
@@ -469,6 +472,23 @@ export default function ChronicleWorkbench() {
       setGraphError(error instanceof Error ? error.message : "Could not save this review.");
     } finally {
       setReviewingRelationId(null);
+    }
+  }
+
+  async function verifyClaim(claimNodeId: string) {
+    const claimId = claimNodeId.startsWith("claim:") ? claimNodeId.slice("claim:".length) : claimNodeId;
+    setVerifyingClaimId(claimNodeId);
+    setGraphError("");
+    try {
+      const result = await verifyClaimCitationSupport(claimId);
+      setVerificationByClaim((previous) => ({ ...previous, [claimNodeId]: result }));
+      const graph = activeRunId ? await getEvidenceGraph(activeRunId) : null;
+      if (graph) setGraphData(graph);
+      setNotice(`Model assessment: ${result.verdict.replaceAll("_", " ")}. Human review is still required.`);
+    } catch (error) {
+      setGraphError(error instanceof Error ? error.message : "Citation verification failed.");
+    } finally {
+      setVerifyingClaimId(null);
     }
   }
 
@@ -821,7 +841,23 @@ export default function ChronicleWorkbench() {
                 {selectedGraphNode.method ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Method</p><p className="mt-1 text-sm leading-5 text-slate-600">{selectedGraphNode.method}</p></div> : null}
                 {selectedGraphNode.limitations?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Limitations</p><ul className="mt-1 list-disc space-y-1 pl-4 text-sm leading-5 text-slate-600">{selectedGraphNode.limitations.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
                 <details className="mt-5 border-t border-slate-100 pt-3"><summary className="cursor-pointer text-xs font-medium text-slate-500">Record ID</summary><code className="mt-2 block break-all text-[10px] leading-4 text-slate-500">{selectedGraphNode.id}</code></details>
-                {selectedGraphNode.type === "claim" ? <div className="mt-5 grid grid-cols-1 gap-2"><p className="text-xs leading-5 text-slate-500">Review relationships in the graph before changing claim status.</p>{visibleGraphEdges.filter((edge) => edge.id && (edge.source === selectedGraphNode.id || edge.target === selectedGraphNode.id) && edge.reviewer_status === "unreviewed").map((edge) => <div key={edge.id} className="rounded-xl border border-slate-100 p-3"><p className="text-xs font-medium text-slate-800">{edge.type.replaceAll("_", " ")}</p><p className="mt-1 text-[11px] text-slate-500">{shorten(graphSource.nodes.find((node) => node.id === (edge.source === selectedGraphNode.id ? edge.target : edge.source))?.label ?? "", 90)}</p><div className="mt-3 flex gap-2"><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "accepted")} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{reviewingRelationId === edge.id ? "Saving…" : "Accept"}</button><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "needs_review")} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Needs review</button></div></div>)}</div> : null}
+                {selectedGraphNode.type === "claim" ? <div className="mt-5 space-y-3">
+                  <div className="grid grid-cols-1 gap-2">
+                    <p className="text-xs leading-5 text-slate-500">Run a model-assisted comparison between this claim and its linked passages. The result is a review prompt, not proof of scientific truth.</p>
+                    <button onClick={() => void verifyClaim(selectedGraphNode.id)} disabled={verifyingClaimId === selectedGraphNode.id} className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+                      {verifyingClaimId === selectedGraphNode.id ? <><LoaderCircle size={14} className="animate-spin"/>Verifying citation support…</> : <><ShieldCheck size={14}/>Verify citation support</>}
+                    </button>
+                  </div>
+                  {verificationByClaim[selectedGraphNode.id] ? <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-slate-900">Model-assisted assessment</p><StatusPill status={verificationByClaim[selectedGraphNode.id].verdict}>{verificationByClaim[selectedGraphNode.id].verdict.replaceAll("_", " ")}</StatusPill></div>
+                    <p className="mt-2 text-sm leading-5 text-slate-700">{verificationByClaim[selectedGraphNode.id].rationale}</p>
+                    {verificationByClaim[selectedGraphNode.id].context_note ? <p className="mt-2 text-xs leading-5 text-slate-600">Context: {verificationByClaim[selectedGraphNode.id].context_note}</p> : null}
+                    {verificationByClaim[selectedGraphNode.id].evidence_passage_ids.length ? <p className="mt-2 break-words text-[11px] leading-5 text-slate-500">Evidence passage IDs: {verificationByClaim[selectedGraphNode.id].evidence_passage_ids.join(", ")}</p> : null}
+                    {verificationByClaim[selectedGraphNode.id].uncertainty_notes.length ? <div className="mt-2"><p className="text-[11px] font-semibold text-slate-600">Uncertainty notes</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{verificationByClaim[selectedGraphNode.id].uncertainty_notes.map((item, index) => <li key={index}>{item}</li>)}</ul></div> : null}
+                    <p className="mt-3 text-[11px] leading-5 text-amber-800">{verificationByClaim[selectedGraphNode.id].notice}</p>
+                  </div> : null}
+                  {visibleGraphEdges.filter((edge) => edge.id && (edge.source === selectedGraphNode.id || edge.target === selectedGraphNode.id) && edge.reviewer_status === "unreviewed").map((edge) => <div key={edge.id} className="rounded-xl border border-slate-100 p-3"><p className="text-xs font-medium text-slate-800">{edge.type.replaceAll("_", " ")}</p><p className="mt-1 text-[11px] text-slate-500">{shorten(graphSource.nodes.find((node) => node.id === (edge.source === selectedGraphNode.id ? edge.target : edge.source))?.label ?? "", 90)}</p><div className="mt-3 flex gap-2"><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "accepted")} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{reviewingRelationId === edge.id ? "Saving…" : "Accept"}</button><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "needs_review")} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Needs review</button></div></div>)}
+                </div> : null}
               </> : <div><Network size={20} className="text-slate-400"/><h3 className="mt-3 font-semibold text-slate-900">Select a node</h3><p className="mt-1 text-sm leading-5 text-slate-500">Its saved metadata and review state will appear here.</p></div>}
             </aside>
           </div> : null}
