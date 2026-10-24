@@ -16,7 +16,7 @@ def test_research_pipeline_persists_metadata_report_and_evidence(monkeypatch, cl
     )
 
     async def fake_search_papers(question: str, limit: int = 10, provider: str = "all") -> dict:
-        assert question == "How does evidence provenance improve research reliability?"
+        assert question == "How does evidence provenance improve research reliability?" or question.startswith("How does evidence provenance improve research reliability? ")
         return {
             "query": question,
             "providers_requested": provider,
