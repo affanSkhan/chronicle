@@ -157,6 +157,31 @@ def _markdown_report(
         if questions:
             lines.extend(["", "### Candidate research questions (not novelty claims)", ""])
             lines.extend(f"- {item}" for item in questions)
+        opportunities = synthesis.get("research_opportunities", [])
+        if opportunities:
+            lines.extend(["", "### Evidence-linked research opportunities (not novelty claims)", ""])
+            for index, opportunity in enumerate(opportunities, start=1):
+                lines.append(f"{index}. **{opportunity.get('question', 'Candidate research question')}**")
+                if opportunity.get("rationale"):
+                    lines.append(f"   - Motivation: {opportunity['rationale']}")
+                for passage_id in opportunity.get("evidence_passage_ids", []):
+                    paper = next((item for item in papers if item.get("passage_id") == passage_id), None)
+                    if paper:
+                        doi = _normalize_doi(paper.get("doi"))
+                        source_url = f"https://doi.org/{doi}" if doi else (paper.get("landing_url") or "")
+                        title = paper.get("title") or "Source paper"
+                        source_label = f"[{title}]({source_url})" if source_url else title
+                        lines.append(f"   - Evidence trace: {source_label} · passage ID {passage_id}")
+                    else:
+                        lines.append(f"   - Evidence trace: passage ID {passage_id}")
+                if opportunity.get("prior_art_search_queries"):
+                    lines.append("   - Prior-art search queries: " + " | ".join(opportunity["prior_art_search_queries"]))
+                if opportunity.get("alternative_explanations"):
+                    lines.append("   - Alternative explanations: " + "; ".join(opportunity["alternative_explanations"]))
+                if opportunity.get("falsification_plan"):
+                    lines.append("   - Falsification plan: " + opportunity["falsification_plan"])
+                lines.append("   - Status: candidate only; prior-art search and human review are required.")
+                lines.append("")
         lines.extend(["", "**Uncertainty:** " + synthesis.get("uncertainty_statement", "Uncertainty was not provided."), ""])
     lines.append(synthesis_note)
     lines.append("")

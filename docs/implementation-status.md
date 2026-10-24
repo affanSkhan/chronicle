@@ -55,3 +55,11 @@ Remaining SRS gaps that are **not** completed by this pass include durable backg
 - Remaining limitation: this is a high-specificity heuristic starter set, not general source-dependence detection. Its precision/recall must be measured against a labelled dataset before it is used as an evidence-strength metric.
 
 - The Evidence Graph now provides an opt-in dependency-candidate scan and a confirmation action. The scanner supports a small curated set of dataset/registry identifiers plus near-duplicate abstracts; its score is labelled as an uncalibrated heuristic, not a probability.
+
+
+## SRS implementation pass: evidence-linked hypothesis opportunities
+
+- Extended optional synthesis with research opportunity cards that require one or more validated passage IDs, a rationale, follow-up prior-art search queries, alternative explanations, and a falsification plan.
+- Invalid or unlinked opportunities are dropped instead of being rendered as evidence-grounded suggestions.
+- The report export and Hypothesis Lab show the candidate evidence path and a human-review warning. A button starts a forensic follow-up using a suggested prior-art query.
+- The model is instructed to treat passage contents as untrusted data, not as instructions; this is a mitigation, not a substitute for prompt-injection testing.
