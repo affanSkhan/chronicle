@@ -8,13 +8,13 @@ Chronicle is the working name for the VIIT B.Tech major project **Multi-Agent Re
 ## Core workflow
 1. Register/sign in to a private Chronicle account.
 2. Search Crossref/OpenAlex or upload a PDF.
-3. Submit a research question. The current worker retrieves scholarly metadata, stores paper versions and abstract passages, and creates a versioned Academic Discovery Snapshot.
-4. With a backend-configured OpenAI-compatible model, Chronicle can create candidate claims linked to retrieved passage IDs and a structured synthesis draft. These are always marked as unreviewed/model-inferred.
+3. Submit a research question in Quick, Deep, Academic Review or Forensic Analysis mode. Chronicle persists a bounded execution plan, runs the planned scholarly queries, round-robin merges/deduplicates results under the source cap, and creates a versioned Academic Discovery Snapshot with query provenance and per-subtask errors.
+4. With a backend-configured OpenAI-compatible model, Chronicle can create candidate claims linked to retrieved passage IDs and a structured synthesis draft. These are always marked as unreviewed/model-inferred. Quick Discovery intentionally skips these optional LLM stages.
 5. Inspect the stored graph, record/preview source status signals, review relationships, and record corrections/retractions/conflicting findings.
 6. Chronicle traces recorded dependencies and flags affected claims/report versions for review, preserving actor, timestamp and before/after values in its audit trail.
 7. View report history, compare Markdown revisions, and export an Evidence Passport.
 
-Retrieved abstracts are not full-text appraisal. A missing graph link or metadata signal is not proof a source or relationship does not exist. Source changes request review; they do not automatically establish that dependent conclusions are false.
+Retrieved abstracts are not full-text appraisal. Shared trial/dataset identifiers, recognized dataset names and duplicate abstracts can produce candidate evidence-family links; these remain review-required and are not proof of dependence. An unclustered paper is not proven independent. A missing graph link or metadata signal is not proof a source or relationship does not exist. Source changes request review; they do not automatically establish that dependent conclusions are false.
 
 ## Repository structure
 ```
@@ -75,6 +75,7 @@ With no key/model, scholarly discovery still runs in retrieval-only mode and sav
 - `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me`
 - `POST /api/v1/projects`, `GET /api/v1/projects`
 - `POST /api/v1/research/runs` with `execute=true`, `GET /api/v1/research/runs`
+- `GET /api/v1/research/runs/{run_id}/plan` (persisted mode profile, budget, subtasks and statuses)
 - `GET /api/v1/sources/search?q=...`, `POST /api/v1/sources/papers`
 - `POST /api/v1/documents/upload`, `GET /api/v1/documents/papers/{paper_id}/passages`
 - `POST /api/v1/evidence/claims`, `POST /api/v1/evidence/claims/{claim_id}/relations`
@@ -93,6 +94,8 @@ pytest -q
 GitHub Actions runs API tests, frontend typecheck/lint/production build and Docker Compose/image-build checks.
 
 ## Current limitations
+- The mode-specific component is a deterministic bounded-query planner, not a complete multi-agent orchestration system. Independent planner/retriever/verifier/adversarial/report agents are not implemented.
+- Dependency-family detection uses conservative metadata/text heuristics and must be validated on a labelled set; no precision/recall or reduction in false corroboration has been measured yet.
 - The research executor is a FastAPI background task, not a durable job queue; a process restart can interrupt a run.
 - Search is currently metadata/abstract-level; full-text verification, embeddings/hybrid retrieval and calibrated evidence-strength scoring are not implemented.
 - OCR for scanned PDFs, run cancellation/retry, PDF export, hypothesis novelty evaluation and completed benchmark experiments are not implemented. Scheduled status checks are provided by the local worker or optional hourly GitHub Actions workflow, but public metadata monitoring is not exhaustive.
