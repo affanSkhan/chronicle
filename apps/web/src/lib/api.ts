@@ -303,6 +303,52 @@ export async function createSourceEvent(input: {
 
 
 
+export type DependencyCandidateRelationType = "same_dataset" | "duplicate_or_overlap";
+
+export interface DependencyCandidate {
+  id: string;
+  paper_a_id: string;
+  paper_a_title: string;
+  paper_a_doi: string | null;
+  paper_b_id: string;
+  paper_b_title: string;
+  paper_b_doi: string | null;
+  relation_type: DependencyCandidateRelationType;
+  provenance_basis: "metadata_inferred" | string;
+  confidence: number;
+  signals: string[];
+  rationale: string;
+  direction: "symmetric" | string;
+}
+
+export async function listDependencyCandidates(limit = 30): Promise<{
+  count: number;
+  candidates: DependencyCandidate[];
+  note: string;
+}> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  const response = await apiFetch(`${API_BASE}/api/v1/evidence/dependency-candidates?${params.toString()}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json();
+}
+
+export async function addPaperDependency(input: {
+  dependent_paper_id: string;
+  depends_on_paper_id: string;
+  relation_type: DependencyCandidateRelationType;
+  provenance_basis: "human_reviewed" | "metadata_inferred";
+  rationale: string;
+  confidence: number;
+}): Promise<{ id: string; duplicate?: boolean }> {
+  const response = await apiFetch(`${API_BASE}/api/v1/evidence/paper-dependencies`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<{ id: string; duplicate?: boolean }>;
+}
+
 export interface CitationVerificationResult {
   claim_id: string;
   verdict: "supported" | "partially_supported" | "contradicted" | "insufficient_evidence" | "unverifiable" | string;
