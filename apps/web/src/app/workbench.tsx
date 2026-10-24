@@ -14,8 +14,10 @@ import {
   downloadEvidencePassport, fetchCurrentUser, getEvidenceGraph, hasSavedAccessToken,
   importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents,
   listSourceStatusChecks, loginAccount, recordPaperStatusCheck, registerAccount,
+  addPaperDependency, listDependencyCandidates,
   reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf,
-  type AcademicSearchResult, type AuthUser, type EvidenceGraphResponse, type LibraryPaper,
+  verifyClaimCitationSupport,
+  type AcademicSearchResult, type AuthUser, type CitationVerificationResult, type DependencyCandidate, type EvidenceGraphResponse, type LibraryPaper,
   type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchRun,
   type SourceEventRecord, type SourceStatusCheckRecord
 } from "@/lib/api";
@@ -235,6 +237,13 @@ export default function ChronicleWorkbench() {
   const [showAdvancedSourceSearch, setShowAdvancedSourceSearch] = useState(false);
   const [showPdfUpload, setShowPdfUpload] = useState(false);
   const [reviewingRelationId, setReviewingRelationId] = useState<string | null>(null);
+  const [verifyingClaimId, setVerifyingClaimId] = useState<string | null>(null);
+  const [verificationByClaim, setVerificationByClaim] = useState<Record<string, CitationVerificationResult>>({});
+  const [dependencyCandidates, setDependencyCandidates] = useState<DependencyCandidate[]>([]);
+  const [dependencyCandidatesLoading, setDependencyCandidatesLoading] = useState(false);
+  const [dependencyCandidatesLoaded, setDependencyCandidatesLoaded] = useState(false);
+  const [dependencyCandidateError, setDependencyCandidateError] = useState("");
+  const [savingDependencyCandidateId, setSavingDependencyCandidateId] = useState<string | null>(null);
 
   const activeRun = useMemo(() => runs.find((run) => run.id === activeRunId) ?? null, [runs, activeRunId]);
   const activeReport = reportVersions[0] ?? null;
@@ -246,6 +255,7 @@ export default function ChronicleWorkbench() {
     disagreements?: { description: string; evidence_passage_ids?: string[]; comparability_note?: string | null }[];
     limitations?: string[];
     candidate_research_questions?: string[];
+    research_opportunities?: { question: string; rationale: string; evidence_passage_ids?: string[]; prior_art_search_queries?: string[]; alternative_explanations?: string[]; falsification_plan: string; review_status?: string }[];
     uncertainty_statement?: string;
     human_review_required?: boolean;
   } : null;
@@ -469,6 +479,62 @@ export default function ChronicleWorkbench() {
       setGraphError(error instanceof Error ? error.message : "Could not save this review.");
     } finally {
       setReviewingRelationId(null);
+    }
+  }
+
+  async function verifyClaim(claimNodeId: string) {
+    const claimId = claimNodeId.startsWith("claim:") ? claimNodeId.slice("claim:".length) : claimNodeId;
+    setVerifyingClaimId(claimNodeId);
+    setGraphError("");
+    try {
+      const result = await verifyClaimCitationSupport(claimId);
+      setVerificationByClaim((previous) => ({ ...previous, [claimNodeId]: result }));
+      const graph = activeRunId ? await getEvidenceGraph(activeRunId) : null;
+      if (graph) setGraphData(graph);
+      setNotice(`Model assessment: ${result.verdict.replaceAll("_", " ")}. Human review is still required.`);
+    } catch (error) {
+      setGraphError(error instanceof Error ? error.message : "Citation verification failed.");
+    } finally {
+      setVerifyingClaimId(null);
+    }
+  }
+
+  async function loadDependencyCandidates() {
+    setDependencyCandidatesLoading(true);
+    setDependencyCandidateError("");
+    try {
+      const result = await listDependencyCandidates(30);
+      setDependencyCandidates(result.candidates);
+      setDependencyCandidatesLoaded(true);
+    } catch (error) {
+      setDependencyCandidateError(error instanceof Error ? error.message : "Could not discover dependency candidates.");
+    } finally {
+      setDependencyCandidatesLoading(false);
+    }
+  }
+
+  async function confirmDependencyCandidate(candidate: DependencyCandidate) {
+    setSavingDependencyCandidateId(candidate.id);
+    setDependencyCandidateError("");
+    try {
+      await addPaperDependency({
+        dependent_paper_id: candidate.paper_a_id,
+        depends_on_paper_id: candidate.paper_b_id,
+        relation_type: candidate.relation_type,
+        provenance_basis: "human_reviewed",
+        rationale: "Researcher confirmed a candidate surfaced by Chronicle. Signal: " + candidate.signals.join("; ") + ". " + candidate.rationale,
+        confidence: candidate.confidence,
+      });
+      setDependencyCandidates((previous) => previous.filter((item) => item.id !== candidate.id));
+      setNotice("Source relationship confirmed. Updates to either linked record can now flag the other for human review.");
+      if (activeRunId) {
+        const graph = await getEvidenceGraph(activeRunId);
+        setGraphData(graph);
+      }
+    } catch (error) {
+      setDependencyCandidateError(error instanceof Error ? error.message : "Could not save the dependency link.");
+    } finally {
+      setSavingDependencyCandidateId(null);
     }
   }
 
@@ -821,10 +887,60 @@ export default function ChronicleWorkbench() {
                 {selectedGraphNode.method ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Method</p><p className="mt-1 text-sm leading-5 text-slate-600">{selectedGraphNode.method}</p></div> : null}
                 {selectedGraphNode.limitations?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Limitations</p><ul className="mt-1 list-disc space-y-1 pl-4 text-sm leading-5 text-slate-600">{selectedGraphNode.limitations.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
                 <details className="mt-5 border-t border-slate-100 pt-3"><summary className="cursor-pointer text-xs font-medium text-slate-500">Record ID</summary><code className="mt-2 block break-all text-[10px] leading-4 text-slate-500">{selectedGraphNode.id}</code></details>
-                {selectedGraphNode.type === "claim" ? <div className="mt-5 grid grid-cols-1 gap-2"><p className="text-xs leading-5 text-slate-500">Review relationships in the graph before changing claim status.</p>{visibleGraphEdges.filter((edge) => edge.id && (edge.source === selectedGraphNode.id || edge.target === selectedGraphNode.id) && edge.reviewer_status === "unreviewed").map((edge) => <div key={edge.id} className="rounded-xl border border-slate-100 p-3"><p className="text-xs font-medium text-slate-800">{edge.type.replaceAll("_", " ")}</p><p className="mt-1 text-[11px] text-slate-500">{shorten(graphSource.nodes.find((node) => node.id === (edge.source === selectedGraphNode.id ? edge.target : edge.source))?.label ?? "", 90)}</p><div className="mt-3 flex gap-2"><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "accepted")} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{reviewingRelationId === edge.id ? "Saving…" : "Accept"}</button><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "needs_review")} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Needs review</button></div></div>)}</div> : null}
+                {selectedGraphNode.type === "claim" ? <div className="mt-5 space-y-3">
+                  <div className="grid grid-cols-1 gap-2">
+                    <p className="text-xs leading-5 text-slate-500">Run a model-assisted comparison between this claim and its linked passages. The result is a review prompt, not proof of scientific truth.</p>
+                    <button onClick={() => void verifyClaim(selectedGraphNode.id)} disabled={verifyingClaimId === selectedGraphNode.id} className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+                      {verifyingClaimId === selectedGraphNode.id ? <><LoaderCircle size={14} className="animate-spin"/>Verifying citation support…</> : <><ShieldCheck size={14}/>Verify citation support</>}
+                    </button>
+                  </div>
+                  {verificationByClaim[selectedGraphNode.id] ? <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-slate-900">Model-assisted assessment</p><StatusPill status={verificationByClaim[selectedGraphNode.id].verdict}>{verificationByClaim[selectedGraphNode.id].verdict.replaceAll("_", " ")}</StatusPill></div>
+                    <p className="mt-2 text-sm leading-5 text-slate-700">{verificationByClaim[selectedGraphNode.id].rationale}</p>
+                    {verificationByClaim[selectedGraphNode.id].context_note ? <p className="mt-2 text-xs leading-5 text-slate-600">Context: {verificationByClaim[selectedGraphNode.id].context_note}</p> : null}
+                    {verificationByClaim[selectedGraphNode.id].evidence_passage_ids.length ? <p className="mt-2 break-words text-[11px] leading-5 text-slate-500">Evidence passage IDs: {verificationByClaim[selectedGraphNode.id].evidence_passage_ids.join(", ")}</p> : null}
+                    {verificationByClaim[selectedGraphNode.id].uncertainty_notes.length ? <div className="mt-2"><p className="text-[11px] font-semibold text-slate-600">Uncertainty notes</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{verificationByClaim[selectedGraphNode.id].uncertainty_notes.map((item, index) => <li key={index}>{item}</li>)}</ul></div> : null}
+                    <p className="mt-3 text-[11px] leading-5 text-amber-800">{verificationByClaim[selectedGraphNode.id].notice}</p>
+                  </div> : null}
+                  {visibleGraphEdges.filter((edge) => edge.id && (edge.source === selectedGraphNode.id || edge.target === selectedGraphNode.id) && edge.reviewer_status === "unreviewed").map((edge) => <div key={edge.id} className="rounded-xl border border-slate-100 p-3"><p className="text-xs font-medium text-slate-800">{edge.type.replaceAll("_", " ")}</p><p className="mt-1 text-[11px] text-slate-500">{shorten(graphSource.nodes.find((node) => node.id === (edge.source === selectedGraphNode.id ? edge.target : edge.source))?.label ?? "", 90)}</p><div className="mt-3 flex gap-2"><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "accepted")} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{reviewingRelationId === edge.id ? "Saving…" : "Accept"}</button><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "needs_review")} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Needs review</button></div></div>)}
+                </div> : null}
               </> : <div><Network size={20} className="text-slate-400"/><h3 className="mt-3 font-semibold text-slate-900">Select a node</h3><p className="mt-1 text-sm leading-5 text-slate-500">Its saved metadata and review state will appear here.</p></div>}
             </aside>
           </div> : null}
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Potential source-dependence links</h3>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Surface shared dataset or registry identifiers and near-duplicate abstracts. Suggestions are not saved until a researcher confirms them.</p>
+              </div>
+              <button onClick={() => void loadDependencyCandidates()} disabled={dependencyCandidatesLoading} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                {dependencyCandidatesLoading ? <LoaderCircle size={14} className="animate-spin"/> : <Search size={14}/>}
+                {dependencyCandidatesLoading ? "Scanning sources…" : dependencyCandidatesLoaded ? "Refresh suggestions" : "Find dependency candidates"}
+              </button>
+            </div>
+            {dependencyCandidateError ? <p role="alert" className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{dependencyCandidateError}</p> : null}
+            {dependencyCandidatesLoaded && dependencyCandidates.length === 0 && !dependencyCandidatesLoading ? <p className="mt-4 rounded-xl bg-slate-50 p-4 text-xs leading-5 text-slate-600">No candidates matched the current high-specificity heuristics. This does not prove the papers are independent.</p> : null}
+            {dependencyCandidates.length > 0 ? <div className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-100">
+              {dependencyCandidates.map((candidate) => <article key={candidate.id} className="flex flex-col justify-between gap-4 p-4 lg:flex-row lg:items-start">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusPill status="needs_review">{candidate.relation_type.replaceAll("_", " ")}</StatusPill>
+                    <span className="text-[11px] text-slate-500">Heuristic signal · {Math.round(candidate.confidence * 100)}% score (not a calibrated probability)</span>
+                  </div>
+                  <p className="mt-2 break-words text-sm font-semibold leading-5 text-slate-900">{candidate.paper_a_title}</p>
+                  <p className="my-1 text-[11px] font-medium text-slate-400">↔ possible shared evidence ↔</p>
+                  <p className="break-words text-sm font-semibold leading-5 text-slate-900">{candidate.paper_b_title}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-600">{candidate.rationale}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">{candidate.signals.map((signal) => <span key={signal} className="rounded-md bg-slate-100 px-2 py-1 text-[10px] text-slate-600">{signal.replaceAll("_", " ")}</span>)}</div>
+                </div>
+                <button onClick={() => void confirmDependencyCandidate(candidate)} disabled={savingDependencyCandidateId === candidate.id} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                  {savingDependencyCandidateId === candidate.id ? <LoaderCircle size={13} className="animate-spin"/> : <Check size={13}/>}
+                  {savingDependencyCandidateId === candidate.id ? "Saving…" : "Confirm link"}
+                </button>
+              </article>)}
+            </div> : null}
+            <p className="mt-3 text-[11px] leading-5 text-slate-400">Confirmed shared-dataset and overlap links may flag both papers after a source event; the system does not automatically invalidate related claims.</p>
+          </section>
         </section> : null}
 
         {view === "Source timeline" ? <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -856,6 +972,19 @@ export default function ChronicleWorkbench() {
             <div className="space-y-5">
               {modelSynthesis.executive_summary ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><h3 className="text-sm font-semibold text-slate-900">Evidence summary</h3><p className="mt-2 text-sm leading-6 text-slate-600">{modelSynthesis.executive_summary}</p></section> : null}
               {modelSynthesis.candidate_research_questions?.length ? <div className="grid gap-3 md:grid-cols-2">{modelSynthesis.candidate_research_questions.map((item, index) => <article key={item} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><div className="flex items-center justify-between"><span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">Candidate {index + 1}</span><FlaskConical size={17} className="text-indigo-500"/></div><h3 className="mt-3 text-sm font-semibold leading-6 text-slate-900">{item}</h3></article>)}</div> : <EmptyState icon={FlaskConical} title="No candidate questions in this report" description="The current report did not produce a candidate question list."/>}
+              {modelSynthesis.research_opportunities?.length ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30">
+                <div><h3 className="text-sm font-semibold text-slate-900">Evidence-linked research opportunities</h3><p className="mt-1 text-xs leading-5 text-slate-500">Candidates are not novelty claims. Inspect the cited passages, search prior work, and test alternative explanations before proposing a contribution.</p></div>
+                <div className="mt-3 space-y-3">{modelSynthesis.research_opportunities.map((opportunity, index) => <article key={opportunity.question + index} className="rounded-xl border border-slate-100 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">Opportunity {index + 1}</span><span className="text-[10px] font-medium text-amber-700">Prior-art review required</span></div>
+                  <h4 className="mt-3 text-sm font-semibold leading-6 text-slate-900">{opportunity.question}</h4>
+                  <p className="mt-2 text-xs leading-5 text-slate-600">{opportunity.rationale}</p>
+                  {opportunity.evidence_passage_ids?.length ? <div className="mt-3"><p className="text-[11px] font-semibold text-slate-700">Evidence passage IDs</p><p className="mt-1 break-all text-[11px] leading-5 text-slate-500">{opportunity.evidence_passage_ids.join(", ")}</p></div> : null}
+                  {opportunity.prior_art_search_queries?.length ? <div className="mt-3"><p className="text-[11px] font-semibold text-slate-700">Suggested prior-art searches</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{opportunity.prior_art_search_queries.map((query) => <li key={query}>{query}</li>)}</ul></div> : null}
+                  {opportunity.alternative_explanations?.length ? <div className="mt-3"><p className="text-[11px] font-semibold text-slate-700">Alternative explanations</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{opportunity.alternative_explanations.map((alternative) => <li key={alternative}>{alternative}</li>)}</ul></div> : null}
+                  <div className="mt-3 rounded-lg bg-slate-50 p-3"><p className="text-[11px] font-semibold text-slate-700">Falsification plan</p><p className="mt-1 text-xs leading-5 text-slate-600">{opportunity.falsification_plan}</p></div>
+                  <button onClick={() => { setQuestion(opportunity.prior_art_search_queries?.[0] ?? opportunity.question); setResearchMode("forensic"); setView("Research workspace"); }} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><Search size={13}/>Investigate prior art</button>
+                </article>)}</div>
+              </section> : null}
               {modelSynthesis.disagreements?.length ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><h3 className="text-sm font-semibold text-slate-900">Evidence disagreements</h3><div className="mt-3 divide-y divide-slate-100">{modelSynthesis.disagreements.map((item, index) => <div key={index} className="py-3 first:pt-0 last:pb-0"><p className="text-sm leading-6 text-slate-700">{item.description}</p>{item.comparability_note ? <p className="mt-1 text-xs leading-5 text-slate-500">{item.comparability_note}</p> : null}</div>)}</div></section> : null}
             </div>
             <aside className="space-y-4"><section className="rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white"><Sparkles size={20} className="text-indigo-300"/><h3 className="mt-3 text-sm font-semibold">Review before asserting novelty</h3><p className="mt-2 text-xs leading-5 text-slate-300">Compare prior work, identify alternatives, and define what would falsify each candidate.</p></section>{modelSynthesis.limitations?.length ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><h3 className="text-sm font-semibold text-slate-900">Limitations</h3><ul className="mt-3 list-disc space-y-2 pl-4 text-sm leading-5 text-slate-600">{modelSynthesis.limitations.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}{modelSynthesis.uncertainty_statement ? <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-xs font-semibold text-amber-900">Uncertainty</p><p className="mt-1 text-sm leading-5 text-amber-800">{modelSynthesis.uncertainty_statement}</p></section> : null}</aside>

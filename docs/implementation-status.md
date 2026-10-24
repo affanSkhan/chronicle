@@ -30,3 +30,36 @@ This status separates completed prototype behavior from research objectives in t
 - **Evaluation:** a deterministic labelled-JSONL evaluation harness and protocol are included, but no reported benchmark results yet for SciFact/SciFact-Open, LitQA2, ScholarQABench, dependency precision/recall, contradiction per-class F1 or temporal impact precision/recall/false alarms.
 
 All sample/demo content and model-assisted claims must be treated as unverified research assistance. No benchmark or scientific-accuracy result should be claimed without conducting and documenting the specified experiment.
+
+
+## SRS implementation pass: planning and citation verification
+
+Branch: `feat/srs-research-planning-verification` (changes are staged for review; this note is not a claim of production deployment).
+
+- Added a deterministic Research Planner with four distinct, bounded execution profiles. It creates mode-specific scholarly subqueries, selects a documented set of workflow modules, persists the plan with the run/report snapshot, and displays the plan in the report.
+- The research runner now executes the planned Crossref/OpenAlex searches, merges duplicate DOI/title records across subqueries, retains the query trail, and uses the selected mode's focus in optional claim extraction and synthesis prompts.
+- Added a model-assisted claim-to-passage verification API. It requires a configured server-side model, checks that evidence pointers refer to supplied passage IDs, records the result in the claim and audit trail, and always marks it for human review. A missing model configuration returns a clear service-unavailable response without changing the claim.
+- Added tests for profile differentiation, query/source budgets, allowed citation-verdict labels, invalid passage-pointer downgrading, and provider response validation.
+
+Remaining SRS gaps that are **not** completed by this pass include durable background jobs/cancellation, scanned-PDF OCR, automatic study-family inference from source text, a graph-based adversarial search agent, comprehensive evaluation on SciFact/ALCE/LitQA2/ScholarQABench, load/security tests, and production storage/monitoring. Live scholarly-provider and LLM behavior still requires configured external services.
+
+
+- The Evidence Graph now exposes the citation-support verifier on a selected claim and displays its assessment, rationale, evidence passage IDs, context notes and uncertainty while preserving the human-review warning.
+
+
+## SRS implementation pass: source-dependence candidates
+
+- Added a review-only dependency-candidate endpoint. It surfaces shared recognized dataset/study-registry identifiers and high-overlap abstracts, preserving the supporting signal and a cautious rationale.
+- Candidate discovery never writes graph edges automatically. A researcher must confirm a link before it enters the evidence graph.
+- Confirmed same_dataset and duplicate_or_overlap links are treated symmetrically during temporal impact traversal because neither paper is inherently upstream. This flags the other source for reassessment without automatically invalidating claims.
+- Remaining limitation: this is a high-specificity heuristic starter set, not general source-dependence detection. Its precision/recall must be measured against a labelled dataset before it is used as an evidence-strength metric.
+
+- The Evidence Graph now provides an opt-in dependency-candidate scan and a confirmation action. The scanner supports a small curated set of dataset/registry identifiers plus near-duplicate abstracts; its score is labelled as an uncalibrated heuristic, not a probability.
+
+
+## SRS implementation pass: evidence-linked hypothesis opportunities
+
+- Extended optional synthesis with research opportunity cards that require one or more validated passage IDs, a rationale, follow-up prior-art search queries, alternative explanations, and a falsification plan.
+- Invalid or unlinked opportunities are dropped instead of being rendered as evidence-grounded suggestions.
+- The report export and Hypothesis Lab show the candidate evidence path and a human-review warning. A button starts a forensic follow-up using a suggested prior-art query.
+- The model is instructed to treat passage contents as untrusted data, not as instructions; this is a mitigation, not a substitute for prompt-injection testing.

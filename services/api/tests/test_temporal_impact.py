@@ -189,3 +189,17 @@ def test_upload_rejects_non_pdf(client) -> None:
         files={"file": ("fake.pdf", b"not a PDF", "application/pdf")},
     )
     assert response.status_code == 415
+
+
+def test_dependency_suggestions_do_not_auto_create_graph_edges(client) -> None:
+    first = client.post(
+        "/api/v1/sources/papers",
+        json={"provider": "manual", "title": "One study", "abstract": "This paper uses MIMIC-IV patient records."},
+    )
+    second = client.post(
+        "/api/v1/sources/papers",
+        json={"provider": "manual", "title": "Another study", "abstract": "This paper also uses MIMIC-IV patient records."},
+    )
+    assert first.status_code == 201 and second.status_code == 201
+    candidates = client.get("/api/v1/evidence/dependency-candidates").json()["candidates"]
+    assert any({c["paper_a_id"], c["paper_b_id"]} == {first.json()["id"], second.json()["id"]} for c in candidates)

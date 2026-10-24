@@ -16,7 +16,7 @@ def test_research_pipeline_persists_metadata_report_and_evidence(monkeypatch, cl
     )
 
     async def fake_search_papers(question: str, limit: int = 10, provider: str = "all") -> dict:
-        assert question == "How does evidence provenance improve research reliability?"
+        assert question and len(question) >= 8  # query expansion is expected for mode-specific planning
         return {
             "query": question,
             "providers_requested": provider,
@@ -236,3 +236,41 @@ def test_optional_synthesis_persists_source_linked_study_context(monkeypatch, cl
     passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json").json()
     assert any(item["id"] == study_id and item["source_passage_id"] == passage_id for item in passport["studies"])
     assert any(item["target_entity_id"] == study_id and item["action"] == "study.context_extracted" for item in passport["audit_events"])
+
+
+def test_failed_research_run_preserves_execution_plan(monkeypatch, client) -> None:
+    monkeypatch.setattr(research_pipeline, "SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr(
+        research_pipeline,
+        "get_settings",
+        lambda: SimpleNamespace(openai_api_key=None, openai_api_base="https://api.openai.com/v1", openai_model=""),
+    )
+
+    async def failing_search(question: str, limit: int = 10, provider: str = "all") -> dict:
+        raise RuntimeError("provider unavailable")
+
+    monkeypatch.setattr(research_pipeline, "search_papers", failing_search)
+    created = client.post(
+        "/api/v1/research/runs",
+        json={
+            "question": "How should Chronicle expose failed planner runs?",
+            "mode": "forensic",
+            "max_sources": 4,
+            "execute": False,
+        },
+    )
+    assert created.status_code == 201, created.text
+    run_id = created.json()["id"]
+
+    asyncio.run(research_pipeline.execute_research_run(run_id))
+
+    from app.models.entities import ResearchRun
+    with TestingSessionLocal() as db:
+        run = db.get(ResearchRun, run_id)
+        assert run is not None
+        assert run.status == "failed"
+        assert run.configuration["planner_version"] == "1.0"
+        plan = run.configuration["execution_plan"]
+        assert plan["mode"] == "forensic"
+        assert "conflicting findings contradictory evidence" in " ".join(plan["queries"])
+        assert run.configuration["planned_search_queries"] == plan["queries"]

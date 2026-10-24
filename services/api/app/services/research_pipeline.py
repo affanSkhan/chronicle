@@ -4,6 +4,8 @@ Model-generated claims remain unreviewed. Each edge is checked against the
 passage IDs supplied to the model and labelled model-inferred, not verified.
 """
 from datetime import datetime, timezone
+import asyncio
+import math
 import hashlib
 import re
 
@@ -16,6 +18,7 @@ from app.services.academic_search import search_papers
 from app.services.audit import record_audit_event
 from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
+from app.services.research_planner import build_research_plan, focus_for_mode
 
 
 def _normalize_doi(value: str | None) -> str | None:
@@ -38,6 +41,7 @@ def _markdown_report(
     synthesis: dict | None,
     synthesis_note: str,
     study_contexts: list[dict],
+    execution_plan: dict | None = None,
 ) -> str:
     lines = [
         "# Academic Discovery Snapshot",
@@ -54,6 +58,23 @@ def _markdown_report(
         "## Retrieved literature",
         "",
     ]
+    if execution_plan:
+        plan_lines = [
+            "",
+            "## Execution plan",
+            "",
+            f"- **Profile:** {execution_plan.get('profile_label', mode)}",
+            f"- **Planner version:** {execution_plan.get('version', '1.0')}",
+            f"- **Source budget:** {execution_plan.get('source_budget', len(papers))}",
+            "- **Search subqueries actually executed:**",
+        ]
+        plan_lines.extend(f"  - {query}" for query in execution_plan.get("queries", []))
+        plan_lines.append("- **Workflow modules:**")
+        plan_lines.extend(f"  - {module}" for module in execution_plan.get("modules", []))
+        plan_lines.extend(["", f"**Mode focus:** {execution_plan.get('focus', 'General scholarly discovery')}", ""])
+        insert_at = lines.index("## Important interpretation note")
+        lines[insert_at:insert_at] = plan_lines
+
     if not papers:
         lines.append("No papers were returned by the configured metadata providers.")
     for index, paper in enumerate(papers, start=1):
@@ -136,6 +157,31 @@ def _markdown_report(
         if questions:
             lines.extend(["", "### Candidate research questions (not novelty claims)", ""])
             lines.extend(f"- {item}" for item in questions)
+        opportunities = synthesis.get("research_opportunities", [])
+        if opportunities:
+            lines.extend(["", "### Evidence-linked research opportunities (not novelty claims)", ""])
+            for index, opportunity in enumerate(opportunities, start=1):
+                lines.append(f"{index}. **{opportunity.get('question', 'Candidate research question')}**")
+                if opportunity.get("rationale"):
+                    lines.append(f"   - Motivation: {opportunity['rationale']}")
+                for passage_id in opportunity.get("evidence_passage_ids", []):
+                    paper = next((item for item in papers if item.get("passage_id") == passage_id), None)
+                    if paper:
+                        doi = _normalize_doi(paper.get("doi"))
+                        source_url = f"https://doi.org/{doi}" if doi else (paper.get("landing_url") or "")
+                        title = paper.get("title") or "Source paper"
+                        source_label = f"[{title}]({source_url})" if source_url else title
+                        lines.append(f"   - Evidence trace: {source_label} · passage ID {passage_id}")
+                    else:
+                        lines.append(f"   - Evidence trace: passage ID {passage_id}")
+                if opportunity.get("prior_art_search_queries"):
+                    lines.append("   - Prior-art search queries: " + " | ".join(opportunity["prior_art_search_queries"]))
+                if opportunity.get("alternative_explanations"):
+                    lines.append("   - Alternative explanations: " + "; ".join(opportunity["alternative_explanations"]))
+                if opportunity.get("falsification_plan"):
+                    lines.append("   - Falsification plan: " + opportunity["falsification_plan"])
+                lines.append("   - Status: candidate only; prior-art search and human review are required.")
+                lines.append("")
         lines.extend(["", "**Uncertainty:** " + synthesis.get("uncertainty_statement", "Uncertainty was not provided."), ""])
     lines.append(synthesis_note)
     lines.append("")
@@ -166,6 +212,72 @@ def _markdown_report(
     return "\n".join(lines)
 
 
+async def _execute_planned_search(
+    question: str, mode: str, max_sources: int, plan: dict | None = None
+) -> tuple[dict, dict]:
+    """Run a bounded, mode-specific set of scholarly searches and merge duplicates."""
+    plan = plan or build_research_plan(question, mode, max_sources)
+    queries = plan["queries"]
+    per_query_limit = max(1, math.ceil(max_sources / max(1, len(queries))))
+    responses = await asyncio.gather(
+        *(search_papers(query, limit=per_query_limit, provider="all") for query in queries),
+        return_exceptions=True,
+    )
+
+    provider_errors: dict[str, str] = {}
+    merged: dict[str, dict] = {}
+    successful_queries = 0
+    for index, (query, response) in enumerate(zip(queries, responses), start=1):
+        if isinstance(response, Exception):
+            provider_errors[f"query_{index}"] = "This planned search failed or a provider was unavailable."
+            continue
+        successful_queries += 1
+        for name, message in (response.get("provider_errors") or {}).items():
+            provider_errors[f"query_{index}_{name}"] = message
+        for raw_item in response.get("results", []):
+            item = dict(raw_item)
+            doi = _normalize_doi(item.get("doi"))
+            normalized_title = " ".join(str(item.get("title") or "").lower().split())
+            key = f"doi:{doi.lower()}" if doi else f"title:{normalized_title}"
+            if not normalized_title:
+                continue
+            if key not in merged:
+                item["matched_queries"] = [query]
+                merged[key] = item
+            else:
+                prior = merged[key]
+                prior["abstract"] = prior.get("abstract") or item.get("abstract")
+                prior["authors"] = prior.get("authors") or item.get("authors") or []
+                prior["landing_url"] = prior.get("landing_url") or item.get("landing_url")
+                prior["publisher"] = prior.get("publisher") or item.get("publisher")
+                prior["publication_year"] = prior.get("publication_year") or item.get("publication_year")
+                prior["doi"] = prior.get("doi") or item.get("doi")
+                prior["matched_queries"] = sorted(set(prior.get("matched_queries", []) + [query]))
+    if successful_queries == 0:
+        raise RuntimeError("All planned scholarly searches failed.")
+
+    result_items = list(merged.values())
+    result_items.sort(
+        key=lambda item: (
+            item.get("publication_year") or 0,
+            bool(item.get("abstract")),
+            str(item.get("title") or "").lower(),
+        ),
+        reverse=True,
+    )
+    result_items = result_items[:max_sources]
+    provider_result = {
+        "query": question,
+        "queries": queries,
+        "providers_requested": "all",
+        "results": result_items,
+        "provider_errors": provider_errors,
+        "execution_plan": plan,
+        "note": "Mode-specific metadata retrieval; abstracts remain source text, not claim verification.",
+    }
+    return provider_result, plan
+
+
 async def execute_research_run(run_id: str) -> None:
     """Execute a discovery run and persist its status, source records and report."""
     with SessionLocal() as db:
@@ -176,7 +288,7 @@ async def execute_research_run(run_id: str) -> None:
         run.error_message = None
         run.configuration = {
             **(run.configuration or {}),
-            "pipeline": "scholarly-metadata-discovery",
+            "pipeline": "mode-specific-scholarly-discovery",
             "started_at": datetime.now(timezone.utc).isoformat(),
         }
         question = run.question
@@ -186,7 +298,24 @@ async def execute_research_run(run_id: str) -> None:
         db.commit()
 
     try:
-        provider_result = await search_papers(question, limit=limit, provider="all")
+        execution_plan = build_research_plan(question, mode, limit)
+        # Persist the plan before network I/O so a failed or partial run remains inspectable.
+        with SessionLocal() as db:
+            run = db.get(ResearchRun, run_id)
+            if run is None:
+                return
+            run.configuration = {
+                **(run.configuration or {}),
+                "pipeline": "mode-specific-scholarly-discovery",
+                "planner_version": execution_plan["version"],
+                "execution_plan": execution_plan,
+                "planned_search_queries": execution_plan["queries"],
+            }
+            db.commit()
+
+        provider_result, execution_plan = await _execute_planned_search(
+            question, mode, limit, plan=execution_plan
+        )
         result_items = provider_result.get("results", [])
         saved_papers: list[dict] = []
         passages_for_extraction: list[dict] = []
@@ -252,7 +381,8 @@ async def execute_research_run(run_id: str) -> None:
                         metadata_snapshot={
                             "provider": item.get("provider"),
                             "external_id": item.get("external_id"),
-                            "search_query": question,
+                            "search_queries": item.get("matched_queries") or [question],
+                            "planner_version": execution_plan.get("version", "1.0"),
                             "retrieved_at": datetime.now(timezone.utc).isoformat(),
                             "content_hash": abstract_hash,
                         },
@@ -308,10 +438,11 @@ async def execute_research_run(run_id: str) -> None:
         llm_note = "LLM extraction skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured."
         extraction_error: str | None = None
         api_key = settings.openai_api_key.get_secret_value().strip() if settings.openai_api_key else ""
+        model_question = question + "\n\nRun profile: " + execution_plan["profile_label"] + ". Focus: " + focus_for_mode(mode)
         if api_key and settings.openai_model.strip() and passages_for_extraction:
             try:
                 extracted_claims = await extract_claims_from_passages(
-                    question=question,
+                    question=model_question,
                     passages=passages_for_extraction,
                     api_key=api_key,
                     api_base=settings.openai_api_base,
@@ -328,7 +459,7 @@ async def execute_research_run(run_id: str) -> None:
         if api_key and settings.openai_model.strip() and passages_for_extraction:
             try:
                 synthesis_result = await synthesize_evidence(
-                    question=question,
+                    question=model_question,
                     passages=passages_for_extraction,
                     api_key=api_key,
                     api_base=settings.openai_api_base,
@@ -455,10 +586,13 @@ async def execute_research_run(run_id: str) -> None:
                 content_markdown=_markdown_report(
                     question, mode, saved_papers, provider_result.get("provider_errors", {}),
                     generated_at, persisted_claims, llm_note, synthesis_result, synthesis_note, persisted_studies,
+                    execution_plan=execution_plan,
                 ),
                 evidence_snapshot={
                     "query": question,
                     "mode": mode,
+                    "execution_plan": execution_plan,
+                    "executed_search_queries": provider_result.get("queries", []),
                     "providers_requested": provider_result.get("providers_requested"),
                     "provider_errors": provider_result.get("provider_errors", {}),
                     "paper_ids": [paper["paper_id"] for paper in saved_papers],
@@ -481,7 +615,9 @@ async def execute_research_run(run_id: str) -> None:
             run.error_message = None
             run.configuration = {
                 **(run.configuration or {}),
-                "pipeline": "scholarly-metadata-discovery",
+                "pipeline": "mode-specific-scholarly-discovery",
+                "execution_plan": execution_plan,
+                "executed_search_queries": provider_result.get("queries", []),
                 "completed_at": generated_at,
                 "paper_count": len(saved_papers),
                 "passage_count": sum(1 for paper in saved_papers if paper["passage_id"]),
