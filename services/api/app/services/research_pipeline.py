@@ -598,7 +598,7 @@ async def execute_research_run(run_id: str) -> None:
                 change_summary="Initial scholarly discovery snapshot; extracted claims remain unreviewed candidates.",
             )
             db.add(report)
-            run.status = "completed"
+            run.status = "completed_with_limitations" if research_plan.get("status") == "completed_with_limitations" or provider_errors else "completed"
             run.demo = False
             run.error_message = None
             run.configuration = {
