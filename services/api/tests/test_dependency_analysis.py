@@ -1,4 +1,4 @@
-from app.services.dependency_analysis import summarize_dependency_records
+from app.services.dependency_analysis import detect_dependency_candidates, summarize_dependency_records
 
 
 def test_dependency_summary_groups_only_recorded_relationships() -> None:
@@ -51,3 +51,30 @@ def test_inferred_dependency_family_is_explicitly_marked_for_review() -> None:
     assert len(summary["detected_clusters"]) == 1
     assert summary["detected_clusters"][0]["review_required"] is True
     assert summary["detected_clusters"][0]["relationships"][0]["review_status"] == "candidate"
+
+
+def test_explicit_shared_trial_identifier_creates_only_a_review_candidate() -> None:
+    candidates = detect_dependency_candidates([
+        {
+            "paper_id": "trial-a",
+            "title": "Primary trial outcomes",
+            "abstract": "The study was registered in ClinicalTrials.gov as NCT01234567 and reports a primary endpoint.",
+        },
+        {
+            "paper_id": "trial-b",
+            "title": "Secondary analysis",
+            "abstract": "This secondary analysis reuses participants from registered trial NCT01234567 and reports a different outcome.",
+        },
+        {
+            "paper_id": "unrelated",
+            "title": "Unrelated methods paper",
+            "abstract": "This paper does not share a registered trial identifier with the two trial reports.",
+        },
+    ])
+
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    assert set((candidate["paper_a_id"], candidate["paper_b_id"])) == {"trial-a", "trial-b"}
+    assert candidate["relation_type"] == "same_dataset"
+    assert "trial_registry_id:NCT01234567" in candidate["matched_signals"]
+    assert "requires human review" in candidate["rationale"]
