@@ -4,6 +4,7 @@ Model-generated claims remain unreviewed. Each edge is checked against the
 passage IDs supplied to the model and labelled model-inferred, not verified.
 """
 from datetime import datetime, timezone
+import asyncio
 import hashlib
 import re
 
@@ -12,10 +13,12 @@ from sqlalchemy import func, select
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.entities import Claim, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun, Study
+from app.services.dependency_analysis import build_dependency_summary
 from app.services.academic_search import search_papers
 from app.services.audit import record_audit_event
 from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
+from app.services.research_planner import build_research_plan, merge_task_results
 
 
 def _normalize_doi(value: str | None) -> str | None:
@@ -38,6 +41,8 @@ def _markdown_report(
     synthesis: dict | None,
     synthesis_note: str,
     study_contexts: list[dict],
+    research_plan: dict | None = None,
+    dependency_summary: dict | None = None,
 ) -> str:
     lines = [
         "# Academic Discovery Snapshot",
@@ -51,9 +56,24 @@ def _markdown_report(
         "",
         "This is a bibliographic discovery snapshot, not a completed systematic review. Abstracts and metadata are retrieved, but they do not replace full-text appraisal. Any model-generated claim below is unreviewed and must be checked by a researcher.",
         "",
-        "## Retrieved literature",
+        "## Recorded execution plan",
         "",
     ]
+    if research_plan:
+        lines.append(f"- **Selected profile:** {research_plan.get('profile_name', mode)}")
+        budgets = research_plan.get("budgets", {})
+        lines.append(f"- **Search budget:** up to {budgets.get('max_subqueries', 0)} subqueries and {budgets.get('max_retrieved_sources', 0)} retained sources")
+        lines.append("- **Enabled modules:** " + ", ".join(research_plan.get("enabled_modules", [])))
+        lines.append("- **Subtask outcomes:**")
+        for task in research_plan.get("subtasks", []):
+            lines.append(f"  - {task.get('id')}: {task.get('status', 'unknown')} ({task.get('result_count', 0)} returned before deduplication)")
+            for provider, reason in (task.get("provider_errors") or {}).items():
+                lines.append(f"    - {provider} limitation: {reason}")
+        lines.append("")
+    else:
+        lines.extend(["The execution plan was not recorded for this legacy run.", ""])
+
+    lines.extend(["## Retrieved literature", ""])
     if not papers:
         lines.append("No papers were returned by the configured metadata providers.")
     for index, paper in enumerate(papers, start=1):
@@ -154,6 +174,26 @@ def _markdown_report(
                 lines.append(f"   - {evidence['relation_type']} passage {evidence['passage_id']}: {evidence['rationale']}")
             lines.append("")
 
+    lines.extend(["## Source-dependency families", ""])
+    if dependency_summary:
+        lines.append(f"- Raw retrieved paper count: {dependency_summary.get('raw_source_count', 0)}")
+        lines.append(f"- Recorded dependency edges within this run's source set: {dependency_summary.get('declared_dependency_edge_count', 0)}")
+        lines.append(f"- Estimated evidence families represented: {dependency_summary.get('evidence_family_count_estimate', 0)}")
+        lines.append(f"- Sources in detected multi-paper families: {dependency_summary.get('sources_in_detected_families', 0)}")
+        for cluster in dependency_summary.get("detected_clusters", []):
+            lines.append(f"- **{cluster.get('family_id')}**" + (" (review required)" if cluster.get("review_required") else ""))
+            for paper in cluster.get("papers", []):
+                lines.append(f"  - {paper.get('title')} (paper ID {paper.get('id')})")
+            for edge in cluster.get("relationships", []):
+                lines.append(
+                    f"  - Relationship: {edge.get('relation_type')} / {edge.get('provenance_basis')}; "
+                    f"rationale: {edge.get('rationale') or 'not recorded'}"
+                )
+        lines.append(dependency_summary.get("interpretation_note", ""))
+    else:
+        lines.append("No dependency-family summary was produced.")
+    lines.append("")
+
     lines.extend(["## Search coverage and limitations", ""])
     lines.append(f"- Papers persisted in this run: {len(papers)}")
     lines.append("- Search providers: Crossref and OpenAlex.")
@@ -174,20 +214,88 @@ async def execute_research_run(run_id: str) -> None:
             return
         run.status = "running"
         run.error_message = None
-        run.configuration = {
-            **(run.configuration or {}),
-            "pipeline": "scholarly-metadata-discovery",
-            "started_at": datetime.now(timezone.utc).isoformat(),
-        }
         question = run.question
         limit = run.max_sources
         mode = run.mode
         owner_user_id = run.owner_user_id
+        research_plan = (run.configuration or {}).get("research_plan") or build_research_plan(question, mode, limit)
+        research_plan = dict(research_plan)
+        research_plan["status"] = "running"
+        research_plan["started_at"] = datetime.now(timezone.utc).isoformat()
+        research_plan["subtasks"] = [
+            {**task, "status": "pending", "result_count": 0, "provider_errors": {}}
+            for task in research_plan.get("subtasks", [])
+        ]
+        run.configuration = {
+            **(run.configuration or {}),
+            "pipeline": "mode-aware-scholarly-discovery",
+            "started_at": research_plan["started_at"],
+            "research_plan": research_plan,
+        }
         db.commit()
 
     try:
-        provider_result = await search_papers(question, limit=limit, provider="all")
-        result_items = provider_result.get("results", [])
+        task_limit = int(research_plan["budgets"]["per_subquery_result_limit"])
+        timeout_seconds = int(research_plan["budgets"]["deadline_seconds"])
+
+        async def execute_search_task(task: dict) -> dict:
+            return await asyncio.wait_for(
+                search_papers(task["query"], limit=task_limit, provider="all"),
+                timeout=timeout_seconds,
+            )
+
+        outcomes = await asyncio.gather(
+            *(execute_search_task(task) for task in research_plan["subtasks"]),
+            return_exceptions=True,
+        )
+        task_results: list[tuple[str, list[dict]]] = []
+        provider_errors: dict[str, str] = {}
+        successful_subtasks = 0
+        total_candidate_records = 0
+
+        for task, outcome in zip(research_plan["subtasks"], outcomes):
+            if isinstance(outcome, BaseException):
+                task["status"] = "failed"
+                task["provider_errors"] = {"execution": f"Subtask failed ({type(outcome).__name__})."}
+                provider_errors[f"{task['id']}:execution"] = f"Subtask failed ({type(outcome).__name__})."
+                continue
+
+            successful_subtasks += 1
+            results = outcome.get("results", [])
+            task["result_count"] = len(results)
+            task["provider_errors"] = outcome.get("provider_errors", {}) or {}
+            task["status"] = "completed_with_warnings" if task["provider_errors"] else "completed"
+            for provider_name, reason in task["provider_errors"].items():
+                provider_errors[f"{task['id']}:{provider_name}"] = reason
+            task_results.append((task["id"], results))
+            total_candidate_records += len(results)
+
+        if not task_results:
+            raise RuntimeError("All planned scholarly search subtasks failed.")
+
+        result_items = merge_task_results(task_results, limit)
+        research_plan["status"] = (
+            "completed_with_limitations"
+            if any(task["status"] != "completed" for task in research_plan["subtasks"])
+            else "completed"
+        )
+        research_plan["completed_at"] = datetime.now(timezone.utc).isoformat()
+        research_plan["completed_subtask_count"] = successful_subtasks
+        research_plan["candidate_record_count"] = total_candidate_records
+        research_plan["retained_unique_source_count"] = len(result_items)
+
+        with SessionLocal() as db:
+            persisted_run = db.get(ResearchRun, run_id)
+            if persisted_run is not None:
+                persisted_run.configuration = {
+                    **(persisted_run.configuration or {}),
+                    "research_plan": research_plan,
+                    "provider_errors": provider_errors,
+                    "candidate_record_count": total_candidate_records,
+                    "retained_unique_source_count": len(result_items),
+                }
+                db.commit()
+
         saved_papers: list[dict] = []
         passages_for_extraction: list[dict] = []
 
@@ -305,10 +413,10 @@ async def execute_research_run(run_id: str) -> None:
         # Phase 2: optional model-backed candidates; retrieval-only mode is valid.
         settings = get_settings()
         extracted_claims: list[dict] = []
-        llm_note = "LLM extraction skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured."
+        llm_note = "LLM extraction skipped by the selected profile or because OPENAI_API_KEY and OPENAI_MODEL are not both configured."
         extraction_error: str | None = None
         api_key = settings.openai_api_key.get_secret_value().strip() if settings.openai_api_key else ""
-        if api_key and settings.openai_model.strip() and passages_for_extraction:
+        if api_key and settings.openai_model.strip() and passages_for_extraction and research_plan.get("features", {}).get("llm_claim_extraction", False):
             try:
                 extracted_claims = await extract_claims_from_passages(
                     question=question,
@@ -323,9 +431,9 @@ async def execute_research_run(run_id: str) -> None:
                 llm_note = "LLM extraction failed; the bibliographic discovery report was completed without model-generated claims."
 
         synthesis_result: dict | None = None
-        synthesis_note = "Model synthesis skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured."
+        synthesis_note = "Model synthesis skipped by the selected profile or because OPENAI_API_KEY and OPENAI_MODEL are not both configured."
         synthesis_error: str | None = None
-        if api_key and settings.openai_model.strip() and passages_for_extraction:
+        if api_key and settings.openai_model.strip() and passages_for_extraction and research_plan.get("features", {}).get("llm_synthesis", False):
             try:
                 synthesis_result = await synthesize_evidence(
                     question=question,
@@ -441,6 +549,9 @@ async def execute_research_run(run_id: str) -> None:
                 db.commit()
 
         # Phase 3: immutable report snapshot and final job state.
+        with SessionLocal() as db:
+            dependency_summary = build_dependency_summary(db, saved_papers)
+
         generated_at = datetime.now(timezone.utc).isoformat()
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
@@ -453,14 +564,17 @@ async def execute_research_run(run_id: str) -> None:
                 parent_version_id=latest.id if latest else None,
                 title="Academic Discovery Snapshot",
                 content_markdown=_markdown_report(
-                    question, mode, saved_papers, provider_result.get("provider_errors", {}),
+                    question, mode, saved_papers, provider_errors,
                     generated_at, persisted_claims, llm_note, synthesis_result, synthesis_note, persisted_studies,
+                    research_plan, dependency_summary,
                 ),
                 evidence_snapshot={
                     "query": question,
                     "mode": mode,
-                    "providers_requested": provider_result.get("providers_requested"),
-                    "provider_errors": provider_result.get("provider_errors", {}),
+                    "providers_requested": "all",
+                    "provider_errors": provider_errors,
+                    "research_plan": research_plan,
+                    "source_dependency_summary": dependency_summary,
                     "paper_ids": [paper["paper_id"] for paper in saved_papers],
                     "passage_ids": [paper["passage_id"] for paper in saved_papers if paper["passage_id"]],
                     "claim_ids": [claim["id"] for claim in persisted_claims],
@@ -481,13 +595,17 @@ async def execute_research_run(run_id: str) -> None:
             run.error_message = None
             run.configuration = {
                 **(run.configuration or {}),
-                "pipeline": "scholarly-metadata-discovery",
+                "pipeline": "mode-aware-scholarly-discovery",
                 "completed_at": generated_at,
+                "research_plan": research_plan,
+                "source_dependency_summary": dependency_summary,
+                "successful_subtask_count": successful_subtasks,
+                "planned_subtask_count": len(research_plan.get("subtasks", [])),
                 "paper_count": len(saved_papers),
                 "passage_count": sum(1 for paper in saved_papers if paper["passage_id"]),
                 "claim_candidate_count": len(persisted_claims),
                 "study_context_count": len(persisted_studies),
-                "provider_errors": provider_result.get("provider_errors", {}),
+                "provider_errors": provider_errors,
                 "llm_extraction_error": extraction_error,
                 "claim_verification_completed": False,
             }
@@ -505,5 +623,6 @@ async def execute_research_run(run_id: str) -> None:
                     **(run.configuration or {}),
                     "failed_at": datetime.now(timezone.utc).isoformat(),
                     "failure_type": type(exc).__name__,
+                    "research_plan": {**research_plan, "status": "failed", "failure_type": type(exc).__name__},
                 }
                 db.commit()
