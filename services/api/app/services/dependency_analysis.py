@@ -1,17 +1,156 @@
-"""Explainable source-family summaries from recorded dependency edges.
+"""Explainable source-family summaries from recorded and candidate dependency edges.
 
-This module never assumes unlinked papers are independent. It summarizes only
-relationships already stored in Chronicle, preserving their provenance.
+Heuristic relationships are persisted as metadata-inferred candidates and require
+human review. Absence of a detected link is never treated as source independence.
 """
 from __future__ import annotations
 
 from collections import defaultdict
+import hashlib
+import re
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.entities import PaperDependency
+from app.services.audit import record_audit_event
+
+
+_IDENTIFIER_PATTERNS = [
+    ("trial_registry_id", re.compile(r"\b(?:NCT\d{8}|ISRCTN\d{6,}|ACTRN\d{14}|ChiCTR[A-Za-z0-9]+|EUCTR\d{4}-\d{6}-\d{2})\b", re.I)),
+    ("dataset_doi", re.compile(r"\b10\.(?:5061/dryad\.[A-Za-z0-9._-]+|5281/zenodo\.\d+)\b", re.I)),
+]
+_KNOWN_DATASET_PATTERNS = [
+    ("dataset:mimic", re.compile(r"\bMIMIC(?:[- ]?(?:III|IV))?\b", re.I)),
+    ("dataset:uk-biobank", re.compile(r"\bUK\s+Biobank\b", re.I)),
+    ("dataset:all-of-us", re.compile(r"\bAll\s+of\s+Us\s+(?:Research\s+)?Program\b", re.I)),
+    ("dataset:tcga", re.compile(r"\b(?:The\s+Cancer\s+Genome\s+Atlas|TCGA)\b", re.I)),
+    ("dataset:seer", re.compile(r"\bSEER\s+(?:database|program|registry)\b", re.I)),
+    ("dataset:imagenet", re.compile(r"\bImageNet\b", re.I)),
+    ("dataset:mnist", re.compile(r"\bMNIST\b", re.I)),
+    ("dataset:cifar10", re.compile(r"\bCIFAR[- ]?10\b", re.I)),
+    ("dataset:cifar100", re.compile(r"\bCIFAR[- ]?100\b", re.I)),
+    ("dataset:physionet", re.compile(r"\bPhysioNet\b", re.I)),
+    ("dataset:eicu", re.compile(r"\beICU\b", re.I)),
+    ("dataset:nhanes", re.compile(r"\bNHANES\b", re.I)),
+]
+
+
+def _shared_signals(item: dict[str, Any]) -> set[str]:
+    text = " ".join(str(item.get(key) or "") for key in ("title", "abstract"))
+    signals: set[str] = set()
+    for signal_type, pattern in _IDENTIFIER_PATTERNS:
+        for match in pattern.findall(text):
+            signals.add(f"{signal_type}:{match.upper()}")
+    for label, pattern in _KNOWN_DATASET_PATTERNS:
+        if pattern.search(text):
+            signals.add(label)
+    return signals
+
+
+def detect_dependency_candidates(paper_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Find candidate overlaps using shared explicit IDs, known dataset names or exact abstracts."""
+    normalized = []
+    for item in paper_items:
+        paper_id = item.get("paper_id") or item.get("id")
+        if not paper_id:
+            continue
+        abstract = re.sub(r"\s+", " ", str(item.get("abstract") or "")).strip()
+        normalized.append({
+            **item,
+            "paper_id": str(paper_id),
+            "_signals": _shared_signals(item),
+            "_abstract_hash": hashlib.sha256(abstract.lower().encode("utf-8")).hexdigest() if len(abstract) >= 100 else None,
+        })
+
+    candidates: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for index, left in enumerate(normalized):
+        for right in normalized[index + 1:]:
+            shared = sorted(left["_signals"] & right["_signals"])
+            relation_type = "same_dataset" if shared else None
+            rationale_prefix = (
+                "The available title/abstract text shares explicit study/dataset identifier(s)"
+                if shared else ""
+            )
+            if not relation_type and left["_abstract_hash"] and left["_abstract_hash"] == right["_abstract_hash"]:
+                relation_type = "duplicate_or_overlap"
+                shared = ["exact_normalized_abstract_hash"]
+                rationale_prefix = "The normalized abstracts are text-identical across distinct source records"
+            if not relation_type:
+                continue
+
+            a, b = sorted((left["paper_id"], right["paper_id"]))
+            key = (a, b, relation_type)
+            existing = candidates.get(key)
+            if existing:
+                existing["matched_signals"] = sorted(set(existing["matched_signals"]) | set(shared))
+                continue
+            candidates[key] = {
+                "paper_a_id": a,
+                "paper_b_id": b,
+                "relation_type": relation_type,
+                "matched_signals": shared,
+                "rationale": (
+                    f"{rationale_prefix}: {', '.join(shared)}. "
+                    "This is an automated dependency candidate and requires human review; it is not proof of source dependence."
+                ),
+            }
+    return list(candidates.values())
+
+
+def record_candidate_dependencies(
+    db: Session,
+    paper_items: list[dict[str, Any]],
+    run_id: str,
+) -> int:
+    """Persist candidate overlap as bidirectional graph edges so either event can surface sibling claims."""
+    created = 0
+    for candidate in detect_dependency_candidates(paper_items):
+        a = candidate["paper_a_id"]
+        b = candidate["paper_b_id"]
+        relation_type = candidate["relation_type"]
+        existing = db.scalar(select(PaperDependency.id).where(
+            PaperDependency.relation_type == relation_type,
+            or_(
+                and_(PaperDependency.dependent_paper_id == a, PaperDependency.depends_on_paper_id == b),
+                and_(PaperDependency.dependent_paper_id == b, PaperDependency.depends_on_paper_id == a),
+            ),
+        ))
+        if existing:
+            continue
+
+        for dependent, depends_on in ((a, b), (b, a)):
+            edge = PaperDependency(
+                dependent_paper_id=dependent,
+                depends_on_paper_id=depends_on,
+                relation_type=relation_type,
+                provenance_basis="metadata_inferred",
+                rationale=candidate["rationale"],
+                confidence=None,
+            )
+            db.add(edge)
+            db.flush()
+            record_audit_event(
+                db,
+                actor_user_id=None,
+                run_id=run_id,
+                target_entity_type="paper_dependency",
+                target_entity_id=edge.id,
+                action="paper_dependency.candidate_detected",
+                previous_value=None,
+                new_value={
+                    "dependent_paper_id": dependent,
+                    "depends_on_paper_id": depends_on,
+                    "relation_type": relation_type,
+                    "provenance_basis": "metadata_inferred",
+                    "matched_signals": candidate["matched_signals"],
+                },
+                reason=candidate["rationale"],
+                resolution_status="needs_review",
+            )
+            created += 1
+    return created
 
 
 def summarize_dependency_records(
@@ -64,7 +203,6 @@ def summarize_dependency_records(
         members[find(paper_id)].append(paper_id)
 
     families = sorted(members.values(), key=lambda group: (len(group) == 1, sorted(group)[0]))
-    family_index = {paper_id: index + 1 for index, group in enumerate(families) for paper_id in group}
     clusters = []
     for index, group in enumerate(families, start=1):
         if len(group) < 2:
@@ -91,7 +229,7 @@ def summarize_dependency_records(
         "unclustered_source_count": len(papers) - len(sources_in_clusters),
         "detected_clusters": clusters,
         "interpretation_note": (
-            "Families are derived only from recorded dependency relationships. An unclustered source is not proven independent; "
+            "Families use recorded or heuristic candidate dependency links only. An unclustered source is not proven independent; "
             "candidate or model-inferred edges are not proof, and confidence values are not calibrated evidence-strength probabilities."
         ),
     }
