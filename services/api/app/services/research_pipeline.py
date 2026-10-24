@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.entities import Claim, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun, Study
-from app.services.dependency_analysis import build_dependency_summary
+from app.services.dependency_analysis import build_dependency_summary, record_candidate_dependencies
 from app.services.academic_search import search_papers
 from app.services.audit import record_audit_event
 from app.services.claim_extraction import extract_claims_from_passages
@@ -89,6 +89,8 @@ def _markdown_report(
             lines.append(f"- **Source:** {url}")
         if paper.get("passage_id"):
             lines.append(f"- **Abstract passage ID:** {paper['passage_id']}")
+        if paper.get("retrieval_subtasks"):
+            lines.append("- **Retrieval subtasks:** " + ", ".join(paper["retrieval_subtasks"]))
         abstract = (paper.get("abstract") or "").strip()
         if abstract:
             lines.extend(["", "**Abstract**", "", "> " + abstract.replace("\n", "\n> "), ""])
@@ -407,7 +409,12 @@ async def execute_research_run(run_id: str) -> None:
                     "landing_url": paper.landing_url,
                     "abstract": abstract or None,
                     "source_provider": paper.source_provider,
+                    "retrieval_subtasks": item.get("_retrieval_tasks", []),
                 })
+            db.commit()
+
+        with SessionLocal() as db:
+            record_candidate_dependencies(db, saved_papers, run_id)
             db.commit()
 
         # Phase 2: optional model-backed candidates; retrieval-only mode is valid.
@@ -576,6 +583,7 @@ async def execute_research_run(run_id: str) -> None:
                     "research_plan": research_plan,
                     "source_dependency_summary": dependency_summary,
                     "paper_ids": [paper["paper_id"] for paper in saved_papers],
+                    "source_retrieval_tasks": {paper["paper_id"]: paper.get("retrieval_subtasks", []) for paper in saved_papers},
                     "passage_ids": [paper["passage_id"] for paper in saved_papers if paper["passage_id"]],
                     "claim_ids": [claim["id"] for claim in persisted_claims],
                     "study_ids": [study["id"] for study in persisted_studies],
