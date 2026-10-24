@@ -20,6 +20,8 @@ _MODE_SPEC: dict[str, dict[str, Any]] = {
             "identifier_and_title_deduplication",
             "abstract_passage_persistence",
             "coverage_disclosure",
+            "candidate_dependency_detection",
+            "dependency_family_summary",
             "compact_discovery_report",
         ],
         "llm_claim_extraction": False,
@@ -40,6 +42,8 @@ _MODE_SPEC: dict[str, dict[str, Any]] = {
             "evidence_bounded_synthesis",
             "study_context_extraction",
             "counter_evidence_search",
+            "candidate_dependency_detection",
+            "dependency_family_summary",
             "coverage_disclosure",
             "versioned_report",
         ],
@@ -48,7 +52,7 @@ _MODE_SPEC: dict[str, dict[str, Any]] = {
         "subtasks": [
             ("primary_discovery", "Retrieve the main literature set", ""),
             ("methods_and_results", "Broaden retrieval towards study methods and reported results", " study methods results evaluation"),
-            ("limitations_and_gaps", "Look for limitations, open questions and follow-up work", " limitations research gaps future work"),
+            ("limitations_and_gaps", "Look for limitations, conflicting findings and follow-up work", " limitations conflicting findings refuting evidence alternative explanations research gaps future work"),
         ],
     },
     "academic": {
@@ -63,6 +67,8 @@ _MODE_SPEC: dict[str, dict[str, Any]] = {
             "evidence_bounded_synthesis",
             "study_context_extraction",
             "study_context_comparison",
+            "candidate_dependency_detection",
+            "dependency_family_summary",
             "coverage_disclosure",
             "versioned_report",
         ],
@@ -85,8 +91,9 @@ _MODE_SPEC: dict[str, dict[str, Any]] = {
             "candidate_claim_extraction",
             "evidence_bounded_synthesis",
             "counter_evidence_search",
+            "candidate_dependency_detection",
             "dependency_family_summary",
-            "temporal_source_event_review",
+            "publication_update_search",
             "coverage_disclosure",
             "versioned_report",
         ],
@@ -96,7 +103,7 @@ _MODE_SPEC: dict[str, dict[str, Any]] = {
             ("primary_discovery", "Retrieve papers relevant to the question under investigation", ""),
             ("conflicting_evidence", "Actively search for conflicting findings and alternative explanations", " conflicting findings contradictory evidence alternative explanation"),
             ("independent_replication", "Search for replications and independently conducted studies", " replication independent study reproducibility"),
-            ("publication_updates", "Search for correction, retraction and expression-of-concern signals", " correction retraction expression of concern updated version"),
+            ("publication_updates", "Search scholarly records for candidate correction, retraction and version-update notices", " correction retraction expression of concern updated version"),
         ],
     },
 }
@@ -146,14 +153,15 @@ def build_research_plan(question: str, mode: Any, max_sources: int) -> dict[str,
             "max_subqueries": task_count,
             "max_retrieved_sources": source_cap,
             "per_subquery_result_limit": per_query,
-            "max_agent_iterations": spec["max_agent_iterations"],
+            "max_workflow_steps": spec["max_agent_iterations"],
             "deadline_seconds": spec["deadline_seconds"],
         },
         "subtasks": subtasks,
         "status": "planned",
         "planning_note": (
-            "This is a deterministic task plan, not a private reasoning trace. "
-            "Retrieved records are bibliographic metadata/abstracts; model-generated interpretations remain unverified."
+            "This is a deterministic bounded-query planner, not a complete independent multi-agent orchestration or a private reasoning trace. "
+            "Retrieved records are bibliographic metadata/abstracts; model-generated interpretations remain unverified. "
+            "Publication-update queries surface candidate literature only; live Crossref/OpenAlex status checks are separate and not authoritative."
         ),
     }
 
