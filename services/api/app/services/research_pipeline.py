@@ -187,9 +187,11 @@ def _markdown_report(
     return "\n".join(lines)
 
 
-async def _execute_planned_search(question: str, mode: str, max_sources: int) -> tuple[dict, dict]:
+async def _execute_planned_search(
+    question: str, mode: str, max_sources: int, plan: dict | None = None
+) -> tuple[dict, dict]:
     """Run a bounded, mode-specific set of scholarly searches and merge duplicates."""
-    plan = build_research_plan(question, mode, max_sources)
+    plan = plan or build_research_plan(question, mode, max_sources)
     queries = plan["queries"]
     per_query_limit = max(1, math.ceil(max_sources / max(1, len(queries))))
     responses = await asyncio.gather(
@@ -261,7 +263,7 @@ async def execute_research_run(run_id: str) -> None:
         run.error_message = None
         run.configuration = {
             **(run.configuration or {}),
-            "pipeline": "scholarly-metadata-discovery",
+            "pipeline": "mode-specific-scholarly-discovery",
             "started_at": datetime.now(timezone.utc).isoformat(),
         }
         question = run.question
@@ -271,7 +273,24 @@ async def execute_research_run(run_id: str) -> None:
         db.commit()
 
     try:
-        provider_result, execution_plan = await _execute_planned_search(question, mode, limit)
+        execution_plan = build_research_plan(question, mode, limit)
+        # Persist the plan before network I/O so a failed or partial run remains inspectable.
+        with SessionLocal() as db:
+            run = db.get(ResearchRun, run_id)
+            if run is None:
+                return
+            run.configuration = {
+                **(run.configuration or {}),
+                "pipeline": "mode-specific-scholarly-discovery",
+                "planner_version": execution_plan["version"],
+                "execution_plan": execution_plan,
+                "planned_search_queries": execution_plan["queries"],
+            }
+            db.commit()
+
+        provider_result, execution_plan = await _execute_planned_search(
+            question, mode, limit, plan=execution_plan
+        )
         result_items = provider_result.get("results", [])
         saved_papers: list[dict] = []
         passages_for_extraction: list[dict] = []
