@@ -1,7 +1,10 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.entities import (
@@ -9,9 +12,10 @@ from app.models.entities import (
     ReportVersion, ResearchRun, SourceEvent, SourceStatusCheck, Study, User,
 )
 from app.services.audit import record_audit_event
+from app.services.claim_verification import aggregate_verification_labels, verify_claim_passages
 from app.schemas.evidence import (
     ClaimCreate, ClaimRead, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
-    PaperDependencyCreate, StudyCreate,
+    PaperDependencyCreate, StudyCreate, ClaimVerificationRead,
 )
 
 router = APIRouter(prefix="/evidence", tags=["evidence"], dependencies=[Depends(get_current_user)])
@@ -45,6 +49,208 @@ def create_claim(payload: ClaimCreate, db: Session = Depends(get_db), current_us
     db.commit()
     db.refresh(claim)
     return claim
+
+
+
+
+@router.post("/claims/{claim_id}/verify", response_model=ClaimVerificationRead)
+async def verify_claim(
+    claim_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ClaimVerificationRead:
+    """Suggest claim-to-passage support labels while preserving human-review boundaries."""
+    claim = db.scalar(
+        select(Claim)
+        .join(ResearchRun, Claim.run_id == ResearchRun.id)
+        .where(Claim.id == claim_id, ResearchRun.owner_user_id == current_user.id)
+    )
+    if claim is None:
+        raise HTTPException(status_code=404, detail="Claim not found.")
+
+    relations = list(db.scalars(
+        select(EvidenceRelation)
+        .join(Passage, EvidenceRelation.passage_id == Passage.id)
+        .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+        .join(Paper, PaperVersion.paper_id == Paper.id)
+        .where(
+            EvidenceRelation.claim_id == claim.id,
+            EvidenceRelation.passage_id.is_not(None),
+            Paper.owner_user_id == current_user.id,
+        )
+        .order_by(EvidenceRelation.created_at)
+    ).all())
+
+    passage_inputs: list[dict] = []
+    relation_by_passage: dict[str, EvidenceRelation] = {}
+    for relation in relations:
+        if relation.passage is None:
+            continue
+        passage = relation.passage
+        paper = passage.paper_version.paper
+        if passage.id in relation_by_passage:
+            continue
+        relation_by_passage[passage.id] = relation
+        passage_inputs.append({
+            "relation_id": relation.id,
+            "passage_id": passage.id,
+            "paper_title": paper.title,
+            "doi": paper.doi,
+            "section_title": passage.section_title,
+            "page_number": passage.page_number,
+            "text": passage.text,
+        })
+
+    now = datetime.now(timezone.utc)
+    limitations = [
+        "Automated verification is a suggestion about the supplied passage, not a determination of scientific truth.",
+        "Evidence is limited to stored passages; an abstract is not equivalent to full-text appraisal.",
+        "A reviewer must inspect the exact source and resolve the assessment before treating it as accepted.",
+        "No calibrated probability of truth is produced.",
+    ]
+    evidence_results: list[dict] = []
+    settings = get_settings()
+    api_key = settings.openai_api_key.get_secret_value().strip() if settings.openai_api_key else ""
+    model = settings.openai_model.strip()
+    verifier_status = "model_inferred"
+
+    if not passage_inputs:
+        verifier_status = "no_evidence"
+        suggested_assessment = "unverifiable"
+        limitations.append("No claim-to-passage evidence links were found for this claim.")
+    elif not api_key or not model:
+        verifier_status = "not_configured"
+        suggested_assessment = "unverifiable"
+        limitations.append("The server-side verifier model is not configured; evidence requires manual review.")
+        for item in passage_inputs:
+            evidence_results.append({
+                "relation_id": item["relation_id"],
+                "passage_id": item["passage_id"],
+                "paper_title": item["paper_title"],
+                "doi": item["doi"],
+                "label": "unverifiable",
+                "rationale": "Automated verification is not configured; inspect the passage and decide manually.",
+                "provenance_basis": "unverified",
+            })
+    else:
+        try:
+            verdicts = await verify_claim_passages(
+                claim_statement=claim.statement,
+                passages=passage_inputs,
+                api_key=api_key,
+                api_base=settings.openai_api_base,
+                model=model,
+            )
+            by_passage = {item["passage_id"]: item for item in verdicts}
+            for item in passage_inputs:
+                verdict = by_passage.get(item["passage_id"], {
+                    "label": "unverifiable",
+                    "rationale": "No valid model verdict was returned for this passage.",
+                })
+                evidence_results.append({
+                    "relation_id": item["relation_id"],
+                    "passage_id": item["passage_id"],
+                    "paper_title": item["paper_title"],
+                    "doi": item["doi"],
+                    "label": verdict["label"],
+                    "rationale": verdict["rationale"],
+                    "provenance_basis": "model_inferred",
+                })
+            suggested_assessment = aggregate_verification_labels(
+                [item["label"] for item in evidence_results]
+            )
+        except Exception as exc:
+            # Keep a diagnosable error class, but do not disclose requests, API URLs, or secrets.
+            verifier_status = "failed"
+            suggested_assessment = "unverifiable"
+            limitations.append(
+                f"Automated verification failed ({type(exc).__name__}); no conclusion was accepted."
+            )
+            evidence_results = [{
+                "relation_id": item["relation_id"],
+                "passage_id": item["passage_id"],
+                "paper_title": item["paper_title"],
+                "doi": item["doi"],
+                "label": "unverifiable",
+                "rationale": "The verifier failed to return a valid result; human review is required.",
+                "provenance_basis": "unverified",
+            } for item in passage_inputs]
+
+    # Model suggestions never silently replace a prior accepted human assessment.
+    preserved = claim.assessment not in {"unassessed", "needs_review"}
+    previous_verification = (claim.scope or {}).get("automated_verification")
+    new_verification = {
+        "suggested_assessment": suggested_assessment,
+        "verifier_status": verifier_status,
+        "human_review_required": True,
+        "verified_at": now.isoformat(),
+        "evidence": [
+            {
+                "relation_id": item["relation_id"],
+                "passage_id": item["passage_id"],
+                "label": item["label"],
+                "rationale": item["rationale"],
+                "provenance_basis": item["provenance_basis"],
+            }
+            for item in evidence_results
+        ],
+        "limitations": limitations,
+        "human_assessment_preserved": preserved,
+    }
+    claim.scope = {**(claim.scope or {}), "automated_verification": new_verification}
+    claim.review_required = True
+
+    for item in evidence_results:
+        relation = next((candidate for candidate in relations if candidate.id == item["relation_id"]), None)
+        if relation is not None:
+            relation.metadata_snapshot = {
+                **(relation.metadata_snapshot or {}),
+                "automated_verification_history": [
+                    *((relation.metadata_snapshot or {}).get("automated_verification_history") or []),
+                    {
+                        "label": item["label"],
+                        "rationale": item["rationale"],
+                        "verifier_status": verifier_status,
+                        "verified_at": now.isoformat(),
+                    },
+                ],
+            }
+
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=claim.run_id,
+        target_entity_type="claim",
+        target_entity_id=claim.id,
+        action="claim.automated_verification.completed",
+        previous_value={
+            "assessment": claim.assessment,
+            "review_required": False if not previous_verification else True,
+            "automated_verification": previous_verification,
+        },
+        new_value={
+            "suggested_assessment": suggested_assessment,
+            "verifier_status": verifier_status,
+            "human_review_required": True,
+            "evidence_count": len(evidence_results),
+            "human_assessment_preserved": preserved,
+        },
+        reason="Model-assisted evidence check persisted as a review-required suggestion; no human verdict was asserted.",
+        resolution_status="needs_review",
+    )
+    db.commit()
+
+    return ClaimVerificationRead(
+        claim_id=claim.id,
+        claim_statement=claim.statement,
+        suggested_assessment=suggested_assessment,
+        verifier_status=verifier_status,
+        human_review_required=True,
+        human_assessment_preserved=preserved,
+        evidence=evidence_results,
+        limitations=limitations,
+        verified_at=now,
+    )
 
 
 @router.get("/runs/{run_id}/claims", response_model=list[ClaimRead])
