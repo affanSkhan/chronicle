@@ -91,6 +91,32 @@ class ClaimRead(BaseModel):
     created_at: datetime
 
 
+VerificationLabel = Literal["supports", "partially_supports", "contradicts", "qualifies", "not_comparable", "insufficient_evidence", "unverifiable"]
+VerificationAssessment = Literal["supported", "partially_supported", "contradicted", "insufficient_evidence", "unverifiable", "needs_review"]
+
+
+class ClaimVerificationEvidence(BaseModel):
+    relation_id: str
+    passage_id: str
+    paper_title: str
+    doi: str | None = None
+    label: VerificationLabel
+    rationale: str
+    provenance_basis: Literal["model_inferred", "unverified"]
+
+
+class ClaimVerificationRead(BaseModel):
+    claim_id: str
+    claim_statement: str
+    suggested_assessment: VerificationAssessment
+    verifier_status: Literal["model_inferred", "not_configured", "failed", "no_evidence"]
+    human_review_required: bool = True
+    human_assessment_preserved: bool = False
+    evidence: list[ClaimVerificationEvidence] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    verified_at: datetime
+
+
 class EvidenceRelationCreate(BaseModel):
     passage_id: str | None = None
     related_claim_id: str | None = None
