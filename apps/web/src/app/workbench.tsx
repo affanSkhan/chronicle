@@ -97,7 +97,8 @@ function graphLayer(type: string): number {
   if (type === "paper") return 0;
   if (type === "paper_version") return 1;
   if (type === "passage" || type === "study") return 2;
-  if (type === "claim") return 3;
+  if (type === "claim" || type === "conclusion") return 3;
+  if (type === "report_version" || type === "recommendation") return 4;
   return 2;
 }
 
@@ -111,10 +112,10 @@ function edgeColor(type: string): string {
 
 function useGraphLayout(nodes: GraphNode[], edges: GraphEdge[]) {
   return useMemo(() => {
-    const grouped: GraphNode[][] = [[], [], [], []];
+    const grouped: GraphNode[][] = [[], [], [], [], []];
     nodes.forEach((node) => grouped[graphLayer(node.type)].push(node));
     grouped.forEach((layer) => layer.sort((a, b) => a.label.localeCompare(b.label)));
-    const columnX = [24, 262, 500, 738];
+    const columnX = [24, 262, 500, 738, 976];
     const nodeWidth = 198;
     const nodeHeight = 84;
     const rowGap = 32;
@@ -1003,7 +1004,7 @@ export default function ChronicleWorkbench() {
               <div className="flex flex-col gap-3 border-b border-slate-100 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <div className="relative min-w-0 flex-1"><Search size={15} className="absolute left-3 top-3 text-slate-400"/><input value={graphQuery} onChange={(event) => setGraphQuery(event.target.value)} placeholder="Find a paper, claim, or passage" className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/></div>
-                  <label className="flex items-center gap-2 text-xs font-medium text-slate-500">Node type<select value={graphType} onChange={(event) => setGraphType(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All types</option><option value="paper">Papers</option><option value="paper_version">Versions</option><option value="passage">Passages</option><option value="study">Studies</option><option value="claim">Claims</option></select></label>
+                  <label className="flex items-center gap-2 text-xs font-medium text-slate-500">Node type<select value={graphType} onChange={(event) => setGraphType(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All types</option><option value="paper">Papers</option><option value="paper_version">Versions</option><option value="passage">Passages</option><option value="study">Studies</option><option value="claim">Claims</option><option value="conclusion">Report findings</option><option value="report_version">Report versions</option><option value="recommendation">Recommendations</option></select></label>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="flex items-center gap-2 text-xs font-medium text-slate-500">Claim status<select value={graphClaimStatus} onChange={(event) => setGraphClaimStatus(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All claims</option><option value="needs_review">Needs review</option><option value="unassessed">Unassessed</option><option value="supported">Supported</option><option value="partially_supported">Partially supported</option><option value="contradicted">Contradicted</option><option value="insufficient_evidence">Insufficient evidence</option><option value="unverifiable">Unverifiable</option></select></label>
@@ -1013,14 +1014,14 @@ export default function ChronicleWorkbench() {
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 px-4 py-3 text-xs text-slate-500"><span><strong className="text-slate-900">{graphSource.nodes.length}</strong> nodes</span><span><strong className="text-slate-900">{graphSource.edges.length}</strong> relationships</span><span><strong className="text-slate-900">{graphSource.nodes.filter((node) => node.type === "claim").length}</strong> claims</span>{graphLoading ? <span role="status" className="inline-flex items-center gap-1 text-indigo-600"><LoaderCircle size={13} className="animate-spin"/>Refreshing</span> : null}</div>
               {visibleNodes.length === 0 ? <div className="p-8 text-center"><Search size={20} className="mx-auto text-slate-400"/><p className="mt-2 text-sm font-medium text-slate-800">No matching nodes</p><p className="mt-1 text-xs text-slate-500">Change the search or node filter.</p></div> : <div className="graph-canvas max-h-[680px] overflow-auto">
-                <svg viewBox={"0 0 960 " + graphLayout.height} className="block min-w-[960px] w-full" role="img" aria-label="Interactive map of persisted evidence relationships">
+                <svg viewBox={"0 0 1200 " + graphLayout.height} className="block min-w-[1200px] w-full" role="img" aria-label="Interactive map of persisted evidence relationships">
                   <defs><marker id="chronicle-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#9aa7bd"/></marker></defs>
-                  {["Papers", "Versions", "Passages & studies", "Claims"].map((label, index) => <text key={label} x={[123, 361, 599, 837][index]} y="25" textAnchor="middle" fontSize="10" fontWeight="700" letterSpacing="1.3" fill="#8591a6">{label.toUpperCase()}</text>)}
+                  {["Papers", "Versions", "Passages & studies", "Claims & findings", "Reports & recommendations"].map((label, index) => <text key={label} x={[123, 361, 599, 837, 1075][index]} y="25" textAnchor="middle" fontSize="10" fontWeight="700" letterSpacing="1.3" fill="#8591a6">{label.toUpperCase()}</text>)}
                   {graphLayout.lines.filter((line) => visibleGraphEdges.includes(line.edge)).map((line, index) => <g key={line.edge.id ?? (line.edge.source + "-" + line.edge.target + "-" + index)}><path d={line.path} fill="none" stroke={edgeColor(line.edge.type)} strokeWidth="1.8" strokeOpacity="0.78" markerEnd="url(#chronicle-arrow)"/>{graphLayout.lines.length < 18 ? <text x={line.labelX} y={line.labelY} textAnchor="middle" fontSize="10" fill="#64748b" paintOrder="stroke" stroke="#ffffff" strokeWidth="4" strokeLinejoin="round">{shorten(line.edge.type.replaceAll("_", " "), 24)}</text> : null}</g>)}
                   {graphLayout.placed.map(({ node, x, y }) => {
                     const selected = node.id === selectedGraphNodeId;
                     const lines = wrapSvgLabel(node.label);
-                    const meta = node.type === "claim" ? (node.assessment ?? "unassessed").replaceAll("_", " ") : node.type === "passage" && node.page_number ? "Page " + node.page_number : node.publication_status?.replaceAll("_", " ") ?? "";
+                    const meta = node.type === "claim" || node.type === "conclusion" ? (node.assessment ?? (node.review_required ? "needs_review" : "unassessed")).replaceAll("_", " ") : node.type === "passage" && node.page_number ? "Page " + node.page_number : node.type === "report_version" ? "Report v" + (node.report_version_number ?? "") : node.review_status?.replaceAll("_", " ") ?? node.provenance_basis?.replaceAll("_", " ") ?? node.publication_status?.replaceAll("_", " ") ?? "";
                     return <g key={node.id} role="button" tabIndex={0} aria-label={node.type + ": " + node.label} aria-pressed={selected} onClick={() => setSelectedGraphNodeId(node.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedGraphNodeId(node.id); } }} className="cursor-pointer outline-none">
                       <rect x={x} y={y} width={graphLayout.nodeWidth} height={graphLayout.nodeHeight} rx="12" fill={selected ? "#eef2ff" : "#ffffff"} stroke={selected ? "#6366f1" : "#dbe2ee"} strokeWidth={selected ? "2.4" : "1.2"}/>
                       <text x={x + 12} y={y + 17} fontSize="9.5" fontWeight="700" letterSpacing=".5" fill={selected ? "#4f46e5" : "#64748b"}>{node.type.replaceAll("_", " ").toUpperCase()}</text>
@@ -1036,12 +1037,21 @@ export default function ChronicleWorkbench() {
             <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30">
               {selectedGraphNode ? <><div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">Node details</span><StatusPill status={selectedGraphNode.type}>{selectedGraphNode.type.replaceAll("_", " ")}</StatusPill></div><h3 className="mt-3 break-words text-base font-semibold leading-6 text-slate-950">{selectedGraphNode.label}</h3>
                 {selectedGraphNode.assessment ? <div className="mt-3"><StatusPill status={selectedGraphNode.assessment}>{selectedGraphNode.assessment.replaceAll("_", " ")}</StatusPill></div> : null}
-                {selectedGraphNode.review_required ? <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">This claim needs human review.</p> : null}
+                {selectedGraphNode.review_required ? <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">This item needs human review.</p> : null}
                 {selectedGraphNode.doi ? <p className="mt-4 break-all text-xs leading-5 text-slate-500">DOI: {selectedGraphNode.doi}</p> : null}
                 {selectedGraphNode.page_number ? <p className="mt-3 text-xs text-slate-500">Page {selectedGraphNode.page_number}</p> : null}
                 {selectedGraphNode.population ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Population</p><p className="mt-1 text-sm leading-5 text-slate-600">{selectedGraphNode.population}</p></div> : null}
                 {selectedGraphNode.method ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Method</p><p className="mt-1 text-sm leading-5 text-slate-600">{selectedGraphNode.method}</p></div> : null}
                 {selectedGraphNode.limitations?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Limitations</p><ul className="mt-1 list-disc space-y-1 pl-4 text-sm leading-5 text-slate-600">{selectedGraphNode.limitations.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
+                {selectedGraphNode.created_at ? <p className="mt-3 text-xs text-slate-500">Recorded: {formatDate(selectedGraphNode.created_at)}</p> : null}
+                {selectedGraphNode.provenance_basis ? <p className="mt-3 text-xs text-slate-500">Provenance: <span className="font-medium text-slate-700">{selectedGraphNode.provenance_basis.replaceAll("_", " ")}</span></p> : null}
+                {selectedGraphNode.rationale ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Rationale</p><p className="mt-1 text-sm leading-5 text-slate-600">{selectedGraphNode.rationale}</p></div> : null}
+                {selectedGraphNode.evidence_passage_ids?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Evidence trace</p><div className="mt-2 space-y-1.5">{selectedGraphNode.evidence_passage_ids.map((passageId) => <button key={passageId} type="button" onClick={() => { setGraphType("all"); setGraphQuery(""); setSelectedGraphNodeId("passage:" + passageId); }} className="block w-full break-all rounded-lg border border-slate-200 px-2.5 py-2 text-left text-[11px] leading-4 text-indigo-700 hover:bg-indigo-50">Open source passage · {passageId}</button>)}</div></div> : null}
+                {selectedGraphNode.prior_art_search_queries?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Suggested prior-art searches</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{selectedGraphNode.prior_art_search_queries.map((query) => <li key={query}>{query}</li>)}</ul></div> : null}
+                {selectedGraphNode.alternative_explanations?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Alternative explanations</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{selectedGraphNode.alternative_explanations.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
+                {selectedGraphNode.falsification_plan ? <div className="mt-4 rounded-lg bg-slate-50 p-3"><p className="text-xs font-semibold text-slate-700">Falsification plan</p><p className="mt-1 text-xs leading-5 text-slate-600">{selectedGraphNode.falsification_plan}</p></div> : null}
+                {selectedGraphNode.type === "report_version" ? <p className="mt-3 text-xs leading-5 text-slate-500">This version is a snapshot of the conclusions and recommendations emitted for this research run. Select a finding or recommendation node to inspect its evidence trace.</p> : null}
+                {selectedGraphNode.type === "recommendation" ? <button type="button" onClick={() => { setQuestion(selectedGraphNode.prior_art_search_queries?.[0] ?? selectedGraphNode.label); setResearchMode("forensic"); setView("Research workspace"); }} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700"><Search size={13}/>Investigate prior art</button> : null}
                 <details className="mt-5 border-t border-slate-100 pt-3"><summary className="cursor-pointer text-xs font-medium text-slate-500">Record ID</summary><code className="mt-2 block break-all text-[10px] leading-4 text-slate-500">{selectedGraphNode.id}</code></details>
                 {selectedGraphNode.type === "claim" ? <div className="mt-5 space-y-3">
                   <div className="grid grid-cols-1 gap-2">
