@@ -411,6 +411,7 @@ async def execute_research_run(run_id: str) -> None:
             cancel_before_start = True
         else:
             run.status = "running"
+            run.demo = False
             run.error_message = None
             run.configuration = {
                 **(run.configuration or {}),
