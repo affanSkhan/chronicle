@@ -83,7 +83,7 @@ def focus_for_mode(mode: str) -> str:
 
 def build_research_plan(question: str, mode: str, max_sources: int) -> dict[str, Any]:
     """Build a deterministic execution plan that respects source and query budgets."""
-    clean_question = re.sub(r"\\s+", " ", question or "").strip()
+    clean_question = re.sub(r"\s+", " ", question or "").strip()
     if not clean_question:
         raise ValueError("A research question is required.")
     budget = max(1, min(int(max_sources), 50))

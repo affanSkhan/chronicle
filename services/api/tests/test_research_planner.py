@@ -15,7 +15,7 @@ def test_modes_produce_distinct_bounded_execution_plans():
         assert plan["queries"][0] == question
         assert 1 <= plan["query_budget"] <= 5
         assert plan["source_budget"] == 5
-        assert plan["version"] == "1.0"
+        assert plan["version"] == "1.1"
         assert plan["steps"]
 
 

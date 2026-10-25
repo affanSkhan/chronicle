@@ -269,7 +269,7 @@ def test_failed_research_run_preserves_execution_plan(monkeypatch, client) -> No
         run = db.get(ResearchRun, run_id)
         assert run is not None
         assert run.status == "failed"
-        assert run.configuration["planner_version"] == "1.0"
+        assert run.configuration["planner_version"] == "1.1"
         plan = run.configuration["execution_plan"]
         assert plan["mode"] == "forensic"
         assert "conflicting findings contradictory evidence" in " ".join(plan["queries"])
