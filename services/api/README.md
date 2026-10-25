@@ -50,8 +50,14 @@ For free hosted environments that sleep, `.github/workflows/source-monitor.yml` 
 
 OpenAlex permits limited anonymous querying, but configure a free `OPENALEX_API_KEY` for dependable production discovery and source-status checks. Create the key at [OpenAlex Settings → API key](https://openalex.org/settings/api) and store it only in the API service's environment. Chronicle sends it as a Bearer token only to OpenAlex; it is not sent to Crossref or exposed in query URLs. Without a key, the Crossref provider remains available and OpenAlex may return fewer results or become unavailable.
 
-## Optional LLM configuration
-Set `OPENAI_API_KEY`, `OPENAI_API_BASE`, and `OPENAI_MODEL` on the backend only. With no configured key/model, discovery still retrieves metadata and abstract passages and saves a report without model-generated claims or synthesis.
+## Zero-cost LLM configuration
+
+Set these server-side variables to use Groq's free tier:
+- `LLM_API_KEY`: key from https://console.groq.com/keys
+- `LLM_API_BASE=https://api.groq.com/openai/v1`
+- `LLM_MODEL=openai/gpt-oss-20b`
+
+The free plan has token and request caps, so the implementation uses bounded passages and response tokens. No paid credits or billing method are required for this configuration. If the free provider is unavailable or rate-limited, retrieval-only research and exports remain available. Legacy `OPENAI_*` settings are still supported; OpenAI API billing is separate from ChatGPT.
 
 ## Limitations
 Crossref/OpenAlex records are not a complete index of all research, and abstract-level evidence is not full-text verification. Crossref/OpenAlex monitoring is scheduled when the in-process worker or the optional GitHub Actions job is enabled, but does not provide exhaustive publisher surveillance. LLM-generated claims and research-question suggestions remain unreviewed candidates. PDF uploads are stored in local/container storage; use authenticated durable object storage before public deployment.
