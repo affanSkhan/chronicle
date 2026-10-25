@@ -35,13 +35,16 @@ If the secret is absent, the workflow logs a notice and skips checks. Metadata p
 
 Crossref can be queried without an account. For dependable OpenAlex access, create a free key at [OpenAlex Settings → API key](https://openalex.org/settings/api) and add it to the API service environment as the Sensitive variable `OPENALEX_API_KEY`. Chronicle sends it only to OpenAlex in a Bearer Authorization header.
 
-## 3. Optional model-assisted synthesis
+## 3. Enable model-assisted synthesis without paid APIs
 
-In the API service's Render environment settings, add:
-- `OPENAI_API_KEY` (secret)
-- `OPENAI_MODEL` (the model ID available to your key)
+In the API service's Render environment settings, use Groq's free tier:
+- `LLM_API_KEY` (secret): create a free key at https://console.groq.com/keys
+- `LLM_API_BASE=https://api.groq.com/openai/v1`
+- `LLM_MODEL=openai/gpt-oss-20b`
 
-`OPENAI_API_BASE` defaults to the OpenAI-compatible API base. Leave synthesis disabled until a key/model is configured; scholarly metadata retrieval and evidence-record workflows can still run in retrieval-only mode.
+No paid credits or payment method are needed. The free plan has token/request caps, so Chronicle bounds prompts and response length. When the limit is reached, use retrieval-only research until it resets. Groq's API data policy says inference requests are not retained by default, except for limited reliability/abuse cases.
+
+Gemini is another free-tier option through `https://generativelanguage.googleapis.com/v1beta/openai/` with a current free model ID and Google AI Studio key, but Google may use free-tier prompts/responses to improve products. OpenAI API usage is billed separately from ChatGPT and is not needed for this no-cost setup.
 
 ## 4. Operational limitations to accept before using
 
