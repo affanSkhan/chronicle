@@ -63,3 +63,9 @@ Remaining SRS gaps that are **not** completed by this pass include durable backg
 - Invalid or unlinked opportunities are dropped instead of being rendered as evidence-grounded suggestions.
 - The report export and Hypothesis Lab show the candidate evidence path and a human-review warning. A button starts a forensic follow-up using a suggested prior-art query.
 - The model is instructed to treat passage contents as untrusted data, not as instructions; this is a mitigation, not a substitute for prompt-injection testing.
+
+
+## Mode execution semantics validated
+
+- The planner now chooses executable stage policies: Quick Discovery performs retrieval/reporting only; Deep Research and Academic Review enable optional claim extraction and evidence synthesis; Forensic Analysis additionally performs a bounded dependency-candidate scan over papers returned by that run.
+- Forensic suggestions are stored with the report snapshot but are not silently inserted into the evidence graph. The integration tests assert Quick Discovery never calls configured model stages and Forensic Analysis emits source-linked candidates without persisting a dependency automatically.

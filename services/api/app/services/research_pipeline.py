@@ -18,6 +18,7 @@ from app.services.academic_search import search_papers
 from app.services.audit import record_audit_event
 from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
+from app.services.dependency_candidates import suggest_dependency_candidates
 from app.services.research_planner import build_research_plan, focus_for_mode
 
 
@@ -42,6 +43,7 @@ def _markdown_report(
     synthesis_note: str,
     study_contexts: list[dict],
     execution_plan: dict | None = None,
+    dependency_candidates: list[dict] | None = None,
 ) -> str:
     lines = [
         "# Academic Discovery Snapshot",
@@ -157,6 +159,17 @@ def _markdown_report(
         if questions:
             lines.extend(["", "### Candidate research questions (not novelty claims)", ""])
             lines.extend(f"- {item}" for item in questions)
+        if dependency_candidates:
+            lines.extend(["", "### Potential source-dependence links (human review required)", ""])
+            lines.append("These heuristic candidates may indicate shared datasets or overlapping records. They are not verified dependencies and do not mean studies are invalid or statistically non-independent.")
+            lines.append("")
+            for candidate in dependency_candidates:
+                lines.append(f"- **{candidate['relation_type'].replace('_', ' ').title()}:** {candidate['paper_a_title']} ↔ {candidate['paper_b_title']}")
+                lines.append("  - Signal: " + "; ".join(candidate.get("signals", [])))
+                lines.append(f"  - Heuristic score (not a calibrated probability): {candidate.get('confidence', 0)}")
+                lines.append(f"  - Rationale: {candidate.get('rationale', '')}")
+                lines.append("  - Status: candidate only; researcher confirmation is required.")
+                lines.append("")
         opportunities = synthesis.get("research_opportunities", [])
         if opportunities:
             lines.extend(["", "### Evidence-linked research opportunities (not novelty claims)", ""])
@@ -435,11 +448,17 @@ async def execute_research_run(run_id: str) -> None:
         # Phase 2: optional model-backed candidates; retrieval-only mode is valid.
         settings = get_settings()
         extracted_claims: list[dict] = []
-        llm_note = "LLM extraction skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured."
+        stages = execution_plan.get("stages", {})
+        should_extract_claims = bool(stages.get("claim_extraction", True))
+        should_synthesize_evidence = bool(stages.get("evidence_synthesis", True))
+        should_scan_dependencies = bool(stages.get("dependency_candidate_scan", False))
+        llm_note = ("Claim extraction skipped by the Quick Discovery profile; this run is retrieval-only."
+                    if not should_extract_claims else
+                    "LLM extraction skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured.")
         extraction_error: str | None = None
         api_key = settings.openai_api_key.get_secret_value().strip() if settings.openai_api_key else ""
         model_question = question + "\n\nRun profile: " + execution_plan["profile_label"] + ". Focus: " + focus_for_mode(mode)
-        if api_key and settings.openai_model.strip() and passages_for_extraction:
+        if should_extract_claims and api_key and settings.openai_model.strip() and passages_for_extraction:
             try:
                 extracted_claims = await extract_claims_from_passages(
                     question=model_question,
@@ -454,9 +473,11 @@ async def execute_research_run(run_id: str) -> None:
                 llm_note = "LLM extraction failed; the bibliographic discovery report was completed without model-generated claims."
 
         synthesis_result: dict | None = None
-        synthesis_note = "Model synthesis skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured."
+        synthesis_note = ("Synthesis skipped by the Quick Discovery profile to keep this run retrieval-only."
+                          if not should_synthesize_evidence else
+                          "Model synthesis skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured.")
         synthesis_error: str | None = None
-        if api_key and settings.openai_model.strip() and passages_for_extraction:
+        if should_synthesize_evidence and api_key and settings.openai_model.strip() and passages_for_extraction:
             try:
                 synthesis_result = await synthesize_evidence(
                     question=model_question,
@@ -571,6 +592,17 @@ async def execute_research_run(run_id: str) -> None:
                     })
                 db.commit()
 
+        dependency_candidates: list[dict] = []
+        if should_scan_dependencies and owner_user_id and len(saved_papers) >= 2:
+            # Forensic scanning is bounded to this run and does not persist any graph edges.
+            with SessionLocal() as db:
+                dependency_candidates = suggest_dependency_candidates(
+                    db,
+                    owner_user_id,
+                    limit=30,
+                    paper_ids={paper["paper_id"] for paper in saved_papers},
+                )
+
         # Phase 3: immutable report snapshot and final job state.
         generated_at = datetime.now(timezone.utc).isoformat()
         with SessionLocal() as db:
@@ -587,6 +619,7 @@ async def execute_research_run(run_id: str) -> None:
                     question, mode, saved_papers, provider_result.get("provider_errors", {}),
                     generated_at, persisted_claims, llm_note, synthesis_result, synthesis_note, persisted_studies,
                     execution_plan=execution_plan,
+                    dependency_candidates=dependency_candidates,
                 ),
                 evidence_snapshot={
                     "query": question,
@@ -606,6 +639,7 @@ async def execute_research_run(run_id: str) -> None:
                     "model_synthesis_error": synthesis_error,
                     "model_synthesis_note": synthesis_note,
                     "model_synthesis": synthesis_result,
+                    "dependency_candidates": dependency_candidates,
                 },
                 change_summary="Initial scholarly discovery snapshot; extracted claims remain unreviewed candidates.",
             )
@@ -623,6 +657,7 @@ async def execute_research_run(run_id: str) -> None:
                 "passage_count": sum(1 for paper in saved_papers if paper["passage_id"]),
                 "claim_candidate_count": len(persisted_claims),
                 "study_context_count": len(persisted_studies),
+                "dependency_candidate_count": len(dependency_candidates),
                 "provider_errors": provider_result.get("provider_errors", {}),
                 "llm_extraction_error": extraction_error,
                 "claim_verification_completed": False,

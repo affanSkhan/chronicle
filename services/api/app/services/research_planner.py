@@ -18,6 +18,7 @@ _PROFILE_DATA: dict[str, dict[str, Any]] = {
             "DOI/title deduplication and abstract passage capture",
             "Compact initial evidence snapshot and coverage limitations",
         ],
+        "stages": {"claim_extraction": False, "evidence_synthesis": False, "dependency_candidate_scan": False},
     },
     "deep": {
         "label": "Deep Research",
@@ -29,6 +30,8 @@ _PROFILE_DATA: dict[str, dict[str, Any]] = {
             "Optional source-linked claim extraction and synthesis",
             "Coverage, uncertainty, and limitation disclosure",
         ],
+        "stages": {"claim_extraction": True, "evidence_synthesis": True, "dependency_candidate_scan": False},
+        "stages": {"claim_extraction": True, "evidence_synthesis": True, "dependency_candidate_scan": False},
     },
     "academic": {
         "label": "Academic Review",
@@ -51,6 +54,7 @@ _PROFILE_DATA: dict[str, dict[str, Any]] = {
             "Existing source timeline and dependency graph for separate reviewer inspection",
             "Human review and audit trail for consequential changes",
         ],
+        "stages": {"claim_extraction": True, "evidence_synthesis": True, "dependency_candidate_scan": True},
     },
 }
 
@@ -81,6 +85,7 @@ def build_research_plan(question: str, mode: str, max_sources: int) -> dict[str,
         "query_budget": len(queries),
         "queries": queries,
         "modules": list(profile["modules"]),
+        "stages": dict(profile["stages"]),
         "steps": [
             "Normalize the question and select the requested execution profile.",
             f"Run {len(queries)} bounded scholarly metadata search(es) against Crossref/OpenAlex.",

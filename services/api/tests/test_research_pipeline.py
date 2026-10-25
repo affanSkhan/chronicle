@@ -274,3 +274,82 @@ def test_failed_research_run_preserves_execution_plan(monkeypatch, client) -> No
         assert plan["mode"] == "forensic"
         assert "conflicting findings contradictory evidence" in " ".join(plan["queries"])
         assert run.configuration["planned_search_queries"] == plan["queries"]
+
+
+def test_quick_discovery_skips_configured_model_calls(monkeypatch, client) -> None:
+    monkeypatch.setattr(research_pipeline, "SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr(
+        research_pipeline, "get_settings",
+        lambda: SimpleNamespace(openai_api_key=SimpleNamespace(get_secret_value=lambda: "test-key"),
+            openai_api_base="https://model.example/v1", openai_model="test-model"),
+    )
+
+    async def fake_search_papers(question: str, limit: int = 10, provider: str = "all") -> dict:
+        return {"query": question, "providers_requested": provider, "provider_errors": {}, "results": [{
+            "provider": "crossref", "external_id": "10.5555/quick-mode-test", "doi": "10.5555/quick-mode-test",
+            "title": "Quick mode test source", "authors": ["Test Author"],
+            "abstract": "This abstract describes a measurable outcome in the target research topic.",
+            "publication_year": 2025, "publisher": "Test Publisher",
+            "landing_url": "https://doi.org/10.5555/quick-mode-test",
+        }]}
+
+    async def unexpected_model_call(**kwargs):
+        raise AssertionError("Quick Discovery must not call LLM stages.")
+
+    monkeypatch.setattr(research_pipeline, "search_papers", fake_search_papers)
+    monkeypatch.setattr(research_pipeline, "extract_claims_from_passages", unexpected_model_call)
+    monkeypatch.setattr(research_pipeline, "synthesize_evidence", unexpected_model_call)
+    created = client.post("/api/v1/research/runs", json={
+        "question": "Give a quick overview of evidence provenance in research.",
+        "mode": "quick", "max_sources": 4, "execute": False,
+    })
+    assert created.status_code == 201, created.text
+    run_id = created.json()["id"]
+    asyncio.run(research_pipeline.execute_research_run(run_id))
+
+    report = client.get(f"/api/v1/evidence/runs/{run_id}/reports").json()[0]
+    assert report["evidence_snapshot"]["execution_plan"]["stages"]["claim_extraction"] is False
+    assert report["evidence_snapshot"]["model_synthesis_completed"] is False
+    assert "Quick Discovery profile" in report["content_markdown"]
+
+
+def test_forensic_mode_returns_run_scoped_dependency_suggestions(monkeypatch, client) -> None:
+    monkeypatch.setattr(research_pipeline, "SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr(
+        research_pipeline, "get_settings",
+        lambda: SimpleNamespace(openai_api_key=None, openai_api_base="https://api.openai.com/v1", openai_model=""),
+    )
+
+    async def fake_search_papers(question: str, limit: int = 10, provider: str = "all") -> dict:
+        return {"query": question, "providers_requested": provider, "provider_errors": {}, "results": [
+            {"provider": "crossref", "external_id": "10.5555/forensic-a", "doi": "10.5555/forensic-a",
+             "title": "Forensic study A", "authors": ["Author A"],
+             "abstract": "This study evaluated clinical outcomes using MIMIC-IV patient records with a model.",
+             "publication_year": 2024, "publisher": "Test Publisher", "landing_url": "https://doi.org/10.5555/forensic-a"},
+            {"provider": "crossref", "external_id": "10.5555/forensic-b", "doi": "10.5555/forensic-b",
+             "title": "Forensic study B", "authors": ["Author B"],
+             "abstract": "This study analysed MIMIC-IV records for a different outcome and model.",
+             "publication_year": 2025, "publisher": "Test Publisher", "landing_url": "https://doi.org/10.5555/forensic-b"},
+        ]}
+
+    monkeypatch.setattr(research_pipeline, "search_papers", fake_search_papers)
+    created = client.post("/api/v1/research/runs", json={
+        "question": "Investigate conflicting findings and source dependence in research.",
+        "mode": "forensic", "max_sources": 5, "execute": False,
+    })
+    assert created.status_code == 201, created.text
+    run_id = created.json()["id"]
+    asyncio.run(research_pipeline.execute_research_run(run_id))
+
+    response = client.get(f"/api/v1/evidence/runs/{run_id}/reports")
+    assert response.status_code == 200, response.text
+    report = response.json()[0]
+    snapshot = report["evidence_snapshot"]
+    assert snapshot["execution_plan"]["stages"]["dependency_candidate_scan"] is True
+    assert snapshot["dependency_candidates"]
+    assert snapshot["dependency_candidates"][0]["relation_type"] == "same_dataset"
+    assert "Potential source-dependence links" in report["content_markdown"]
+
+    with TestingSessionLocal() as db:
+        from app.models.entities import PaperDependency
+        assert db.query(PaperDependency).count() == 0

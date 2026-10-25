@@ -58,14 +58,25 @@ def _jaccard(left: set[Any], right: set[Any]) -> float:
     return len(left & right) / union if union else 0.0
 
 
-def suggest_dependency_candidates(db: Session, owner_user_id: str, limit: int = 30) -> list[dict[str, Any]]:
-    """Find likely source-dependence candidates without writing any database rows."""
+def suggest_dependency_candidates(
+    db: Session,
+    owner_user_id: str,
+    limit: int = 30,
+    paper_ids: list[str] | set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Find source-dependence candidates, optionally restricted to one research run.
+
+    Ownership is enforced by the query. Candidate discovery does not persist graph edges.
+    """
     maximum = max(1, min(int(limit), 100))
+    requested_ids = sorted(set(paper_ids or [])) if paper_ids is not None else None
+    if requested_ids is not None and len(requested_ids) < 2:
+        return []
+    statement = select(Paper).where(Paper.owner_user_id == owner_user_id)
+    if requested_ids is not None:
+        statement = statement.where(Paper.id.in_(requested_ids))
     papers = list(db.scalars(
-        select(Paper)
-        .where(Paper.owner_user_id == owner_user_id)
-        .order_by(Paper.title.asc(), Paper.id.asc())
-        .limit(250)
+        statement.order_by(Paper.title.asc(), Paper.id.asc()).limit(250)
     ).all())
     if len(papers) < 2:
         return []
