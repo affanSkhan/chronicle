@@ -118,5 +118,5 @@ def get_llm_request_options(api_base: str, model: str) -> dict[str, str]:
     endpoint = api_base.lower()
     model_id = model.strip().lower()
     if "api.groq.com" in endpoint and model_id in {"openai/gpt-oss-20b", "openai/gpt-oss-120b"}:
-        return {"reasoning_effort": "low", "reasoning_format": "hidden"}
+        return {"reasoning_effort": "low"}
     return {}
