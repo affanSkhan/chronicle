@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     pdf_ocr_language: str = "eng"
     upload_dir: str = "uploads"
     openalex_api_key: SecretStr | None = None
+    # Provider-agnostic OpenAI-compatible API settings; prefer these over legacy names.
+    llm_api_key: SecretStr | None = None
+    llm_api_base: str = ""
+    llm_model: str = ""
+    # Backward-compatible names for existing deployments.
     openai_api_key: SecretStr | None = None
     openai_api_base: str = "https://api.openai.com/v1"
     openai_model: str = ""
@@ -56,3 +61,33 @@ def openalex_auth_headers() -> dict[str, str]:
         return {}
     token = key.get_secret_value().strip()
     return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def get_llm_config(settings: Settings | None = None) -> tuple[str, str, str]:
+    """Resolve a generic OpenAI-compatible provider, retaining legacy env names.
+
+    Returns (API key, base URL, model ID). This helper accepts a settings-like
+    object too, so route/pipeline tests can inject a small deterministic fixture.
+    """
+    settings = settings or get_settings()
+
+    def secret_text(value: object) -> str:
+        if value is None:
+            return ""
+        getter = getattr(value, "get_secret_value", None)
+        raw = getter() if callable(getter) else value
+        return str(raw).strip()
+
+    api_key = secret_text(getattr(settings, "llm_api_key", None))
+    if not api_key:
+        api_key = secret_text(getattr(settings, "openai_api_key", None))
+
+    api_base = str(getattr(settings, "llm_api_base", "") or "").strip()
+    if not api_base:
+        api_base = str(getattr(settings, "openai_api_base", "https://api.openai.com/v1") or "https://api.openai.com/v1").strip()
+
+    model = str(getattr(settings, "llm_model", "") or "").strip()
+    if not model:
+        model = str(getattr(settings, "openai_model", "") or "").strip()
+
+    return api_key, api_base, model
