@@ -101,7 +101,7 @@ def test_ocr_budget_is_respected_and_low_text_pages_are_reported(monkeypatch) ->
     assert extraction.ocr_attempted_pages == 1
     assert extraction.ocr_pages == 1
     assert extraction.low_text_page_numbers == [2, 3]
-    assert extraction.text_coverage_ratio == 1 / 3
+    assert extraction.text_coverage_ratio == 0.333
     assert any("little or no searchable text" in warning for warning in extraction.warnings or [])
 
 
