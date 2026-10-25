@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 from pydantic import SecretStr
 
-from app.core.config import get_llm_config
+from app.core.config import get_llm_config, get_llm_request_options
 
 
 def test_generic_llm_settings_take_precedence_over_legacy_openai_aliases():
@@ -48,6 +48,21 @@ def test_blank_generic_key_falls_back_to_legacy_key():
     )
     assert get_llm_config(settings) == (
         "legacy-key",
+        "https://api.openai.com/v1",
+        "legacy-model",
+    )
+
+
+
+def test_groq_gpt_oss_uses_supported_low_effort_json_options():
+    assert get_llm_request_options(
         "https://api.groq.com/openai/v1",
         "openai/gpt-oss-20b",
-    )
+    ) == {"reasoning_effort": "low", "reasoning_format": "hidden"}
+
+
+def test_other_provider_does_not_receive_groq_specific_options():
+    assert get_llm_request_options(
+        "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "gemini-3.8-flash",
+    ) == {}
