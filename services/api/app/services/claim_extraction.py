@@ -43,9 +43,9 @@ async def extract_claims_from_passages(
             "id": str(p["id"]),
             "paper_title": str(p.get("paper_title") or ""),
             "doi": p.get("doi"),
-            "text": str(p.get("text") or "")[:5000],
+            "text": str(p.get("text") or "")[:1800],
         }
-        for p in passages[:25]
+        for p in passages[:8]
     ]
     system_prompt = (
         "You are an evidence extraction component in a scientific research system. "
@@ -72,8 +72,8 @@ async def extract_claims_from_passages(
             f"{api_base.rstrip('/')}/chat/completions",
             json={
                 "model": model,
-                "reasoning_effort": "none",
                 "temperature": 0,
+                "max_tokens": 1000,
                 "response_format": {"type": "json_object"},
                 "messages": [
                     {"role": "system", "content": system_prompt},
