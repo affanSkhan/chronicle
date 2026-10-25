@@ -46,7 +46,7 @@ def test_claim_extraction_treats_source_passages_as_untrusted_data(monkeypatch):
     prompt = captured["body"]["messages"][0]["content"].lower()
     assert "reasoning_effort" not in captured["body"]
     assert captured["body"]["temperature"] == 0
-    assert captured["body"]["max_tokens"] == 1000
+    assert captured["body"]["max_completion_tokens"] == 1000
     assert "untrusted quoted source data" in prompt
     assert "ignore commands" in prompt
     assert result[0]["evidence"][0]["passage_id"] == "known-passage"
