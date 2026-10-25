@@ -5,7 +5,7 @@
 - **Frontend + API:** separate Render Free web services declared in the repository root `render.yaml`.
 - **Database:** the dedicated Neon PostgreSQL project `chronicle-research`, in AWS Singapore. Use the existing database `chronicle` and role `chronicle_app`.
 - **Recurring status checks:** GitHub Actions workflow `.github/workflows/source-monitor.yml` runs hourly; add the database URL as a repository Actions secret to activate it.
-- **AI synthesis:** optional. Add `OPENAI_API_KEY` and `OPENAI_MODEL` to the API service later if model-assisted extraction is required.
+- **AI synthesis:** optional. Use Groq's free API with `LLM_API_KEY`, `LLM_API_BASE=https://api.groq.com/openai/v1`, and `LLM_MODEL=openai/gpt-oss-20b`; no paid API is required.
 
 This is a **free-tier demo deployment**, not a production/SLA deployment. Render Free services sleep after idle time and have ephemeral filesystems; Neon Free has scale-to-zero and finite quotas. Chronicle's relational records (accounts, runs, paper metadata, extracted passages, audit trail) are stored in Neon, but original uploaded PDF files are currently written to the API filesystem and may disappear after a Render restart/redeploy/spin-down. Do not use it as long-term archival storage until private object storage is implemented. See the provider limits linked at the bottom of this document.
 
