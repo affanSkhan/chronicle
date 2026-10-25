@@ -355,7 +355,7 @@ def test_forensic_mode_returns_run_scoped_dependency_suggestions(monkeypatch, cl
     assert analysis["candidate_cluster_count"] == 1
     assert analysis["clusters"][0]["source_count"] == 2
     assert "not proven independent" in analysis["interpretation"]
-    assert "Potential source-dependence links" in report["content_markdown"]
+    assert "Potential source-dependence analysis" in report["content_markdown"]
 
     with TestingSessionLocal() as db:
         from app.models.entities import PaperDependency
