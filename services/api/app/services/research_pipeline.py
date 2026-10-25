@@ -22,6 +22,68 @@ from app.services.dependency_candidates import build_dependency_clusters, sugges
 from app.services.research_planner import build_research_plan, focus_for_mode
 
 
+class ResearchRunCancelled(Exception):
+    """Raised internally when the owner requests cooperative run cancellation."""
+
+
+def _run_cancellation_requested(run_id: str) -> bool:
+    with SessionLocal() as db:
+        run = db.get(ResearchRun, run_id)
+        return run is None or run.status in {"cancel_requested", "cancelled"}
+
+
+def _finalize_cancelled_run(run_id: str, reason: str = "Owner requested cancellation.") -> None:
+    with SessionLocal() as db:
+        run = db.get(ResearchRun, run_id)
+        if run is None:
+            return
+        previous_status = run.status
+        if run.status != "cancelled":
+            now = datetime.now(timezone.utc)
+            run.status = "cancelled"
+            run.cancel_requested_at = run.cancel_requested_at or now
+            run.cancelled_at = now
+            run.error_message = None
+            run.configuration = {
+                **(run.configuration or {}),
+                "cancellation": {
+                    **((run.configuration or {}).get("cancellation") or {}),
+                    "finalized_at": now.isoformat(),
+                    "previous_status": previous_status,
+                    "reason": reason,
+                },
+            }
+            record_audit_event(
+                db,
+                actor_user_id=None,
+                run_id=run.id,
+                target_entity_type="research_run",
+                target_entity_id=run.id,
+                action="research_run.cancelled",
+                previous_value={"status": previous_status},
+                new_value={"status": "cancelled", "cancelled_at": now.isoformat()},
+                reason=reason,
+                resolution_status="cancelled",
+            )
+        db.commit()
+
+
+async def _await_with_cancellation(awaitable, run_id: str):
+    """Await an external stage while polling for owner cancellation."""
+    if _run_cancellation_requested(run_id):
+        raise ResearchRunCancelled("Research run cancellation was requested.")
+    task = asyncio.create_task(awaitable)
+    while not task.done():
+        if _run_cancellation_requested(run_id):
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            raise ResearchRunCancelled("Research run cancellation was requested.")
+        await asyncio.wait({task}, timeout=0.5)
+    if _run_cancellation_requested(run_id):
+        raise ResearchRunCancelled("Research run cancellation was requested.")
+    return task.result()
+
+
 def _normalize_doi(value: str | None) -> str | None:
     if not value:
         return None
@@ -249,22 +311,46 @@ def _markdown_report(
 
 
 async def _execute_planned_search(
-    question: str, mode: str, max_sources: int, plan: dict | None = None
+    question: str,
+    mode: str,
+    max_sources: int,
+    plan: dict | None = None,
+    run_id: str | None = None,
 ) -> tuple[dict, dict]:
-    """Run a bounded, mode-specific set of scholarly searches and merge duplicates."""
+    """Run bounded planned searches and cancel pending requests when requested."""
     plan = plan or build_research_plan(question, mode, max_sources)
     queries = plan["queries"]
     per_query_limit = max(1, math.ceil(max_sources / max(1, len(queries))))
-    responses = await asyncio.gather(
-        *(search_papers(query, limit=per_query_limit, provider="all") for query in queries),
-        return_exceptions=True,
-    )
+    tasks = {
+        asyncio.create_task(search_papers(query, limit=per_query_limit, provider="all")): index
+        for index, query in enumerate(queries)
+    }
+    responses: list[dict | Exception | None] = [None] * len(queries)
+    pending = set(tasks)
+    while pending:
+        if run_id and _run_cancellation_requested(run_id):
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+            raise ResearchRunCancelled("Research run cancellation was requested.")
+        done, pending = await asyncio.wait(
+            pending,
+            timeout=0.5,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for task in done:
+            try:
+                responses[tasks[task]] = task.result()
+            except Exception as exc:
+                responses[tasks[task]] = exc
+    if run_id and _run_cancellation_requested(run_id):
+        raise ResearchRunCancelled("Research run cancellation was requested.")
 
     provider_errors: dict[str, str] = {}
     merged: dict[str, dict] = {}
     successful_queries = 0
     for index, (query, response) in enumerate(zip(queries, responses), start=1):
-        if isinstance(response, Exception):
+        if isinstance(response, Exception) or response is None:
             provider_errors[f"query_{index}"] = "This planned search failed or a provider was unavailable."
             continue
         successful_queries += 1
@@ -316,22 +402,29 @@ async def _execute_planned_search(
 
 async def execute_research_run(run_id: str) -> None:
     """Execute a discovery run and persist its status, source records and report."""
+    cancel_before_start = False
     with SessionLocal() as db:
         run = db.get(ResearchRun, run_id)
         if run is None:
             return
-        run.status = "running"
-        run.error_message = None
-        run.configuration = {
-            **(run.configuration or {}),
-            "pipeline": "mode-specific-scholarly-discovery",
-            "started_at": datetime.now(timezone.utc).isoformat(),
-        }
-        question = run.question
-        limit = run.max_sources
-        mode = run.mode
-        owner_user_id = run.owner_user_id
-        db.commit()
+        if run.status in {"cancel_requested", "cancelled"}:
+            cancel_before_start = True
+        else:
+            run.status = "running"
+            run.error_message = None
+            run.configuration = {
+                **(run.configuration or {}),
+                "pipeline": "mode-specific-scholarly-discovery",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+            }
+            question = run.question
+            limit = run.max_sources
+            mode = run.mode
+            owner_user_id = run.owner_user_id
+            db.commit()
+    if cancel_before_start:
+        _finalize_cancelled_run(run_id, "Run was cancelled before the worker began.")
+        return
 
     try:
         execution_plan = build_research_plan(question, mode, limit)
@@ -350,8 +443,10 @@ async def execute_research_run(run_id: str) -> None:
             db.commit()
 
         provider_result, execution_plan = await _execute_planned_search(
-            question, mode, limit, plan=execution_plan
+            question, mode, limit, plan=execution_plan, run_id=run_id
         )
+        if _run_cancellation_requested(run_id):
+            raise ResearchRunCancelled("Research run cancellation was requested.")
         result_items = provider_result.get("results", [])
         saved_papers: list[dict] = []
         passages_for_extraction: list[dict] = []
@@ -469,6 +564,8 @@ async def execute_research_run(run_id: str) -> None:
             db.commit()
 
         # Phase 2: optional model-backed candidates; retrieval-only mode is valid.
+        if _run_cancellation_requested(run_id):
+            raise ResearchRunCancelled("Research run cancellation was requested.")
         settings = get_settings()
         extracted_claims: list[dict] = []
         stages = execution_plan.get("stages", {})
@@ -483,13 +580,13 @@ async def execute_research_run(run_id: str) -> None:
         model_question = question + "\n\nRun profile: " + execution_plan["profile_label"] + ". Focus: " + focus_for_mode(mode)
         if should_extract_claims and api_key and settings.openai_model.strip() and passages_for_extraction:
             try:
-                extracted_claims = await extract_claims_from_passages(
+                extracted_claims = await _await_with_cancellation(extract_claims_from_passages(
                     question=model_question,
                     passages=passages_for_extraction,
                     api_key=api_key,
                     api_base=settings.openai_api_base,
                     model=settings.openai_model.strip(),
-                )
+                ), run_id)
                 llm_note = "Structured extraction completed; generated claims and evidence edges still require human review."
             except Exception as exc:
                 extraction_error = type(exc).__name__
@@ -502,13 +599,13 @@ async def execute_research_run(run_id: str) -> None:
         synthesis_error: str | None = None
         if should_synthesize_evidence and api_key and settings.openai_model.strip() and passages_for_extraction:
             try:
-                synthesis_result = await synthesize_evidence(
+                synthesis_result = await _await_with_cancellation(synthesize_evidence(
                     question=model_question,
                     passages=passages_for_extraction,
                     api_key=api_key,
                     api_base=settings.openai_api_base,
                     model=settings.openai_model.strip(),
-                )
+                ), run_id)
                 synthesis_note = "Model synthesis completed; draft findings and candidate research questions still require human review."
             except Exception as exc:
                 synthesis_error = type(exc).__name__
@@ -645,12 +742,17 @@ async def execute_research_run(run_id: str) -> None:
         completion_status = "completed_with_limitations" if has_limitations else "completed"
 
         # Phase 3: immutable report snapshot and final job state.
+        if _run_cancellation_requested(run_id):
+            raise ResearchRunCancelled("Research run cancellation was requested.")
         generated_at = datetime.now(timezone.utc).isoformat()
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
             if run is None:
                 return
             latest = db.scalar(select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number.desc()))
+            if run.status in {"cancel_requested", "cancelled"}:
+                db.rollback()
+                raise ResearchRunCancelled("Research run cancellation was requested before report commit.")
             report = ReportVersion(
                 run_id=run_id,
                 version_number=(latest.version_number + 1) if latest else 1,
@@ -712,17 +814,48 @@ async def execute_research_run(run_id: str) -> None:
             }
             db.commit()
 
+    except ResearchRunCancelled:
+        _finalize_cancelled_run(run_id)
     except Exception as exc:
-        # Store a user-safe error; don't persist request URLs, headers or secrets.
+        # A concurrent cancellation takes precedence over a generic provider error.
+        # Store user-safe errors; never persist request URLs, headers or secrets.
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
             if run is not None:
-                run.status = "failed"
-                run.demo = False
-                run.error_message = "Scholarly discovery failed. Check provider availability and server logs."
-                run.configuration = {
-                    **(run.configuration or {}),
-                    "failed_at": datetime.now(timezone.utc).isoformat(),
-                    "failure_type": type(exc).__name__,
-                }
+                if run.status in {"cancel_requested", "cancelled"}:
+                    now = datetime.now(timezone.utc)
+                    previous_status = run.status
+                    run.status = "cancelled"
+                    run.cancel_requested_at = run.cancel_requested_at or now
+                    run.cancelled_at = now
+                    run.error_message = None
+                    run.configuration = {
+                        **(run.configuration or {}),
+                        "cancellation": {
+                            **((run.configuration or {}).get("cancellation") or {}),
+                            "finalized_at": now.isoformat(),
+                            "reason": "Cancellation was observed while handling a provider failure.",
+                        },
+                    }
+                    record_audit_event(
+                        db,
+                        actor_user_id=None,
+                        run_id=run.id,
+                        target_entity_type="research_run",
+                        target_entity_id=run.id,
+                        action="research_run.cancelled",
+                        previous_value={"status": previous_status},
+                        new_value={"status": "cancelled", "cancelled_at": now.isoformat()},
+                        reason="Cancellation was observed while handling a provider failure.",
+                        resolution_status="cancelled",
+                    )
+                else:
+                    run.status = "failed"
+                    run.demo = False
+                    run.error_message = "Scholarly discovery failed. Check provider availability and server logs."
+                    run.configuration = {
+                        **(run.configuration or {}),
+                        "failed_at": datetime.now(timezone.utc).isoformat(),
+                        "failure_type": type(exc).__name__,
+                    }
                 db.commit()
