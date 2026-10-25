@@ -36,7 +36,12 @@ Configure these environment variables in Vercel Project Settings → Environment
 | `SOURCE_MONITOR_POLL_SECONDS` | `60` |
 | `SOURCE_MONITOR_BATCH_SIZE` | `20` |
 
-For optional model-assisted extraction and synthesis, add `OPENAI_API_KEY`, `OPENAI_API_BASE=https://api.openai.com/v1`, and `OPENAI_MODEL` on the API project only. Keep database/JWT/model credentials out of frontend environment variables and source control.
+For model-assisted extraction and synthesis without paid API usage, configure the API project with Groq's free tier:
+- `LLM_API_KEY`: create a key at https://console.groq.com/keys
+- `LLM_API_BASE=https://api.groq.com/openai/v1`
+- `LLM_MODEL=openai/gpt-oss-20b`
+
+No paid credits or payment method are needed. Free-tier limits apply, and the app bounds prompt sizes and outputs to help fit them. Google Gemini's free tier is another option using `LLM_API_BASE=https://generativelanguage.googleapis.com/v1beta/openai/` plus a current free model ID and Google AI Studio key; Google may use free-tier content to improve products. Keep all keys server-side. Legacy `OPENAI_*` settings remain supported, but OpenAI API usage is billed separately from ChatGPT.
 
 For more reliable scholarly discovery and source-status checks, add `OPENALEX_API_KEY` as a **Sensitive** API-project environment variable. Create a free key at [OpenAlex Settings → API key](https://openalex.org/settings/api). Chronicle sends this token only in the Authorization header to OpenAlex; it is not sent to Crossref. Save the secret and redeploy the API after adding it.
 
