@@ -95,3 +95,10 @@ Remaining SRS gaps that are **not** completed by this pass include durable backg
 - Automated tests use deterministic mocked OCR outputs to verify scanned, mixed-mode, OCR-unavailable and OCR-budget paths. These tests verify pipeline behavior, not OCR accuracy on real-world scans; representative image-quality testing remains required.
 
 - OCR defaults are configurable using ENABLE_PDF_OCR, PDF_OCR_MAX_PAGES, PDF_OCR_DPI, PDF_OCR_MIN_TEXT_CHARS, and PDF_OCR_LANGUAGE. The default page budget and render-DPI cap limit upload-triggered CPU and memory exposure. 
+
+## SRS implementation pass: run lifecycle and schema migration
+
+- Added explicit `cancel_requested` and `cancelled` run states, owner-scoped cancel and retry endpoints, audit records, and retry lineage. In-flight asynchronous search/model calls are cancelled cooperatively when a cancellation request arrives.
+- A retry starts a fresh run using the original question, mode, source budget and workspace; it never overwrites the previous run or its report/evidence history.
+- Added migration `0007_run_cancel_retry` to widen `research_runs.status` from VARCHAR(24) to VARCHAR(40) (required for `completed_with_limitations`) and add cancellation/retry metadata.
+- The worker still uses FastAPI background tasks. It is not restart-safe, does not persist per-subtask checkpoints, and is not coordinated across multiple API replicas. Cancellation and retry do not remove those durability limitations.
