@@ -221,17 +221,6 @@ def _markdown_report(
                 lines.append("  - Status: candidate only; researcher confirmation is required.")
                 lines.append("")
 
-        lines.append("These heuristic candidates may indicate shared datasets or overlapping records. They are not verified dependencies and do not mean studies are invalid or statistically non-independent.")
-        lines.append("")
-        lines.append(f"- Supporting source records in this run: {len(papers)}")
-        lines.append(f"- Candidate source-dependence links surfaced: {len(dependency_candidates)}")
-        for candidate in dependency_candidates:
-            lines.append(f"- **{candidate['relation_type'].replace('_', ' ').title()}:** {candidate['paper_a_title']} ↔ {candidate['paper_b_title']}")
-            lines.append("  - Signal: " + "; ".join(candidate.get("signals", [])))
-            lines.append(f"  - Heuristic score (not a calibrated probability): {candidate.get('confidence', 0)}")
-            lines.append(f"  - Rationale: {candidate.get('rationale', '')}")
-            lines.append("  - Status: candidate only; researcher confirmation is required.")
-            lines.append("")
 
     lines.extend(["## Candidate claims", ""])
     if not extracted_claims:

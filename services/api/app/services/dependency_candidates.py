@@ -6,6 +6,7 @@ automatically and must be confirmed by a researcher.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from itertools import combinations
 from typing import Any
