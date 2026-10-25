@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.core.config import get_llm_config, get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.entities import (
@@ -112,12 +112,11 @@ async def verify_claim_citation_support(
         raise HTTPException(status_code=422, detail="No accessible source passages were found for this claim.")
 
     settings = get_settings()
-    api_key = settings.openai_api_key.get_secret_value().strip() if settings.openai_api_key else ""
-    model = settings.openai_model.strip()
+    api_key, api_base, model = get_llm_config(settings)
     if not api_key or not model:
         raise HTTPException(
             status_code=503,
-            detail="Citation verification requires OPENAI_API_KEY and OPENAI_MODEL on the server. No assessment was changed.",
+            detail="Citation verification requires LLM_API_KEY and LLM_MODEL (or legacy OPENAI_API_KEY and OPENAI_MODEL). No assessment was changed.",
         )
 
     try:
@@ -126,7 +125,7 @@ async def verify_claim_citation_support(
             claim_scope=claim.scope or {},
             passages=passages,
             api_key=api_key,
-            api_base=settings.openai_api_base,
+            api_base=api_base,
             model=model,
         )
     except ValueError as exc:
