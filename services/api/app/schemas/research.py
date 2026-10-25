@@ -14,6 +14,7 @@ class RunStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     COMPLETED = "completed"
+    COMPLETED_WITH_LIMITATIONS = "completed_with_limitations"
     FAILED = "failed"
 
 

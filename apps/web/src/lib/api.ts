@@ -1,5 +1,5 @@
 export type ResearchMode = "quick" | "deep" | "academic" | "forensic";
-export type RunStatus = "queued" | "running" | "completed" | "failed";
+export type RunStatus = "queued" | "running" | "completed" | "completed_with_limitations" | "failed";
 
 export interface ResearchRun {
   id: string;

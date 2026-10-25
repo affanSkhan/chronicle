@@ -54,6 +54,7 @@ const EVENT_TYPES: { value: EventKind; label: string }[] = [
 ];
 
 function statusTone(status: string): string {
+  if (status === "completed_with_limitations") return "bg-amber-50 text-amber-800 ring-amber-600/15";
   if (status === "completed" || status === "supported" || status === "human_verified" || status === "accepted") return "bg-emerald-50 text-emerald-700 ring-emerald-600/15";
   if (status === "failed" || status === "rejected" || status === "contradicted") return "bg-rose-50 text-rose-700 ring-rose-600/15";
   if (status === "running" || status === "queued" || status === "unverified" || status === "needs_review" || status === "qualified") return "bg-amber-50 text-amber-800 ring-amber-600/15";
@@ -355,7 +356,7 @@ export default function ChronicleWorkbench() {
   }, [authUser, activeRunId, activeRun?.status]);
 
   useEffect(() => {
-    if (!authUser || !activeRunId || activeRun?.status !== "completed") {
+    if (!authUser || !activeRunId || (activeRun?.status !== "completed" && activeRun?.status !== "completed_with_limitations")) {
       setReportVersions([]);
       return;
     }
@@ -929,7 +930,7 @@ export default function ChronicleWorkbench() {
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500"><span>{activeRun.mode} · up to {activeRun.max_sources} sources</span><span>{formatDate(activeRun.created_at)}</span><span className="font-mono">ID {activeRun.id.slice(0, 8)}</span></div>
               {activeRun.error_message ? <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{activeRun.error_message}</div> : null}
               {activeRun.status === "queued" || activeRun.status === "running" ? <div role="status" aria-live="polite" className="mt-5 rounded-xl bg-indigo-50 px-4 py-3"><div className="flex items-center gap-2 text-sm font-medium text-indigo-800"><LoaderCircle size={16} className="animate-spin"/> Research is in progress</div><p className="mt-1 text-xs text-indigo-700">This panel updates automatically.</p></div> : null}
-              {activeRun.status === "completed" ? <div className="mt-5 space-y-4">
+              {activeRun.status === "completed" || activeRun.status === "completed_with_limitations" ? <div className="mt-5 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4"><div><p className="text-sm font-semibold text-slate-900">Research report</p><p className="mt-0.5 text-xs text-slate-500">{reportLoading ? "Loading latest report…" : activeReport ? "Latest saved version" : "No report version found for this run."}</p></div><div className="flex gap-2"><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("markdown")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "markdown" ? "Exporting…" : "Export .md"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("json")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "json" ? "Exporting…" : "Export .json"}</button></div></div>
                 {activeReport ? <div className="max-h-[460px] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/70 p-4 sm:p-5"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
                   h1: ({ children }) => <h1 className="mb-3 mt-5 text-xl font-semibold text-slate-900 first:mt-0">{children}</h1>,

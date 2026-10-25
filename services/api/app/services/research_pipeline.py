@@ -647,7 +647,11 @@ async def execute_research_run(run_id: str) -> None:
                 change_summary="Initial scholarly discovery snapshot; extracted claims remain unreviewed candidates.",
             )
             db.add(report)
-            run.status = "completed"
+            provider_errors = provider_result.get("provider_errors", {})
+            llm_stage_expected = should_extract_claims or should_synthesize_evidence
+            llm_provider_unavailable = llm_stage_expected and (not api_key or not settings.openai_model.strip())
+            has_limitations = bool(provider_errors) or bool(extraction_error) or bool(synthesis_error) or not saved_papers or llm_provider_unavailable
+            run.status = "completed_with_limitations" if has_limitations else "completed"
             run.demo = False
             run.error_message = None
             run.configuration = {
@@ -664,6 +668,8 @@ async def execute_research_run(run_id: str) -> None:
                 "provider_errors": provider_result.get("provider_errors", {}),
                 "llm_extraction_error": extraction_error,
                 "claim_verification_completed": False,
+                "completion_status": run.status,
+                "completed_with_limitations": has_limitations,
             }
             db.commit()
 

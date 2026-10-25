@@ -67,7 +67,7 @@ def test_research_pipeline_persists_metadata_report_and_evidence(monkeypatch, cl
     run_response = client.get(f"/api/v1/research/runs/{run_id}")
     assert run_response.status_code == 200, run_response.text
     run = run_response.json()
-    assert run["status"] == "completed"
+    assert run["status"] == "completed_with_limitations"
     assert run["demo"] is False
 
     reports_response = client.get(f"/api/v1/evidence/runs/{run_id}/reports")
@@ -353,3 +353,46 @@ def test_forensic_mode_returns_run_scoped_dependency_suggestions(monkeypatch, cl
     with TestingSessionLocal() as db:
         from app.models.entities import PaperDependency
         assert db.query(PaperDependency).count() == 0
+
+
+def test_run_is_completed_with_limitations_when_some_provider_queries_fail(monkeypatch, client) -> None:
+    monkeypatch.setattr(research_pipeline, "SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr(
+        research_pipeline,
+        "get_settings",
+        lambda: SimpleNamespace(openai_api_key=None, openai_api_base="https://api.openai.com/v1", openai_model=""),
+    )
+    async def fake_search(question: str, limit: int = 10, provider: str = "all") -> dict:
+        if "methods evaluation results" in question:
+            return {
+                "query": question, "providers_requested": provider,
+                "provider_errors": {"crossref": "timeout"}, "results": [{
+                    "provider": "openalex", "external_id": "W-limitation",
+                    "doi": None, "title": "A partial result", "authors": [],
+                    "abstract": "An abstract with limited evidence.", "publication_year": 2024,
+                    "publisher": "Example", "landing_url": "https://example.org/paper",
+                }],
+            }
+        return {
+            "query": question, "providers_requested": provider,
+            "provider_errors": {}, "results": [{
+                "provider": "openalex", "external_id": "W-limitation",
+                "doi": None, "title": "A partial result", "authors": [],
+                "abstract": "An abstract with limited evidence.", "publication_year": 2024,
+                "publisher": "Example", "landing_url": "https://example.org/paper",
+            }],
+        }
+    monkeypatch.setattr(research_pipeline, "search_papers", fake_search)
+    created = client.post("/api/v1/research/runs", json={
+        "question": "What should a partial research result report?",
+        "mode": "deep", "max_sources": 5, "execute": False,
+    })
+    assert created.status_code == 201, created.text
+    run_id = created.json()["id"]
+    asyncio.run(research_pipeline.execute_research_run(run_id))
+    run = client.get(f"/api/v1/research/runs/{run_id}").json()
+    assert run["status"] == "completed_with_limitations"
+    report = client.get(f"/api/v1/evidence/runs/{run_id}/reports").json()[0]
+    assert report["evidence_snapshot"]["completion_status"] == "completed_with_limitations"
+    assert report["evidence_snapshot"]["completed_with_limitations"] is True
+    assert "provider_errors" in report["evidence_snapshot"]
