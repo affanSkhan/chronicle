@@ -495,14 +495,14 @@ export async function checkPaperStatus(paperId: string): Promise<PaperStatusChec
 }
 
 
-export async function downloadEvidencePassport(runId: string, format: "markdown" | "json" = "markdown"): Promise<void> {
+export async function downloadEvidencePassport(runId: string, format: "markdown" | "json" | "pdf" = "markdown"): Promise<void> {
   const response = await apiFetch(`${API_BASE}/api/v1/evidence/runs/${runId}/passport?format=${format}`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   const blob = await response.blob();
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = objectUrl;
-  link.download = `chronicle-evidence-passport-${runId.slice(0, 8)}.${format === "json" ? "json" : "md"}`;
+  link.download = `chronicle-evidence-passport-${runId.slice(0, 8)}.${format === "json" ? "json" : format === "pdf" ? "pdf" : "md"}`;
   document.body.appendChild(link);
   link.click();
   link.remove();
