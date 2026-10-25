@@ -72,9 +72,9 @@ Do not append `/api/v1` or a trailing slash. The UI assembles the API paths itse
 ## C. Finish the connection and verify
 
 1. Copy the frontend's actual production origin from Vercel and set it exactly in the API project's `CORS_ORIGINS` variable. Save and redeploy the API.
-2. Check `https://YOUR-API-DOMAIN/api/v1/health` returns a successful health response.
-3. Check the API migration workflow is green.
-4. In the frontend, test registration, login, academic source search, project/run creation, and evidence retrieval.
+2. Check the API migration workflow is green and the database Alembic revision matches the current branch.
+3. Check `https://YOUR-API-DOMAIN/api/v1/health` for process liveness and `https://YOUR-API-DOMAIN/api/v1/ready` for database readiness. The readiness response should include `status: ready` and `dependencies.database: ok`; a failed database check returns HTTP 503 without leaking connection details.
+4. In the frontend, test registration/login, academic source search, workspace lifecycle, all four research modes, PDF ingestion, source-event impact propagation, report history, and Markdown/JSON/PDF Evidence Passport downloads. Verify private records remain isolated across two accounts.
 
 Both projects can auto-deploy on pushes to `main`. Ensure the GitHub import is authorized for the `affanSkhan/chronicle` repository.
 
