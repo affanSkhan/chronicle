@@ -100,4 +100,4 @@ def test_verifier_treats_provider_output_as_structured_not_plain_text(monkeypatc
     assert result["evidence_passage_ids"] == ["passage-1"]
     assert "reasoning_effort" not in captured["body"]
     assert captured["body"]["temperature"] == 0
-    assert captured["body"]["max_tokens"] == 900
+    assert captured["body"]["max_completion_tokens"] == 900
