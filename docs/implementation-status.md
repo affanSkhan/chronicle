@@ -85,3 +85,11 @@ Remaining SRS gaps that are **not** completed by this pass include durable backg
 
 
 - Forensic reports now report raw retrieved source count separately from candidate-link count, clustered source count, candidate clusters, and unclustered source count. Both clustered and unclustered statuses explicitly avoid conclusions of proven dependence/independence. The source-dependence analysis is stored in the run configuration and Evidence Passport snapshot.
+
+
+## SRS implementation pass: scanned PDF OCR and extraction quality
+
+- PDF ingestion now performs optional, bounded Tesseract OCR for low-text pages (default cap: 50 OCR pages per upload, DPI clamped to 250). The API image installs Tesseract and English language data; the Python package remains configurable via environment settings.
+- Each saved passage preserves its actual extraction method (`pymupdf` or `tesseract_ocr`). Source-version metadata and upload responses now include OCR attempt/success/failure pages, low-text page numbers, page-text coverage and quality warnings.
+- OCR failures on individual pages do not discard recoverable native text from other pages. A document with no recoverable text returns a clear error rather than creating an apparently complete evidence record.
+- Automated tests use deterministic mocked OCR outputs to verify scanned, mixed-mode, OCR-unavailable and OCR-budget paths. These tests verify pipeline behavior, not OCR accuracy on real-world scans; representative image-quality testing remains required.

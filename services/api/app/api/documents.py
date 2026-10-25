@@ -39,7 +39,15 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         }
 
     try:
-        extracted = extract_pdf(data, max_pages=settings.max_pdf_pages)
+        extracted = extract_pdf(
+            data,
+            max_pages=settings.max_pdf_pages,
+            enable_ocr=settings.enable_pdf_ocr,
+            ocr_max_pages=settings.pdf_ocr_max_pages,
+            ocr_dpi=settings.pdf_ocr_dpi,
+            ocr_min_text_chars=settings.pdf_ocr_min_text_chars,
+            ocr_language=settings.pdf_ocr_language,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -74,7 +82,13 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
             "sha256": file_hash,
             "page_count": extracted.page_count,
             "text_characters": extracted.text_characters,
-            "extraction_method": "PyMuPDF",
+            "extraction_method": extracted.extraction_method,
+            "ocr_attempted_pages": extracted.ocr_attempted_pages,
+            "ocr_pages": extracted.ocr_pages,
+            "ocr_failed_page_numbers": extracted.ocr_failed_page_numbers or [],
+            "low_text_page_numbers": extracted.low_text_page_numbers or [],
+            "text_coverage_ratio": extracted.text_coverage_ratio,
+            "extraction_warnings": extracted.warnings or [],
         },
     )
     db.add(version)
@@ -89,7 +103,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
             char_start=passage.char_start,
             char_end=passage.char_end,
             text_hash=passage.text_hash,
-            extraction_method="pymupdf",
+            extraction_method=passage.extraction_method,
         )
         for passage in extracted.passages
     ]
@@ -105,6 +119,13 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         "page_count": extracted.page_count,
         "text_characters": extracted.text_characters,
         "passages_created": len(passages),
+        "extraction_method": extracted.extraction_method,
+        "ocr_attempted_pages": extracted.ocr_attempted_pages,
+        "ocr_pages": extracted.ocr_pages,
+        "ocr_failed_page_numbers": extracted.ocr_failed_page_numbers or [],
+        "low_text_page_numbers": extracted.low_text_page_numbers or [],
+        "text_coverage_ratio": extracted.text_coverage_ratio,
+        "extraction_warnings": extracted.warnings or [],
         "sha256": file_hash,
         "duplicate_upload": False,
         "note": "Text was extracted; no claims have been verified or generated from this PDF.",
