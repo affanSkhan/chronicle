@@ -64,10 +64,11 @@ def openalex_auth_headers() -> dict[str, str]:
 
 
 def get_llm_config(settings: Settings | None = None) -> tuple[str, str, str]:
-    """Resolve a generic OpenAI-compatible provider, retaining legacy env names.
+    """Resolve provider settings without mixing credentials between providers.
 
-    Returns (API key, base URL, model ID). This helper accepts a settings-like
-    object too, so route/pipeline tests can inject a small deterministic fixture.
+    Explicit LLM_API_KEY uses LLM_API_BASE/LLM_MODEL and defaults to Groq's
+    free endpoint/model. Legacy OPENAI_* credentials are kept paired with the
+    legacy OpenAI base/model; a key is never sent to a different provider.
     """
     settings = settings or get_settings()
 
@@ -78,19 +79,33 @@ def get_llm_config(settings: Settings | None = None) -> tuple[str, str, str]:
         raw = getter() if callable(getter) else value
         return str(raw).strip()
 
-    api_key = secret_text(getattr(settings, "llm_api_key", None))
-    if not api_key:
-        api_key = secret_text(getattr(settings, "openai_api_key", None))
+    llm_key = secret_text(getattr(settings, "llm_api_key", None))
+    if llm_key:
+        base = str(getattr(settings, "llm_api_base", "") or "").strip()
+        model = str(getattr(settings, "llm_model", "") or "").strip()
+        return (
+            llm_key,
+            base or "https://api.groq.com/openai/v1",
+            model or "openai/gpt-oss-20b",
+        )
 
-    api_base = str(getattr(settings, "llm_api_base", "") or "").strip()
-    if not api_base:
-        api_base = str(getattr(settings, "openai_api_base", "https://api.openai.com/v1") or "https://api.openai.com/v1").strip()
+    # Backward compatibility: legacy OpenAI credentials must keep using their
+    # legacy endpoint and model, even when generic LLM_* defaults are present.
+    legacy_key = secret_text(getattr(settings, "openai_api_key", None))
+    if legacy_key:
+        return (
+            legacy_key,
+            str(getattr(settings, "openai_api_base", "https://api.openai.com/v1") or "https://api.openai.com/v1").strip(),
+            str(getattr(settings, "openai_model", "") or "").strip(),
+        )
 
+    base = str(getattr(settings, "llm_api_base", "") or "").strip()
+    if not base:
+        base = str(getattr(settings, "openai_api_base", "https://api.openai.com/v1") or "https://api.openai.com/v1").strip()
     model = str(getattr(settings, "llm_model", "") or "").strip()
     if not model:
         model = str(getattr(settings, "openai_model", "") or "").strip()
-
-    return api_key, api_base, model
+    return "", base, model
 
 
 def get_llm_request_options(api_base: str, model: str) -> dict[str, str]:
