@@ -104,7 +104,6 @@ def extract_pdf(
         metadata = document.metadata or {}
         passages: list[ExtractedPassage] = []
         all_text: list[str] = []
-        native_pages = 0
         ocr_attempted_pages = 0
         ocr_pages = 0
         ocr_failed_page_numbers: list[int] = []
@@ -119,8 +118,6 @@ def extract_pdf(
             page_text = page.get_text("text") or ""
             page_method = "pymupdf"
             native_chars = len(page_text.strip())
-            if native_chars:
-                native_pages += 1
 
             if native_chars < min_chars:
                 low_text_page_numbers.append(page_number)

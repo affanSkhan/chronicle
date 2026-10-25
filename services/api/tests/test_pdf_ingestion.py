@@ -1,9 +1,13 @@
 import io
+from types import SimpleNamespace
 
 import fitz
 from PIL import Image
 
+from app.api import documents as documents_api
+from app.models.entities import PaperVersion
 from app.services import pdf_ingestion
+from conftest import TestingSessionLocal
 
 
 def make_scanned_pdf(page_count: int = 1) -> bytes:
@@ -97,5 +101,49 @@ def test_ocr_budget_is_respected_and_low_text_pages_are_reported(monkeypatch) ->
     assert extraction.ocr_attempted_pages == 1
     assert extraction.ocr_pages == 1
     assert extraction.low_text_page_numbers == [2, 3]
-    assert extraction.text_coverage_ratio == 1.0
+    assert extraction.text_coverage_ratio == 1 / 3
     assert any("little or no searchable text" in warning for warning in extraction.warnings or [])
+
+
+def test_scanned_pdf_upload_persists_ocr_method_and_quality_metadata(monkeypatch, client, tmp_path) -> None:
+    monkeypatch.setattr(
+        documents_api,
+        "settings",
+        SimpleNamespace(
+            max_upload_mb=50,
+            max_pdf_pages=300,
+            enable_pdf_ocr=True,
+            pdf_ocr_max_pages=50,
+            pdf_ocr_dpi=150,
+            pdf_ocr_min_text_chars=40,
+            pdf_ocr_language="eng",
+            upload_dir=str(tmp_path),
+        ),
+    )
+    monkeypatch.setattr(
+        pdf_ingestion.pytesseract,
+        "image_to_string",
+        lambda image, lang, config: "Scanned clinical abstract recovered through OCR for source inspection.",
+    )
+
+    response = client.post(
+        "/api/v1/documents/upload",
+        files={"file": ("scanned-paper.pdf", make_scanned_pdf(), "application/pdf")},
+    )
+    assert response.status_code == 201, response.text
+    payload = response.json()
+    assert payload["extraction_method"] == "tesseract_ocr"
+    assert payload["ocr_attempted_pages"] == 1
+    assert payload["ocr_pages"] == 1
+    assert payload["text_coverage_ratio"] == 1.0
+
+    with TestingSessionLocal() as db:
+        version = db.query(PaperVersion).filter(PaperVersion.id == payload["paper_version_id"]).one()
+        metadata = version.metadata_snapshot
+        assert metadata["extraction_method"] == "tesseract_ocr"
+        assert metadata["ocr_pages"] == 1
+        assert metadata["text_coverage_ratio"] == 1.0
+
+    passages = client.get(f"/api/v1/documents/papers/{payload['paper_id']}/passages")
+    assert passages.status_code == 200, passages.text
+    assert passages.json()["passages"][0]["extraction_method"] == "tesseract_ocr"

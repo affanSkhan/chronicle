@@ -93,3 +93,5 @@ Remaining SRS gaps that are **not** completed by this pass include durable backg
 - Each saved passage preserves its actual extraction method (`pymupdf` or `tesseract_ocr`). Source-version metadata and upload responses now include OCR attempt/success/failure pages, low-text page numbers, page-text coverage and quality warnings.
 - OCR failures on individual pages do not discard recoverable native text from other pages. A document with no recoverable text returns a clear error rather than creating an apparently complete evidence record.
 - Automated tests use deterministic mocked OCR outputs to verify scanned, mixed-mode, OCR-unavailable and OCR-budget paths. These tests verify pipeline behavior, not OCR accuracy on real-world scans; representative image-quality testing remains required.
+
+- OCR defaults are configurable using ENABLE_PDF_OCR, PDF_OCR_MAX_PAGES, PDF_OCR_DPI, PDF_OCR_MIN_TEXT_CHARS, and PDF_OCR_LANGUAGE. The default page budget and render-DPI cap limit upload-triggered CPU and memory exposure. 

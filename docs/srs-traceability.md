@@ -22,9 +22,9 @@ Status definitions:
 | FR-008 | Planned scholarly queries | Bounded mode-specific subqueries executed against Crossref/OpenAlex; query trail retained | Implemented | Live provider availability/rate-limit testing still needed |
 | FR-009 | Persist source metadata/provenance | DOI/title/authors/year/provider/landing URL/abstract passages persisted | Partial | Raw provider payload and timestamp coverage vary by provider |
 | FR-010 | Deduplicate sources | DOI/title dedupe in research pipeline and library import | Partial | Author/year fallback and cross-provider duplicate fixtures need more coverage |
-| FR-011 | Validate PDF file/type/size/page count | PyMuPDF upload validation and configurable server limits | Partial | OCR/scanned-PDF quality path is not implemented |
+| FR-011 | Validate PDF file/type/size/page count | PyMuPDF upload validation, configurable server limits and OCR page budget | Partial | Server cap is enforced; real-world scan quality still needs sampled testing |
 | FR-012 | Page-aware text extraction | Stored passages include page number and text offsets | Implemented | Section segmentation varies by PDF layout |
-| FR-013 | OCR scanned documents | No OCR stage | Not implemented | Add OCR, low-text detection and explicit extraction-quality status |
+| FR-013 | OCR scanned documents | Bounded Tesseract fallback for low-text pages; passage methods, OCR page counts, low-text pages, coverage ratio and warnings; test_pdf_ingestion.py | Partial | OCR accuracy is not measured; unsupported languages/poor scans need quality review; Docker image installs English Tesseract |
 | FR-014 | Preserve uploaded-file provenance | SHA-256 checksum, source file metadata and passages | Partial | Retention/deletion controls and richer source-kind UI |
 | FR-015 | Source-linked evidence items | Passage entities and passage/claim relations in graph/passport | Implemented | EvidenceItem is represented via passage plus relation, not as a separate entity |
 | FR-016 | Atomic claim candidates | Extraction prompt requests atomic claims and source IDs | Partial | Compound-claim splitting lacks labelled acceptance fixtures |
