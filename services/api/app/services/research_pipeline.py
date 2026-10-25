@@ -606,6 +606,12 @@ async def execute_research_run(run_id: str) -> None:
                     paper_ids={paper["paper_id"] for paper in saved_papers},
                 )
 
+        provider_errors = provider_result.get("provider_errors", {})
+        llm_stage_expected = should_extract_claims or should_synthesize_evidence
+        llm_provider_unavailable = llm_stage_expected and (not api_key or not settings.openai_model.strip())
+        has_limitations = bool(provider_errors) or bool(extraction_error) or bool(synthesis_error) or not saved_papers or llm_provider_unavailable
+        completion_status = "completed_with_limitations" if has_limitations else "completed"
+
         # Phase 3: immutable report snapshot and final job state.
         generated_at = datetime.now(timezone.utc).isoformat()
         with SessionLocal() as db:
@@ -643,15 +649,13 @@ async def execute_research_run(run_id: str) -> None:
                     "model_synthesis_note": synthesis_note,
                     "model_synthesis": synthesis_result,
                     "dependency_candidates": dependency_candidates,
+                    "completion_status": completion_status,
+                    "completed_with_limitations": has_limitations,
                 },
                 change_summary="Initial scholarly discovery snapshot; extracted claims remain unreviewed candidates.",
             )
             db.add(report)
-            provider_errors = provider_result.get("provider_errors", {})
-            llm_stage_expected = should_extract_claims or should_synthesize_evidence
-            llm_provider_unavailable = llm_stage_expected and (not api_key or not settings.openai_model.strip())
-            has_limitations = bool(provider_errors) or bool(extraction_error) or bool(synthesis_error) or not saved_papers or llm_provider_unavailable
-            run.status = "completed_with_limitations" if has_limitations else "completed"
+            run.status = completion_status
             run.demo = False
             run.error_message = None
             run.configuration = {
