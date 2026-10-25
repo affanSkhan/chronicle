@@ -54,7 +54,7 @@ Status definitions:
 | FR-041 | Structured research report | Academic Discovery Snapshot covers sources, findings, limitations, uncertainties and candidate opportunities | Partial | PDF report export and stricter section-completeness validation |
 | FR-042 | Distinguish fact from model inference | Provenance labels, abstract-only notice, human-review warning | Partial | Every summary statement is not separately linked to a claim record |
 | FR-043 | Filterable Evidence Ledger | Graph supports search and node-type filtering; source timeline is separate | Partial | Need filters for claim status, edge type, source event and unresolved issue |
-| FR-044 | Human-readable and machine-readable export | Markdown and JSON Evidence Passport | Partial | SRS baseline PDF exporter is absent |
+| FR-044 | Human-readable and machine-readable export | Markdown, JSON and PDF Evidence Passport exports; PDF generation uses existing PyMuPDF dependency | Partial | Verify layout across representative long passports and complete browser download acceptance |
 | FR-045 | Export source limitations | Passport/report include coverage and interpretation limitations | Implemented | Provider-failure export fixtures should be expanded |
 | FR-046/047 | Research opportunity with prior-art/falsification plan | Synthesis schema/UI carries evidence IDs, prior-art queries, alternatives and falsification plan | Partial | Not an automated graph-based research-gap detector |
 | FR-048 | Do not claim novelty from sparse results | Opportunities explicitly say candidate only and require prior-art review | Implemented | Test with deliberately incomplete source coverage |
@@ -80,7 +80,7 @@ Status definitions:
 | AT-07 report history | Report version and source-event tests | Implemented | Browser acceptance test still needed |
 | AT-08 prompt injection | Prompt-injection and source-pointer filtering tests | Partial | Adversarial evaluation beyond a few unit tests |
 | AT-09 account isolation | Test coverage for authentication and project ownership | Implemented for tested routes | Route-by-route tenant audit |
-| AT-10 export integrity | Markdown/JSON Evidence Passport tests | Partial | PDF export and round-trip validation missing |
+| AT-10 export integrity | Markdown/JSON export tests plus PDF response/header, searchable-text and invalid-format regression tests | Partial | Browser download acceptance and larger multi-page passport fixture remain |
 | AT-11 provider failures | Partial-query error path and failed-run plan persistence tests | Partial | Real provider outage and UI verification |
 | AT-12 performance | No reproducible load/latency results | Not measured | Benchmark with recorded hardware, dataset, request profile and P50/P95 |
 | Literature-review contribution | Versioned dependencies and temporal propagation into claims/report versions | Partial | Evaluate dependency detection and temporal impact against an adjudicated holdout set |
