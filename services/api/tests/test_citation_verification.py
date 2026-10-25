@@ -64,6 +64,8 @@ def test_verifier_downgrades_confident_verdict_without_valid_passage_pointer(mon
 
 
 def test_verifier_treats_provider_output_as_structured_not_plain_text(monkeypatch):
+    captured = {}
+
     class FakeResponse:
         def raise_for_status(self):
             return None
@@ -81,7 +83,8 @@ def test_verifier_treats_provider_output_as_structured_not_plain_text(monkeypatc
             return self
         async def __aexit__(self, *args):
             return False
-        async def post(self, *args, **kwargs):
+        async def post(self, url, json=None, **kwargs):
+            captured["body"] = json
             return FakeResponse()
 
     monkeypatch.setattr(citation_verification.httpx, "AsyncClient", FakeClient)
@@ -95,3 +98,5 @@ def test_verifier_treats_provider_output_as_structured_not_plain_text(monkeypatc
     ))
     assert result["verdict"] == "partially_supported"
     assert result["evidence_passage_ids"] == ["passage-1"]
+    assert captured["body"]["reasoning_effort"] == "none"
+    assert captured["body"]["temperature"] == 0
