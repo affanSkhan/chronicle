@@ -91,3 +91,17 @@ def get_llm_config(settings: Settings | None = None) -> tuple[str, str, str]:
         model = str(getattr(settings, "openai_model", "") or "").strip()
 
     return api_key, api_base, model
+
+
+def get_llm_request_options(api_base: str, model: str) -> dict[str, str]:
+    """Return options specific to Groq's reasoning-capable GPT-OSS JSON mode.
+
+    Other OpenAI-compatible providers may support different parameter sets, so
+    avoid sending provider-specific fields unless the configured endpoint/model
+    is known to support them.
+    """
+    endpoint = api_base.lower()
+    model_id = model.strip().lower()
+    if "api.groq.com" in endpoint and model_id in {"openai/gpt-oss-20b", "openai/gpt-oss-120b"}:
+        return {"reasoning_effort": "low", "reasoning_format": "hidden"}
+    return {}
