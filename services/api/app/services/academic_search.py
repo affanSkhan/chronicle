@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx
 
+from app.core.config import openalex_auth_headers
 from app.schemas.evidence import PaperSearchResult
 
 USER_AGENT = "Chronicle/0.1.0 (https://github.com/affanSkhan/chronicle)"
@@ -105,7 +106,12 @@ async def search_crossref(client: httpx.AsyncClient, query: str, limit: int) -> 
 
 
 async def search_openalex(client: httpx.AsyncClient, query: str, limit: int) -> list[PaperSearchResult]:
-    response = await client.get(OPENALEX_URL, params={"search": query, "per-page": limit})
+    # Keep the key in an Authorization header and scope it only to OpenAlex.
+    headers = openalex_auth_headers()
+    request_args: dict[str, Any] = {"params": {"search": query, "per-page": limit}}
+    if headers:
+        request_args["headers"] = headers
+    response = await client.get(OPENALEX_URL, **request_args)
     response.raise_for_status()
     items = response.json().get("results", [])
     return [paper for item in items if (paper := _openalex_item(item)) is not None]

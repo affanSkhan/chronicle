@@ -9,6 +9,8 @@ import re
 
 import httpx
 
+from app.core.config import openalex_auth_headers
+
 
 def normalize_doi(value: str | None) -> str | None:
     if not value:
@@ -65,14 +67,17 @@ async def fetch_paper_status_signals(doi_value: str) -> dict[str, Any]:
             providers["crossref"] = "unavailable"
 
         try:
-            response = await client.get(
-                "https://api.openalex.org/works",
-                params={
+            openalex_headers = openalex_auth_headers()
+            request_args: dict[str, Any] = {
+                "params": {
                     "filter": f"doi:https://doi.org/{doi}",
                     "per-page": 1,
                     "select": "id,doi,title,is_retracted,updated_date",
                 },
-            )
+            }
+            if openalex_headers:
+                request_args["headers"] = openalex_headers
+            response = await client.get("https://api.openalex.org/works", **request_args)
             response.raise_for_status()
             results = response.json().get("results") or []
             matched = results[0] if results else None

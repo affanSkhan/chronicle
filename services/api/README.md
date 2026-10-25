@@ -46,6 +46,10 @@ Direct API runs leave the scheduler disabled by default. Set `ENABLE_SCHEDULED_M
 
 For free hosted environments that sleep, `.github/workflows/source-monitor.yml` runs the due-check script hourly when the repository secret `CHRONICLE_DATABASE_URL` is configured. See [docs/deployment-free-tier.md](../../docs/deployment-free-tier.md). Both approaches persist metadata signals and change hashes but never auto-mark a paper retracted or create a SourceEvent.
 
+## Scholarly-provider authentication
+
+OpenAlex permits limited anonymous querying, but configure a free `OPENALEX_API_KEY` for dependable production discovery and source-status checks. Create the key at [OpenAlex Settings → API key](https://openalex.org/settings/api) and store it only in the API service's environment. Chronicle sends it as a Bearer token only to OpenAlex; it is not sent to Crossref or exposed in query URLs. Without a key, the Crossref provider remains available and OpenAlex may return fewer results or become unavailable.
+
 ## Optional LLM configuration
 Set `OPENAI_API_KEY`, `OPENAI_API_BASE`, and `OPENAI_MODEL` on the backend only. With no configured key/model, discovery still retrieves metadata and abstract passages and saves a report without model-generated claims or synthesis.
 

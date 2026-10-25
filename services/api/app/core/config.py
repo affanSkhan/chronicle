@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     pdf_ocr_min_text_chars: int = 40
     pdf_ocr_language: str = "eng"
     upload_dir: str = "uploads"
+    openalex_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
     openai_api_base: str = "https://api.openai.com/v1"
     openai_model: str = ""
@@ -46,3 +47,12 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def openalex_auth_headers() -> dict[str, str]:
+    """Return OpenAlex-only auth headers without exposing the key in URLs/logs."""
+    key = get_settings().openalex_api_key
+    if key is None:
+        return {}
+    token = key.get_secret_value().strip()
+    return {"Authorization": f"Bearer {token}"} if token else {}

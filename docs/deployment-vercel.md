@@ -38,6 +38,8 @@ Configure these environment variables in Vercel Project Settings → Environment
 
 For optional model-assisted extraction and synthesis, add `OPENAI_API_KEY`, `OPENAI_API_BASE=https://api.openai.com/v1`, and `OPENAI_MODEL` on the API project only. Keep database/JWT/model credentials out of frontend environment variables and source control.
 
+For more reliable scholarly discovery and source-status checks, add `OPENALEX_API_KEY` as a **Sensitive** API-project environment variable. Create a free key at [OpenAlex Settings → API key](https://openalex.org/settings/api). Chronicle sends this token only in the Authorization header to OpenAlex; it is not sent to Crossref. Save the secret and redeploy the API after adding it.
+
 ### Database migrations
 
 Do not run schema migrations in every Vercel build: preview builds may point at the same production database, and concurrent builds can race. Instead, use the repository's manual GitHub Actions workflow:

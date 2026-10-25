@@ -31,6 +31,10 @@ The API's in-process scheduler remains **disabled** in this free-tier Blueprint 
 
 If the secret is absent, the workflow logs a notice and skips checks. Metadata provider signals are saved as review alerts; they do not automatically change a paper's publication status or create a source event. GitHub's scheduled workflows can be delayed, so checks should not be treated as real-time surveillance.
 
+## 3. Configure scholarly-provider access
+
+Crossref can be queried without an account. For dependable OpenAlex access, create a free key at [OpenAlex Settings → API key](https://openalex.org/settings/api) and add it to the API service environment as the Sensitive variable `OPENALEX_API_KEY`. Chronicle sends it only to OpenAlex in a Bearer Authorization header.
+
 ## 3. Optional model-assisted synthesis
 
 In the API service's Render environment settings, add:
