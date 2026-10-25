@@ -220,7 +220,7 @@ export default function ChronicleWorkbench() {
   const [runActionId, setRunActionId] = useState<string | null>(null);
   const [reportVersions, setReportVersions] = useState<ReportVersionSummary[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
-  const [exporting, setExporting] = useState<"markdown" | "json" | null>(null);
+  const [exporting, setExporting] = useState<"markdown" | "json" | "pdf" | null>(null);
 
   const [graphData, setGraphData] = useState<EvidenceGraphResponse | null>(null);
   const [graphLoading, setGraphLoading] = useState(false);
@@ -790,7 +790,7 @@ export default function ChronicleWorkbench() {
     }
   }
 
-  async function exportPassport(format: "markdown" | "json") {
+  async function exportPassport(format: "markdown" | "json" | "pdf") {
     if (!activeRunId) return;
     setExporting(format);
     try {
@@ -1002,7 +1002,7 @@ export default function ChronicleWorkbench() {
               {activeRun.status === "cancel_requested" ? <div role="status" aria-live="polite" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"><p className="text-sm font-semibold text-amber-900">Cancellation requested</p><p className="mt-1 text-xs leading-5 text-amber-800">Chronicle is stopping current external work at a safe cancellation point. The original records are preserved.</p></div> : null}
               {activeRun.status === "cancelled" ? <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-sm font-semibold text-slate-800">Run cancelled</p><p className="mt-1 text-xs leading-5 text-slate-600">A new retry can be launched without changing the original run history.</p></div> : null}
               {activeRun.status === "completed" || activeRun.status === "completed_with_limitations" ? <div className="mt-5 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4"><div><p className="text-sm font-semibold text-slate-900">Research report</p><p className="mt-0.5 text-xs text-slate-500">{reportLoading ? "Loading latest report…" : activeReport ? "Latest saved version" : "No report version found for this run."}</p></div><div className="flex gap-2"><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("markdown")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "markdown" ? "Exporting…" : "Export .md"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("json")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "json" ? "Exporting…" : "Export .json"}</button></div></div>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4"><div><p className="text-sm font-semibold text-slate-900">Research report</p><p className="mt-0.5 text-xs text-slate-500">{reportLoading ? "Loading latest report…" : activeReport ? "Latest saved version" : "No report version found for this run."}</p></div><div className="flex flex-wrap gap-2"><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("markdown")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "markdown" ? "Exporting…" : "Export .md"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("json")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "json" ? "Exporting…" : "Export .json"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("pdf")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "pdf" ? "Exporting…" : "Export .pdf"}</button></div></div>
                 {activeReport ? <div className="max-h-[460px] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/70 p-4 sm:p-5"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
                   h1: ({ children }) => <h1 className="mb-3 mt-5 text-xl font-semibold text-slate-900 first:mt-0">{children}</h1>,
                   h2: ({ children }) => <h2 className="mb-2 mt-5 text-lg font-semibold text-slate-900">{children}</h2>,
