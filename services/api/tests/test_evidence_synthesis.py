@@ -73,7 +73,7 @@ def test_synthesis_filters_opportunities_without_valid_evidence_ids(monkeypatch)
     assert "falsification_plan" in opportunities[0]
     assert "reasoning_effort" not in captured["payload"]
     assert captured["payload"]["temperature"] == 0
-    assert captured["payload"]["max_tokens"] == 1800
+    assert captured["payload"]["max_completion_tokens"] == 1800
     system_prompt = captured["payload"]["messages"][0]["content"]
     assert "untrusted quoted data" in system_prompt
     assert result["validated_source_references"] is True
