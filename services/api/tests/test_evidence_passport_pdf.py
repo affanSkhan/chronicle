@@ -16,7 +16,7 @@ def test_evidence_passport_can_be_exported_as_searchable_pdf(client) -> None:
         f"/api/v1/evidence/runs/{run_id}/reports",
         json={
             "title": "PDF export regression report",
-            "content_markdown": "PDF export regression sentinel: source updates require human reassessment.",
+            "content_markdown": "PDF export regression sentinel: source updates require human reassessment. " + ("Multi-page pagination checks must preserve source provenance and human-review limitations. " * 350),
         },
     )
     assert report_response.status_code == 201, report_response.text
@@ -29,7 +29,7 @@ def test_evidence_passport_can_be_exported_as_searchable_pdf(client) -> None:
 
     document = fitz.open(stream=response.content, filetype="pdf")
     try:
-        assert len(document) >= 1
+        assert len(document) >= 2  # The long report must paginate without clipping content.
         extracted_text = "\n".join(page.get_text() for page in document)
     finally:
         document.close()
