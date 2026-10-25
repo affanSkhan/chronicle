@@ -253,6 +253,9 @@ def test_optional_synthesis_persists_source_linked_study_context(monkeypatch, cl
     assert recommendation_node["prior_art_search_queries"] == ["external validation across institutions provenance-aware workflow"]
     assert any(edge["source"] == f"passage:{passage_id}" and edge["target"] == conclusion_node["id"] and edge["type"] == "qualifies" for edge in graph["edges"])
     assert any(edge["source"] == f"passage:{passage_id}" and edge["target"] == recommendation_node["id"] for edge in graph["edges"])
+    assert report_version_node["report_version_number"] == reports[0]["version_number"]
+    assert conclusion_node["evidence_passage_ids"] == [passage_id]
+    assert recommendation_node["evidence_passage_ids"] == [passage_id]
     assert any(edge["source"] == report_version_node["id"] and edge["target"] == recommendation_node["id"] and edge["type"] == "proposes_recommendation" for edge in graph["edges"])
 
     passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json").json()

@@ -421,28 +421,50 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
         or_(EvidenceRelation.claim_id.in_(claim_ids), EvidenceRelation.related_claim_id.in_(claim_ids))
     )).all()) if claim_ids else []
 
-    passage_ids = {rel.passage_id for rel in relations if rel.passage_id}
-    passages = list(db.scalars(select(Passage).where(Passage.id.in_(passage_ids))).all()) if passage_ids else []
-    version_ids = {p.paper_version_id for p in passages}
-    versions = list(db.scalars(select(PaperVersion).where(PaperVersion.id.in_(version_ids))).all()) if version_ids else []
-    paper_ids = {v.paper_id for v in versions}
     report_versions = list(db.scalars(
         select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number.asc())
     ).all())
     latest_report = report_versions[-1] if report_versions else None
-    if latest_report and isinstance(latest_report.evidence_snapshot, dict):
-        snapshot_paper_ids = latest_report.evidence_snapshot.get("paper_ids", [])
+
+    # All report versions may have different source sets after temporal updates.
+    paper_ids: set[str] = set()
+    for report in report_versions:
+        snapshot = report.evidence_snapshot if isinstance(report.evidence_snapshot, dict) else {}
+        snapshot_paper_ids = snapshot.get("paper_ids", [])
         if isinstance(snapshot_paper_ids, list):
             paper_ids.update(item for item in snapshot_paper_ids if isinstance(item, str))
+
+    passage_ids = {rel.passage_id for rel in relations if rel.passage_id}
+    passages = list(db.scalars(
+        select(Passage)
+        .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+        .join(Paper, PaperVersion.paper_id == Paper.id)
+        .where(Passage.id.in_(passage_ids), Paper.owner_user_id == current_user.id)
+    ).all()) if passage_ids else []
+    owned_passage_ids = {passage.id for passage in passages}
+    # A malformed or stale cross-tenant relation should not create a dangling edge or expose a source.
+    relations = [relation for relation in relations if not relation.passage_id or relation.passage_id in owned_passage_ids]
+    version_ids = {passage.paper_version_id for passage in passages}
+    versions = list(db.scalars(select(PaperVersion).where(PaperVersion.id.in_(version_ids))).all()) if version_ids else []
+    paper_ids.update(version.paper_id for version in versions)
 
     # Include every retrieved paper version and abstract passage from this run,
     # even before claims have been extracted and human-reviewed.
     if paper_ids:
-        versions = list(db.scalars(select(PaperVersion).where(PaperVersion.paper_id.in_(paper_ids))).all())
+        versions = list(db.scalars(
+            select(PaperVersion)
+            .join(Paper, PaperVersion.paper_id == Paper.id)
+            .where(PaperVersion.paper_id.in_(paper_ids), Paper.owner_user_id == current_user.id)
+        ).all())
         version_ids = {version.id for version in versions}
         known_passage_ids = {passage.id for passage in passages}
         if version_ids:
-            stored_passages = list(db.scalars(select(Passage).where(Passage.paper_version_id.in_(version_ids))).all())
+            stored_passages = list(db.scalars(
+                select(Passage)
+                .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+                .join(Paper, PaperVersion.paper_id == Paper.id)
+                .where(Passage.paper_version_id.in_(version_ids), Paper.owner_user_id == current_user.id)
+            ).all())
             for passage in stored_passages:
                 if passage.id not in known_passage_ids:
                     passages.append(passage)
@@ -450,7 +472,15 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
 
     # Include the transitive paper-dependency neighborhood for the papers
     # referenced by this run's evidence. The relationship basis stays visible.
-    all_dependencies = list(db.scalars(select(PaperDependency)).all())
+    owned_paper_ids = set(db.scalars(
+        select(Paper.id).where(Paper.owner_user_id == current_user.id)
+    ).all())
+    all_dependencies = list(db.scalars(
+        select(PaperDependency).where(
+            PaperDependency.dependent_paper_id.in_(owned_paper_ids),
+            PaperDependency.depends_on_paper_id.in_(owned_paper_ids),
+        )
+    ).all()) if owned_paper_ids else []
     relevant_dependencies: list[PaperDependency] = []
     changed = True
     while changed:
@@ -466,8 +496,8 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
                 if len(paper_ids) != before:
                     changed = True
 
-    papers = list(db.scalars(select(Paper).where(Paper.id.in_(paper_ids))).all()) if paper_ids else []
-    studies = list(db.scalars(select(Study).where(Study.paper_id.in_(paper_ids)).order_by(Study.created_at.asc())).all()) if paper_ids else []
+    papers = list(db.scalars(select(Paper).where(Paper.id.in_(paper_ids), Paper.owner_user_id == current_user.id)).all()) if paper_ids else []
+    studies = list(db.scalars(select(Study).join(Paper, Study.paper_id == Paper.id).where(Study.paper_id.in_(paper_ids), Paper.owner_user_id == current_user.id).order_by(Study.created_at.asc())).all()) if paper_ids else []
 
     nodes: list[dict] = [{
         "id": f"claim:{c.id}", "type": "claim", "label": c.statement,
