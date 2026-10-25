@@ -76,3 +76,6 @@ Remaining SRS gaps that are **not** completed by this pass include durable backg
 - Research workspaces now support rename and soft-archive/restore, with owner-scoped queries and audit events. Archived workspaces remain readable and preserve their historical runs, but new runs cannot be submitted until restoration.
 - Claim extraction explicitly treats retrieved passages as untrusted data rather than instructions. Automated tests assert the control separation and source-pointer filtering.
 - An SRS requirement traceability matrix separates implemented, partial, outstanding, and not-measured items. Empirical benchmark metrics are not claimed without a labelled held-out evaluation.
+
+
+- The run lifecycle now distinguishes fully completed runs from completed runs with limitations. Partial provider failures, zero-source results, configured model-stage failures, and absent model credentials for a profile that expects model stages are exposed as completed_with_limitations instead of being presented as unqualified success. Quick Discovery remains intentionally retrieval-only.
