@@ -1,5 +1,5 @@
 export type ResearchMode = "quick" | "deep" | "academic" | "forensic";
-export type RunStatus = "queued" | "running" | "completed" | "failed";
+export type RunStatus = "queued" | "running" | "completed" | "completed_with_limitations" | "failed" | "cancel_requested" | "cancelled";
 
 export interface ResearchRun {
   id: string;
@@ -11,6 +11,9 @@ export interface ResearchRun {
   created_at: string;
   demo: boolean;
   error_message?: string | null;
+  cancel_requested_at?: string | null;
+  cancelled_at?: string | null;
+  retry_of_run_id?: string | null;
 }
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -98,6 +101,24 @@ export async function createResearchRun(input: {
   return response.json() as Promise<ResearchRun>;
 }
 
+export async function cancelResearchRun(runId: string): Promise<ResearchRun> {
+  const response = await apiFetch(`${API_BASE}/api/v1/research/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: "POST",
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<ResearchRun>;
+}
+
+export async function retryResearchRun(runId: string): Promise<ResearchRun> {
+  const response = await apiFetch(`${API_BASE}/api/v1/research/runs/${encodeURIComponent(runId)}/retry`, {
+    method: "POST",
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<ResearchRun>;
+}
+
 export async function listResearchRuns(): Promise<ResearchRun[]> {
   const response = await apiFetch(`${API_BASE}/api/v1/research/runs`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
@@ -115,6 +136,49 @@ export interface AcademicSearchResult {
   publisher: string | null;
   landing_url: string | null;
 }
+
+export interface ResearchProjectRecord {
+  id: string;
+  title: string;
+  research_question: string;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+}
+
+export async function listResearchProjects(includeArchived = false): Promise<ResearchProjectRecord[]> {
+  const params = new URLSearchParams({ include_archived: String(includeArchived) });
+  const response = await apiFetch(`${API_BASE}/api/v1/projects?${params.toString()}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<ResearchProjectRecord[]>;
+}
+
+export async function createResearchProject(input: {
+  title: string;
+  research_question: string;
+}): Promise<ResearchProjectRecord> {
+  const response = await apiFetch(`${API_BASE}/api/v1/projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<ResearchProjectRecord>;
+}
+
+export async function updateResearchProject(
+  projectId: string,
+  input: { title?: string; research_question?: string; archived?: boolean }
+): Promise<ResearchProjectRecord> {
+  const response = await apiFetch(`${API_BASE}/api/v1/projects/${encodeURIComponent(projectId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<ResearchProjectRecord>;
+}
+
 
 export async function searchAcademicSources(query: string, limit = 10, provider = "all") {
   const params = new URLSearchParams({ q: query, limit: String(limit), provider });
@@ -197,11 +261,20 @@ export interface EvidenceGraphNode {
   doi?: string | null;
   source_passage_id?: string | null;
   extraction_basis?: string;
+  provenance_basis?: string;
+  report_version_number?: number;
+  created_at?: string | null;
   population?: string | null;
   method?: string | null;
   intervention?: string | null;
   outcomes?: string[];
   limitations?: string[];
+  rationale?: string | null;
+  evidence_passage_ids?: string[];
+  prior_art_search_queries?: string[];
+  alternative_explanations?: string[];
+  falsification_plan?: string | null;
+  review_status?: string;
 }
 
 export interface EvidenceGraphEdge {
@@ -301,6 +374,77 @@ export async function createSourceEvent(input: {
 }
 
 
+
+
+export type DependencyCandidateRelationType = "same_dataset" | "duplicate_or_overlap";
+
+export interface DependencyCandidate {
+  id: string;
+  paper_a_id: string;
+  paper_a_title: string;
+  paper_a_doi: string | null;
+  paper_b_id: string;
+  paper_b_title: string;
+  paper_b_doi: string | null;
+  relation_type: DependencyCandidateRelationType;
+  provenance_basis: "metadata_inferred" | string;
+  confidence: number;
+  signals: string[];
+  rationale: string;
+  direction: "symmetric" | string;
+}
+
+export async function listDependencyCandidates(limit = 30): Promise<{
+  count: number;
+  candidates: DependencyCandidate[];
+  note: string;
+}> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  const response = await apiFetch(`${API_BASE}/api/v1/evidence/dependency-candidates?${params.toString()}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json();
+}
+
+export async function addPaperDependency(input: {
+  dependent_paper_id: string;
+  depends_on_paper_id: string;
+  relation_type: DependencyCandidateRelationType;
+  provenance_basis: "human_reviewed" | "metadata_inferred";
+  rationale: string;
+  confidence: number;
+}): Promise<{ id: string; duplicate?: boolean }> {
+  const response = await apiFetch(`${API_BASE}/api/v1/evidence/paper-dependencies`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<{ id: string; duplicate?: boolean }>;
+}
+
+export interface CitationVerificationResult {
+  claim_id: string;
+  verdict: "supported" | "partially_supported" | "contradicted" | "insufficient_evidence" | "unverifiable" | string;
+  rationale: string;
+  evidence_passage_ids: string[];
+  context_note?: string | null;
+  uncertainty_notes: string[];
+  review_required: boolean;
+  reviewer_status: string;
+  provenance_basis: string;
+  verifier_model: string;
+  notice: string;
+}
+
+export async function verifyClaimCitationSupport(claimId: string): Promise<CitationVerificationResult> {
+  const response = await apiFetch(
+    `${API_BASE}/api/v1/evidence/claims/${encodeURIComponent(claimId)}/verify`,
+    { method: "POST" }
+  );
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<CitationVerificationResult>;
+}
+
 export async function reviewEvidenceRelation(
   relationId: string,
   reviewerStatus: "accepted" | "rejected" | "needs_review",
@@ -351,14 +495,14 @@ export async function checkPaperStatus(paperId: string): Promise<PaperStatusChec
 }
 
 
-export async function downloadEvidencePassport(runId: string, format: "markdown" | "json" = "markdown"): Promise<void> {
+export async function downloadEvidencePassport(runId: string, format: "markdown" | "json" | "pdf" = "markdown"): Promise<void> {
   const response = await apiFetch(`${API_BASE}/api/v1/evidence/runs/${runId}/passport?format=${format}`, { cache: "no-store" });
   if (!response.ok) throw new Error(await readError(response));
   const blob = await response.blob();
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = objectUrl;
-  link.download = `chronicle-evidence-passport-${runId.slice(0, 8)}.${format === "json" ? "json" : "md"}`;
+  link.download = `chronicle-evidence-passport-${runId.slice(0, 8)}.${format === "json" ? "json" : format === "pdf" ? "pdf" : "md"}`;
   document.body.appendChild(link);
   link.click();
   link.remove();

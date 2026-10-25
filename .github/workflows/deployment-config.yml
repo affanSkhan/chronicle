@@ -48,6 +48,7 @@ jobs:
           api = services.get("chronicle-research-api")
           web = services.get("chronicle-research-web")
           assert api and web, "Blueprint must define both Chronicle services"
+          assert api.get("healthCheckPath") == "/api/v1/ready", "Render must route traffic only after database readiness passes"
           assert all(item.get("plan") == "free" for item in (api, web)), "Both demo services must remain on Free plans"
           assert all(item.get("region") == "singapore" for item in (api, web)), "Both demo services should stay in Singapore"
           api_env = {item["key"]: item for item in api.get("envVars", [])}

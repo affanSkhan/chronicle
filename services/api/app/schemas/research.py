@@ -14,7 +14,10 @@ class RunStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     COMPLETED = "completed"
+    COMPLETED_WITH_LIMITATIONS = "completed_with_limitations"
     FAILED = "failed"
+    CANCEL_REQUESTED = "cancel_requested"
+    CANCELLED = "cancelled"
 
 
 class ResearchRunCreate(BaseModel):
@@ -36,11 +39,20 @@ class ResearchRun(BaseModel):
     created_at: datetime
     demo: bool = False
     error_message: str | None = None
+    cancel_requested_at: datetime | None = None
+    cancelled_at: datetime | None = None
+    retry_of_run_id: str | None = None
 
 
 class ProjectCreate(BaseModel):
     title: str = Field(min_length=2, max_length=240)
     research_question: str = Field(min_length=8, max_length=4000)
+
+
+class ProjectUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=2, max_length=240)
+    research_question: str | None = Field(default=None, min_length=8, max_length=4000)
+    archived: bool | None = None
 
 
 class ProjectRead(BaseModel):
@@ -50,3 +62,4 @@ class ProjectRead(BaseModel):
     research_question: str
     created_at: datetime
     updated_at: datetime
+    archived_at: datetime | None = None

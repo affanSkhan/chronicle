@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     max_upload_mb: int = 50
     max_pdf_pages: int = 300
+    enable_pdf_ocr: bool = True
+    pdf_ocr_max_pages: int = 50
+    pdf_ocr_dpi: int = 150
+    pdf_ocr_min_text_chars: int = 40
+    pdf_ocr_language: str = "eng"
     upload_dir: str = "uploads"
     openai_api_key: SecretStr | None = None
     openai_api_base: str = "https://api.openai.com/v1"

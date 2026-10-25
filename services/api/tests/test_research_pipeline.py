@@ -16,7 +16,7 @@ def test_research_pipeline_persists_metadata_report_and_evidence(monkeypatch, cl
     )
 
     async def fake_search_papers(question: str, limit: int = 10, provider: str = "all") -> dict:
-        assert question == "How does evidence provenance improve research reliability?"
+        assert question and len(question) >= 8  # query expansion is expected for mode-specific planning
         return {
             "query": question,
             "providers_requested": provider,
@@ -67,7 +67,7 @@ def test_research_pipeline_persists_metadata_report_and_evidence(monkeypatch, cl
     run_response = client.get(f"/api/v1/research/runs/{run_id}")
     assert run_response.status_code == 200, run_response.text
     run = run_response.json()
-    assert run["status"] == "completed"
+    assert run["status"] == "completed_with_limitations"
     assert run["demo"] is False
 
     reports_response = client.get(f"/api/v1/evidence/runs/{run_id}/reports")
@@ -177,7 +177,21 @@ def test_optional_synthesis_persists_source_linked_study_context(monkeypatch, cl
         passage_id = passages[0]["id"]
         return {
             "executive_summary": "The retrieved abstract describes a randomized evaluation with a stated population, intervention, outcomes and limitations.",
-            "findings": [],
+            "findings": [{
+                "statement": "The abstract reports a provenance-aware intervention in one institution.",
+                "evidence_passage_ids": [passage_id],
+                "relation_type": "qualifies",
+                "context_note": "The study is limited to one institution.",
+            }],
+            "research_opportunities": [{
+                "question": "Does this result generalize across institutions?",
+                "rationale": "The abstract reports only one institution, which leaves transferability unresolved.",
+                "evidence_passage_ids": [passage_id],
+                "prior_art_search_queries": ["external validation across institutions provenance-aware workflow"],
+                "alternative_explanations": ["The observed result may depend on a local workflow."],
+                "falsification_plan": "Pre-register an external multi-institution validation and test whether the effect persists.",
+                "review_status": "requires_prior_art_review",
+            }],
             "study_characterizations": [{
                 "passage_id": passage_id,
                 "study_type": "Randomized controlled study",
@@ -232,7 +246,185 @@ def test_optional_synthesis_persists_source_linked_study_context(monkeypatch, cl
     graph = client.get(f"/api/v1/evidence/runs/{run_id}/graph").json()
     assert any(node["id"] == f"study:{study_id}" for node in graph["nodes"])
     assert any(edge["source"] == f"passage:{passage_id}" and edge["target"] == f"study:{study_id}" for edge in graph["edges"])
+    report_version_node = next(node for node in graph["nodes"] if node["type"] == "report_version")
+    conclusion_node = next(node for node in graph["nodes"] if node["type"] == "conclusion")
+    recommendation_node = next(node for node in graph["nodes"] if node["type"] == "recommendation")
+    assert conclusion_node["review_required"] is True
+    assert recommendation_node["prior_art_search_queries"] == ["external validation across institutions provenance-aware workflow"]
+    assert any(edge["source"] == f"passage:{passage_id}" and edge["target"] == conclusion_node["id"] and edge["type"] == "qualifies" for edge in graph["edges"])
+    assert any(edge["source"] == f"passage:{passage_id}" and edge["target"] == recommendation_node["id"] for edge in graph["edges"])
+    assert report_version_node["report_version_number"] == reports[0]["version_number"]
+    assert conclusion_node["evidence_passage_ids"] == [passage_id]
+    assert recommendation_node["evidence_passage_ids"] == [passage_id]
+    assert any(edge["source"] == report_version_node["id"] and edge["target"] == recommendation_node["id"] and edge["type"] == "proposes_recommendation" for edge in graph["edges"])
 
     passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json").json()
     assert any(item["id"] == study_id and item["source_passage_id"] == passage_id for item in passport["studies"])
     assert any(item["target_entity_id"] == study_id and item["action"] == "study.context_extracted" for item in passport["audit_events"])
+
+
+def test_failed_research_run_preserves_execution_plan(monkeypatch, client) -> None:
+    monkeypatch.setattr(research_pipeline, "SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr(
+        research_pipeline,
+        "get_settings",
+        lambda: SimpleNamespace(openai_api_key=None, openai_api_base="https://api.openai.com/v1", openai_model=""),
+    )
+
+    async def failing_search(question: str, limit: int = 10, provider: str = "all") -> dict:
+        raise RuntimeError("provider unavailable")
+
+    monkeypatch.setattr(research_pipeline, "search_papers", failing_search)
+    created = client.post(
+        "/api/v1/research/runs",
+        json={
+            "question": "How should Chronicle expose failed planner runs?",
+            "mode": "forensic",
+            "max_sources": 4,
+            "execute": False,
+        },
+    )
+    assert created.status_code == 201, created.text
+    run_id = created.json()["id"]
+
+    asyncio.run(research_pipeline.execute_research_run(run_id))
+
+    from app.models.entities import ResearchRun
+    with TestingSessionLocal() as db:
+        run = db.get(ResearchRun, run_id)
+        assert run is not None
+        assert run.status == "failed"
+        assert run.configuration["planner_version"] == "1.1"
+        plan = run.configuration["execution_plan"]
+        assert plan["mode"] == "forensic"
+        assert "conflicting findings contradictory evidence" in " ".join(plan["queries"])
+        assert run.configuration["planned_search_queries"] == plan["queries"]
+
+
+def test_quick_discovery_skips_configured_model_calls(monkeypatch, client) -> None:
+    monkeypatch.setattr(research_pipeline, "SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr(
+        research_pipeline, "get_settings",
+        lambda: SimpleNamespace(openai_api_key=SimpleNamespace(get_secret_value=lambda: "test-key"),
+            openai_api_base="https://model.example/v1", openai_model="test-model"),
+    )
+
+    async def fake_search_papers(question: str, limit: int = 10, provider: str = "all") -> dict:
+        return {"query": question, "providers_requested": provider, "provider_errors": {}, "results": [{
+            "provider": "crossref", "external_id": "10.5555/quick-mode-test", "doi": "10.5555/quick-mode-test",
+            "title": "Quick mode test source", "authors": ["Test Author"],
+            "abstract": "This abstract describes a measurable outcome in the target research topic.",
+            "publication_year": 2025, "publisher": "Test Publisher",
+            "landing_url": "https://doi.org/10.5555/quick-mode-test",
+        }]}
+
+    async def unexpected_model_call(**kwargs):
+        raise AssertionError("Quick Discovery must not call LLM stages.")
+
+    monkeypatch.setattr(research_pipeline, "search_papers", fake_search_papers)
+    monkeypatch.setattr(research_pipeline, "extract_claims_from_passages", unexpected_model_call)
+    monkeypatch.setattr(research_pipeline, "synthesize_evidence", unexpected_model_call)
+    created = client.post("/api/v1/research/runs", json={
+        "question": "Give a quick overview of evidence provenance in research.",
+        "mode": "quick", "max_sources": 4, "execute": False,
+    })
+    assert created.status_code == 201, created.text
+    run_id = created.json()["id"]
+    asyncio.run(research_pipeline.execute_research_run(run_id))
+
+    report = client.get(f"/api/v1/evidence/runs/{run_id}/reports").json()[0]
+    assert report["evidence_snapshot"]["execution_plan"]["stages"]["claim_extraction"] is False
+    assert report["evidence_snapshot"]["model_synthesis_completed"] is False
+    assert "Quick Discovery profile" in report["content_markdown"]
+
+
+def test_forensic_mode_returns_run_scoped_dependency_suggestions(monkeypatch, client) -> None:
+    monkeypatch.setattr(research_pipeline, "SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr(
+        research_pipeline, "get_settings",
+        lambda: SimpleNamespace(openai_api_key=None, openai_api_base="https://api.openai.com/v1", openai_model=""),
+    )
+
+    async def fake_search_papers(question: str, limit: int = 10, provider: str = "all") -> dict:
+        return {"query": question, "providers_requested": provider, "provider_errors": {}, "results": [
+            {"provider": "crossref", "external_id": "10.5555/forensic-a", "doi": "10.5555/forensic-a",
+             "title": "Forensic study A", "authors": ["Author A"],
+             "abstract": "This study evaluated clinical outcomes using MIMIC-IV patient records with a model.",
+             "publication_year": 2024, "publisher": "Test Publisher", "landing_url": "https://doi.org/10.5555/forensic-a"},
+            {"provider": "crossref", "external_id": "10.5555/forensic-b", "doi": "10.5555/forensic-b",
+             "title": "Forensic study B", "authors": ["Author B"],
+             "abstract": "This study analysed MIMIC-IV records for a different outcome and model.",
+             "publication_year": 2025, "publisher": "Test Publisher", "landing_url": "https://doi.org/10.5555/forensic-b"},
+        ]}
+
+    monkeypatch.setattr(research_pipeline, "search_papers", fake_search_papers)
+    created = client.post("/api/v1/research/runs", json={
+        "question": "Investigate conflicting findings and source dependence in research.",
+        "mode": "forensic", "max_sources": 5, "execute": False,
+    })
+    assert created.status_code == 201, created.text
+    run_id = created.json()["id"]
+    asyncio.run(research_pipeline.execute_research_run(run_id))
+
+    response = client.get(f"/api/v1/evidence/runs/{run_id}/reports")
+    assert response.status_code == 200, response.text
+    report = response.json()[0]
+    snapshot = report["evidence_snapshot"]
+    assert snapshot["execution_plan"]["stages"]["dependency_candidate_scan"] is True
+    assert snapshot["dependency_candidates"]
+    assert snapshot["dependency_candidates"][0]["relation_type"] == "same_dataset"
+    analysis = snapshot["source_dependence_analysis"]
+    assert analysis["status"] == "heuristic_scan_completed"
+    assert analysis["raw_source_count"] == 2
+    assert analysis["candidate_link_count"] >= 1
+    assert analysis["candidate_cluster_count"] == 1
+    assert analysis["clusters"][0]["source_count"] == 2
+    assert "not proven independent" in analysis["interpretation"]
+    assert "Potential source-dependence analysis" in report["content_markdown"]
+
+    with TestingSessionLocal() as db:
+        from app.models.entities import PaperDependency
+        assert db.query(PaperDependency).count() == 0
+
+
+def test_run_is_completed_with_limitations_when_some_provider_queries_fail(monkeypatch, client) -> None:
+    monkeypatch.setattr(research_pipeline, "SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr(
+        research_pipeline,
+        "get_settings",
+        lambda: SimpleNamespace(openai_api_key=None, openai_api_base="https://api.openai.com/v1", openai_model=""),
+    )
+    async def fake_search(question: str, limit: int = 10, provider: str = "all") -> dict:
+        if "methods evaluation results" in question:
+            return {
+                "query": question, "providers_requested": provider,
+                "provider_errors": {"crossref": "timeout"}, "results": [{
+                    "provider": "openalex", "external_id": "W-limitation",
+                    "doi": None, "title": "A partial result", "authors": [],
+                    "abstract": "An abstract with limited evidence.", "publication_year": 2024,
+                    "publisher": "Example", "landing_url": "https://example.org/paper",
+                }],
+            }
+        return {
+            "query": question, "providers_requested": provider,
+            "provider_errors": {}, "results": [{
+                "provider": "openalex", "external_id": "W-limitation",
+                "doi": None, "title": "A partial result", "authors": [],
+                "abstract": "An abstract with limited evidence.", "publication_year": 2024,
+                "publisher": "Example", "landing_url": "https://example.org/paper",
+            }],
+        }
+    monkeypatch.setattr(research_pipeline, "search_papers", fake_search)
+    created = client.post("/api/v1/research/runs", json={
+        "question": "What should a partial research result report?",
+        "mode": "deep", "max_sources": 5, "execute": False,
+    })
+    assert created.status_code == 201, created.text
+    run_id = created.json()["id"]
+    asyncio.run(research_pipeline.execute_research_run(run_id))
+    run = client.get(f"/api/v1/research/runs/{run_id}").json()
+    assert run["status"] == "completed_with_limitations"
+    report = client.get(f"/api/v1/evidence/runs/{run_id}/reports").json()[0]
+    assert report["evidence_snapshot"]["completion_status"] == "completed_with_limitations"
+    assert report["evidence_snapshot"]["completed_with_limitations"] is True
+    assert "provider_errors" in report["evidence_snapshot"]

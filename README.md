@@ -35,7 +35,7 @@ cp .env.example .env
 docker compose -f infra/docker-compose.yml up --build
 ```
 
-Open the workspace at http://localhost:3000, API docs at http://localhost:8000/docs, and health endpoint at http://localhost:8000/api/v1/health.
+Open the workspace at http://localhost:3000, API docs at http://localhost:8000/docs, and liveness endpoint at http://localhost:8000/api/v1/health and database-readiness endpoint at http://localhost:8000/api/v1/ready.
 
 Local Docker Compose enables scheduled source-status checks by default (`ENABLE_SCHEDULED_MONITORING=true`). Direct API runs default to disabled and can opt in via `.env`. The scheduler is single-process; do not enable it on multiple replicas until a distributed worker/leader lock is implemented.
 

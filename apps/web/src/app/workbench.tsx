@@ -14,9 +14,13 @@ import {
   downloadEvidencePassport, fetchCurrentUser, getEvidenceGraph, hasSavedAccessToken,
   importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents,
   listSourceStatusChecks, loginAccount, recordPaperStatusCheck, registerAccount,
+  addPaperDependency, listDependencyCandidates,
+  cancelResearchRun, retryResearchRun,
+  createResearchProject, listResearchProjects, updateResearchProject,
   reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf,
-  type AcademicSearchResult, type AuthUser, type EvidenceGraphResponse, type LibraryPaper,
-  type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchRun,
+  verifyClaimCitationSupport,
+  type AcademicSearchResult, type AuthUser, type CitationVerificationResult, type DependencyCandidate, type EvidenceGraphResponse, type LibraryPaper,
+  type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchProjectRecord, type ResearchRun,
   type SourceEventRecord, type SourceStatusCheckRecord
 } from "@/lib/api";
 
@@ -51,6 +55,7 @@ const EVENT_TYPES: { value: EventKind; label: string }[] = [
 ];
 
 function statusTone(status: string): string {
+  if (status === "completed_with_limitations") return "bg-amber-50 text-amber-800 ring-amber-600/15";
   if (status === "completed" || status === "supported" || status === "human_verified" || status === "accepted") return "bg-emerald-50 text-emerald-700 ring-emerald-600/15";
   if (status === "failed" || status === "rejected" || status === "contradicted") return "bg-rose-50 text-rose-700 ring-rose-600/15";
   if (status === "running" || status === "queued" || status === "unverified" || status === "needs_review" || status === "qualified") return "bg-amber-50 text-amber-800 ring-amber-600/15";
@@ -93,7 +98,8 @@ function graphLayer(type: string): number {
   if (type === "paper") return 0;
   if (type === "paper_version") return 1;
   if (type === "passage" || type === "study") return 2;
-  if (type === "claim") return 3;
+  if (type === "claim" || type === "conclusion") return 3;
+  if (type === "report_version" || type === "recommendation") return 4;
   return 2;
 }
 
@@ -107,10 +113,10 @@ function edgeColor(type: string): string {
 
 function useGraphLayout(nodes: GraphNode[], edges: GraphEdge[]) {
   return useMemo(() => {
-    const grouped: GraphNode[][] = [[], [], [], []];
+    const grouped: GraphNode[][] = [[], [], [], [], []];
     nodes.forEach((node) => grouped[graphLayer(node.type)].push(node));
     grouped.forEach((layer) => layer.sort((a, b) => a.label.localeCompare(b.label)));
-    const columnX = [24, 262, 500, 738];
+    const columnX = [24, 262, 500, 738, 976];
     const nodeWidth = 198;
     const nodeHeight = 84;
     const rowGap = 32;
@@ -196,14 +202,25 @@ export default function ChronicleWorkbench() {
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceError, setWorkspaceError] = useState("");
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ResearchProjectRecord[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [showArchivedProjects, setShowArchivedProjects] = useState(false);
+  const [newProjectTitle, setNewProjectTitle] = useState("");
+  const [newProjectQuestion, setNewProjectQuestion] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingProjectTitle, setEditingProjectTitle] = useState("");
+  const [editingProjectQuestion, setEditingProjectQuestion] = useState("");
+  const [savingProject, setSavingProject] = useState(false);
 
   const [question, setQuestion] = useState("");
   const [researchMode, setResearchMode] = useState<ResearchMode>("deep");
   const [maxSources, setMaxSources] = useState(10);
   const [creatingRun, setCreatingRun] = useState(false);
+  const [runActionId, setRunActionId] = useState<string | null>(null);
   const [reportVersions, setReportVersions] = useState<ReportVersionSummary[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
-  const [exporting, setExporting] = useState<"markdown" | "json" | null>(null);
+  const [exporting, setExporting] = useState<"markdown" | "json" | "pdf" | null>(null);
 
   const [graphData, setGraphData] = useState<EvidenceGraphResponse | null>(null);
   const [graphLoading, setGraphLoading] = useState(false);
@@ -211,6 +228,9 @@ export default function ChronicleWorkbench() {
   const [graphRefreshKey, setGraphRefreshKey] = useState(0);
   const [graphQuery, setGraphQuery] = useState("");
   const [graphType, setGraphType] = useState("all");
+  const [graphClaimStatus, setGraphClaimStatus] = useState("all");
+  const [graphRelationType, setGraphRelationType] = useState("all");
+  const [graphOpenIssuesOnly, setGraphOpenIssuesOnly] = useState(false);
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null);
 
   const [sourceQuery, setSourceQuery] = useState("");
@@ -235,6 +255,13 @@ export default function ChronicleWorkbench() {
   const [showAdvancedSourceSearch, setShowAdvancedSourceSearch] = useState(false);
   const [showPdfUpload, setShowPdfUpload] = useState(false);
   const [reviewingRelationId, setReviewingRelationId] = useState<string | null>(null);
+  const [verifyingClaimId, setVerifyingClaimId] = useState<string | null>(null);
+  const [verificationByClaim, setVerificationByClaim] = useState<Record<string, CitationVerificationResult>>({});
+  const [dependencyCandidates, setDependencyCandidates] = useState<DependencyCandidate[]>([]);
+  const [dependencyCandidatesLoading, setDependencyCandidatesLoading] = useState(false);
+  const [dependencyCandidatesLoaded, setDependencyCandidatesLoaded] = useState(false);
+  const [dependencyCandidateError, setDependencyCandidateError] = useState("");
+  const [savingDependencyCandidateId, setSavingDependencyCandidateId] = useState<string | null>(null);
 
   const activeRun = useMemo(() => runs.find((run) => run.id === activeRunId) ?? null, [runs, activeRunId]);
   const activeReport = reportVersions[0] ?? null;
@@ -246,6 +273,7 @@ export default function ChronicleWorkbench() {
     disagreements?: { description: string; evidence_passage_ids?: string[]; comparability_note?: string | null }[];
     limitations?: string[];
     candidate_research_questions?: string[];
+    research_opportunities?: { question: string; rationale: string; evidence_passage_ids?: string[]; prior_art_search_queries?: string[]; alternative_explanations?: string[]; falsification_plan: string; review_status?: string }[];
     uncertainty_statement?: string;
     human_review_required?: boolean;
   } : null;
@@ -291,17 +319,21 @@ export default function ChronicleWorkbench() {
           listResearchRuns(),
           listLibraryPapers(100),
           listSourceEvents(50),
-          listSourceStatusChecks(50, false)
+          listSourceStatusChecks(50, false),
+          listResearchProjects(true)
         ]);
         if (cancelled) return;
         const nextRuns = results[0] as ResearchRun[];
         const nextPapers = results[1] as LibraryPaper[];
+        const nextProjects = results[4] as ResearchProjectRecord[];
         setRuns(nextRuns);
         setPapers(nextPapers);
+        setProjects(nextProjects);
         setSourceEvents(results[2] as SourceEventRecord[]);
         setStatusChecks(results[3] as SourceStatusCheckRecord[]);
         setActiveRunId((current) => current && nextRuns.some((run) => run.id === current) ? current : (nextRuns[0]?.id ?? null));
         setEventPaperId((current) => current && nextPapers.some((paper) => paper.id === current) ? current : (nextPapers[0]?.id ?? ""));
+        setActiveProjectId((current) => current && nextProjects.some((project) => project.id === current && !project.archived_at) ? current : (nextProjects.find((project) => !project.archived_at)?.id ?? null));
       } catch (error) {
         if (!cancelled) setWorkspaceError(error instanceof Error ? error.message : "Could not load your workspace.");
       } finally {
@@ -313,7 +345,7 @@ export default function ChronicleWorkbench() {
   }, [authUser]);
 
   useEffect(() => {
-    if (!authUser || !activeRunId || (activeRun?.status !== "queued" && activeRun?.status !== "running")) return;
+    if (!authUser || !activeRunId || !["queued", "running", "cancel_requested"].includes(activeRun?.status ?? "")) return;
     let cancelled = false;
     const timer = setInterval(async () => {
       try {
@@ -330,7 +362,7 @@ export default function ChronicleWorkbench() {
   }, [authUser, activeRunId, activeRun?.status]);
 
   useEffect(() => {
-    if (!authUser || !activeRunId || activeRun?.status !== "completed") {
+    if (!authUser || !activeRunId || (activeRun?.status !== "completed" && activeRun?.status !== "completed_with_limitations")) {
       setReportVersions([]);
       return;
     }
@@ -393,6 +425,8 @@ export default function ChronicleWorkbench() {
     setAuthUser(null);
     setView("Overview");
     setRuns([]);
+    setProjects([]);
+    setActiveProjectId(null);
     setPapers([]);
     setSourceEvents([]);
     setReportVersions([]);
@@ -406,10 +440,13 @@ export default function ChronicleWorkbench() {
     setWorkspaceError("");
     try {
       const results = await Promise.all([
-        listResearchRuns(), listLibraryPapers(100), listSourceEvents(50), listSourceStatusChecks(50, false)
+        listResearchRuns(), listLibraryPapers(100), listSourceEvents(50), listSourceStatusChecks(50, false), listResearchProjects(true)
       ]);
       const nextRuns = results[0] as ResearchRun[];
+      const nextProjects = results[4] as ResearchProjectRecord[];
       setRuns(nextRuns);
+      setProjects(nextProjects);
+      setActiveProjectId((current) => current && nextProjects.some((project) => project.id === current && !project.archived_at) ? current : (nextProjects.find((project) => !project.archived_at)?.id ?? null));
       setPapers(results[1] as LibraryPaper[]);
       setSourceEvents(results[2] as SourceEventRecord[]);
       setStatusChecks(results[3] as SourceStatusCheckRecord[]);
@@ -418,6 +455,106 @@ export default function ChronicleWorkbench() {
       setWorkspaceError(error instanceof Error ? error.message : "Could not refresh your workspace.");
     } finally {
       setWorkspaceLoading(false);
+    }
+  }
+
+  async function submitNewProject(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (newProjectTitle.trim().length < 2 || newProjectQuestion.trim().length < 8) {
+      setNotice("Workspace title needs 2 characters and its research question needs 8.");
+      return;
+    }
+    setCreatingProject(true);
+    setWorkspaceError("");
+    try {
+      const project = await createResearchProject({
+        title: newProjectTitle.trim(),
+        research_question: newProjectQuestion.trim(),
+      });
+      setProjects((current) => [project, ...current.filter((item) => item.id !== project.id)]);
+      setActiveProjectId(project.id);
+      setNewProjectTitle("");
+      setNewProjectQuestion("");
+      setNotice("Research workspace created.");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not create the workspace.");
+    } finally {
+      setCreatingProject(false);
+    }
+  }
+
+  function beginEditProject(project: ResearchProjectRecord) {
+    setEditingProjectId(project.id);
+    setEditingProjectTitle(project.title);
+    setEditingProjectQuestion(project.research_question);
+  }
+
+  async function saveEditedProject(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingProjectId) return;
+    setSavingProject(true);
+    setWorkspaceError("");
+    try {
+      const updated = await updateResearchProject(editingProjectId, {
+        title: editingProjectTitle.trim(),
+        research_question: editingProjectQuestion.trim(),
+      });
+      setProjects((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setEditingProjectId(null);
+      setNotice("Workspace details updated.");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not update the workspace.");
+    } finally {
+      setSavingProject(false);
+    }
+  }
+
+  async function setProjectArchived(project: ResearchProjectRecord, archived: boolean) {
+    setSavingProject(true);
+    setWorkspaceError("");
+    try {
+      const updated = await updateResearchProject(project.id, { archived });
+      setProjects((current) => current.map((item) => item.id === updated.id ? updated : item));
+      if (archived && activeProjectId === project.id) setActiveProjectId(null);
+      if (!archived) setActiveProjectId(project.id);
+      if (editingProjectId === project.id) setEditingProjectId(null);
+      setNotice(archived ? "Workspace archived. Its historical runs remain available." : "Workspace restored.");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not change workspace archive state.");
+    } finally {
+      setSavingProject(false);
+    }
+  }
+
+  async function cancelRun(runId: string) {
+    setRunActionId(runId);
+    setWorkspaceError("");
+    try {
+      const updated = await cancelResearchRun(runId);
+      setRuns((current) => current.map((run) => run.id === updated.id ? updated : run));
+      setNotice(updated.status === "cancel_requested"
+        ? "Cancellation requested. Chronicle will stop after it reaches a safe pipeline boundary."
+        : "Queued run cancelled. The run record and audit history are preserved.");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not cancel this research run.");
+    } finally {
+      setRunActionId(null);
+    }
+  }
+
+  async function retryRun(runId: string) {
+    setRunActionId(runId);
+    setWorkspaceError("");
+    try {
+      const retry = await retryResearchRun(runId);
+      setRuns((current) => [retry, ...current.filter((run) => run.id !== retry.id)]);
+      setActiveRunId(retry.id);
+      setNotice("A new retry run has been queued. The original run and its evidence history remain unchanged.");
+      setView("Research workspace");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not retry this research run.");
+    } finally {
+      setRunActionId(null);
     }
   }
 
@@ -434,6 +571,7 @@ export default function ChronicleWorkbench() {
         question: question.trim(),
         mode: researchMode,
         max_sources: maxSources,
+        project_id: activeProjectId,
         execute: true
       });
       setRuns((current) => [created, ...current.filter((run) => run.id !== created.id)]);
@@ -469,6 +607,62 @@ export default function ChronicleWorkbench() {
       setGraphError(error instanceof Error ? error.message : "Could not save this review.");
     } finally {
       setReviewingRelationId(null);
+    }
+  }
+
+  async function verifyClaim(claimNodeId: string) {
+    const claimId = claimNodeId.startsWith("claim:") ? claimNodeId.slice("claim:".length) : claimNodeId;
+    setVerifyingClaimId(claimNodeId);
+    setGraphError("");
+    try {
+      const result = await verifyClaimCitationSupport(claimId);
+      setVerificationByClaim((previous) => ({ ...previous, [claimNodeId]: result }));
+      const graph = activeRunId ? await getEvidenceGraph(activeRunId) : null;
+      if (graph) setGraphData(graph);
+      setNotice(`Model assessment: ${result.verdict.replaceAll("_", " ")}. Human review is still required.`);
+    } catch (error) {
+      setGraphError(error instanceof Error ? error.message : "Citation verification failed.");
+    } finally {
+      setVerifyingClaimId(null);
+    }
+  }
+
+  async function loadDependencyCandidates() {
+    setDependencyCandidatesLoading(true);
+    setDependencyCandidateError("");
+    try {
+      const result = await listDependencyCandidates(30);
+      setDependencyCandidates(result.candidates);
+      setDependencyCandidatesLoaded(true);
+    } catch (error) {
+      setDependencyCandidateError(error instanceof Error ? error.message : "Could not discover dependency candidates.");
+    } finally {
+      setDependencyCandidatesLoading(false);
+    }
+  }
+
+  async function confirmDependencyCandidate(candidate: DependencyCandidate) {
+    setSavingDependencyCandidateId(candidate.id);
+    setDependencyCandidateError("");
+    try {
+      await addPaperDependency({
+        dependent_paper_id: candidate.paper_a_id,
+        depends_on_paper_id: candidate.paper_b_id,
+        relation_type: candidate.relation_type,
+        provenance_basis: "human_reviewed",
+        rationale: "Researcher confirmed a candidate surfaced by Chronicle. Signal: " + candidate.signals.join("; ") + ". " + candidate.rationale,
+        confidence: candidate.confidence,
+      });
+      setDependencyCandidates((previous) => previous.filter((item) => item.id !== candidate.id));
+      setNotice("Source relationship confirmed. Updates to either linked record can now flag the other for human review.");
+      if (activeRunId) {
+        const graph = await getEvidenceGraph(activeRunId);
+        setGraphData(graph);
+      }
+    } catch (error) {
+      setDependencyCandidateError(error instanceof Error ? error.message : "Could not save the dependency link.");
+    } finally {
+      setSavingDependencyCandidateId(null);
     }
   }
 
@@ -596,7 +790,7 @@ export default function ChronicleWorkbench() {
     }
   }
 
-  async function exportPassport(format: "markdown" | "json") {
+  async function exportPassport(format: "markdown" | "json" | "pdf") {
     if (!activeRunId) return;
     setExporting(format);
     try {
@@ -611,16 +805,40 @@ export default function ChronicleWorkbench() {
   const graphSource = graphData?.run_id === activeRunId ? graphData : null;
   const visibleNodes = useMemo(() => {
     const list = graphSource?.nodes ?? [];
+    const edges = graphSource?.edges ?? [];
     const q = graphQuery.trim().toLowerCase();
+    let statusScopedIds: Set<string> | null = null;
+    if (graphClaimStatus !== "all") {
+      const matchingClaims = list.filter((node) => node.type === "claim" && (
+        graphClaimStatus === "needs_review"
+          ? Boolean(node.review_required)
+          : (node.assessment ?? "unassessed") === graphClaimStatus
+      ));
+      statusScopedIds = new Set(matchingClaims.map((node) => node.id));
+      for (const edge of edges) {
+        if (statusScopedIds.has(edge.source) || statusScopedIds.has(edge.target)) {
+          statusScopedIds.add(edge.source);
+          statusScopedIds.add(edge.target);
+        }
+      }
+    }
     return list.filter((node) =>
+      (!statusScopedIds || statusScopedIds.has(node.id)) &&
       (graphType === "all" || node.type === graphType) &&
       (!q || (node.label + " " + node.type + " " + node.id).toLowerCase().includes(q))
     ).slice(0, 64);
-  }, [graphSource, graphQuery, graphType]);
+  }, [graphSource, graphQuery, graphType, graphClaimStatus]);
   const graphLayout = useGraphLayout(visibleNodes, graphSource?.edges ?? []);
   const selectedGraphNode = graphSource?.nodes.find((node) => node.id === selectedGraphNodeId) ?? null;
   const visibleGraphNodeIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
-  const visibleGraphEdges = (graphSource?.edges ?? []).filter((edge) => visibleGraphNodeIds.has(edge.source) && visibleGraphNodeIds.has(edge.target));
+  const visibleGraphEdges = (graphSource?.edges ?? []).filter((edge) =>
+    visibleGraphNodeIds.has(edge.source) &&
+    visibleGraphNodeIds.has(edge.target) &&
+    (graphRelationType === "all" || edge.type === graphRelationType) &&
+    (!graphOpenIssuesOnly || edge.reviewer_status === "unreviewed" || edge.reviewer_status === "needs_review" ||
+      Boolean(graphSource?.nodes.find((node) => node.id === edge.source)?.review_required) ||
+      Boolean(graphSource?.nodes.find((node) => node.id === edge.target)?.review_required))
+  );
   const currentPaperStatus = selectedPaper?.monitoring_enabled ? "Monitoring on" : "Monitoring off";
 
   if (authLoading) {
@@ -718,6 +936,33 @@ export default function ChronicleWorkbench() {
               return <article key={item.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><div className="flex items-center justify-between"><span className="text-sm font-medium text-slate-500">{item.label}</span><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Icon size={18}/></span></div><div className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">{item.value}</div><p className="mt-1 text-xs text-slate-500">{item.hint}</p></article>;
             })}
           </section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+              <div><h3 className="text-sm font-semibold text-slate-900">Research workspaces</h3><p className="mt-1 text-xs leading-5 text-slate-500">Group questions and research runs by topic. Archived workspaces keep their history but cannot start new runs.</p></div>
+              <button type="button" onClick={() => setShowArchivedProjects((value) => !value)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">{showArchivedProjects ? "Hide archived" : "Show archived"}</button>
+            </div>
+            <form onSubmit={submitNewProject} className="mt-4 grid gap-3 border-b border-slate-100 pb-4 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto]">
+              <label className="block text-xs font-medium text-slate-700">Workspace title<input value={newProjectTitle} onChange={(event) => setNewProjectTitle(event.target.value)} minLength={2} maxLength={240} required placeholder="e.g. Major project literature" className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/></label>
+              <label className="block text-xs font-medium text-slate-700">Primary research question<input value={newProjectQuestion} onChange={(event) => setNewProjectQuestion(event.target.value)} minLength={8} maxLength={4000} required placeholder="What is the main question for this workspace?" className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/></label>
+              <button disabled={creatingProject} className="self-end rounded-lg bg-indigo-600 px-3.5 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">{creatingProject ? "Creating…" : "Create workspace"}</button>
+            </form>
+            <div className="mt-3 space-y-2">
+              {projects.filter((project) => showArchivedProjects || !project.archived_at).length === 0 ? <p className="rounded-lg bg-slate-50 p-4 text-xs text-slate-500">{showArchivedProjects ? "No workspaces found yet." : "No active workspaces yet. Create one above or run research without a workspace."}</p> : null}
+              {projects.filter((project) => showArchivedProjects || !project.archived_at).map((project) => <article key={project.id} className="rounded-xl border border-slate-100 p-3">
+                {editingProjectId === project.id ? <form onSubmit={saveEditedProject} className="grid gap-3 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto]">
+                  <label className="block text-xs font-medium text-slate-700">Title<input value={editingProjectTitle} onChange={(event) => setEditingProjectTitle(event.target.value)} minLength={2} maxLength={240} required className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"/></label>
+                  <label className="block text-xs font-medium text-slate-700">Research question<input value={editingProjectQuestion} onChange={(event) => setEditingProjectQuestion(event.target.value)} minLength={8} maxLength={4000} required className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"/></label>
+                  <div className="flex items-end gap-2"><button disabled={savingProject} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{savingProject ? "Saving…" : "Save"}</button><button type="button" onClick={() => setEditingProjectId(null)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600">Cancel</button></div>
+                </form> : <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                  <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold text-slate-900">{project.title}</h4>{project.archived_at ? <StatusPill status="archived">archived</StatusPill> : activeProjectId === project.id ? <StatusPill status="completed">selected</StatusPill> : null}</div><p className="mt-1 text-xs leading-5 text-slate-500">{project.research_question}</p></div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <button type="button" onClick={() => { setActiveProjectId(project.archived_at ? null : project.id); setView("Research workspace"); }} disabled={Boolean(project.archived_at)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">Open</button>
+                    {!project.archived_at ? <><button type="button" onClick={() => beginEditProject(project)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Rename / edit</button><button type="button" disabled={savingProject} onClick={() => void setProjectArchived(project, true)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Archive</button></> : <button type="button" disabled={savingProject} onClick={() => void setProjectArchived(project, false)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">Restore</button>}
+                  </div>
+                </div>}
+              </article>)}
+            </div>
+          </section>
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h3 className="font-semibold text-slate-900">Recent research</h3><p className="mt-0.5 text-xs text-slate-500">Open a run to continue.</p></div><button onClick={() => setView("Research workspace")} className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700">New run<ArrowRight size={15}/></button></div>
             {runsLoadingOrEmpty(workspaceLoading, runs) ? <div className="divide-y divide-slate-100">{[1, 2, 3].map((row) => <div key={row} className="animate-pulse px-5 py-4"><div className="h-3 w-2/3 rounded bg-slate-100"/><div className="mt-3 h-3 w-1/3 rounded bg-slate-100"/></div>)}</div> : null}
@@ -731,22 +976,33 @@ export default function ChronicleWorkbench() {
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30 sm:p-6">
               <div className="mb-5 flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">Research question</p><h2 className="mt-1.5 text-xl font-semibold tracking-tight">What do you want to investigate?</h2></div><span className="hidden rounded-xl bg-indigo-50 p-3 text-indigo-600 sm:flex"><Sparkles size={20}/></span></div>
               <form onSubmit={submitResearch} className="space-y-4">
+                <label className="block text-sm font-medium text-slate-700">Workspace<select value={activeProjectId ?? ""} onChange={(event) => setActiveProjectId(event.target.value || null)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="">No workspace (standalone run)</option>{projects.filter((project) => !project.archived_at).map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
                 <label className="block text-sm font-medium text-slate-700">Question<textarea value={question} onChange={(event) => setQuestion(event.target.value)} required minLength={8} maxLength={2000} rows={4} placeholder="e.g. How does retrieval practice affect long-term learning outcomes?" className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-indigo-500"/></label>
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px]">
                   <label className="block text-sm font-medium text-slate-700">Research mode<select value={researchMode} onChange={(event) => setResearchMode(event.target.value as ResearchMode)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">{MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                   <label className="block text-sm font-medium text-slate-700">Source limit<select value={maxSources} onChange={(event) => setMaxSources(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value={5}>5 sources</option><option value={10}>10 sources</option><option value={20}>20 sources</option><option value={30}>30 sources</option></select></label>
                 </div>
+                <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900">Provider disclosure: Chronicle sends the research query to scholarly metadata providers. When model-backed extraction or verification is run, selected source passages may be sent to the model provider configured by the server. Do not upload or process confidential or restricted material unless authorized.</p>
                 <div className="flex flex-col-reverse justify-between gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center"><p className="text-xs leading-5 text-slate-500">Results remain reviewable; missing evidence is not proof of absence.</p><button disabled={creatingRun} className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60">{creatingRun ? <LoaderCircle size={16} className="animate-spin"/> : <Sparkles size={16}/>} {creatingRun ? "Starting…" : "Start research"}</button></div>
               </form>
             </section>
 
             {activeRun ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30 sm:p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Selected run</p><h3 className="mt-1.5 max-w-3xl text-lg font-semibold tracking-tight text-slate-950">{activeRun.question}</h3></div><StatusPill status={activeRun.status}>{activeRun.status}</StatusPill></div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Selected run</p><h3 className="mt-1.5 max-w-3xl text-lg font-semibold tracking-tight text-slate-950">{activeRun.question}</h3></div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusPill status={activeRun.status}>{activeRun.status.replaceAll("_", " ")}</StatusPill>
+                  {!activeRun.demo && (activeRun.status === "queued" || activeRun.status === "running") ? <button type="button" onClick={() => void cancelRun(activeRun.id)} disabled={runActionId === activeRun.id} className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">{runActionId === activeRun.id ? <LoaderCircle size={13} className="animate-spin"/> : <X size={13}/>}Cancel run</button> : null}
+                  {!activeRun.demo && (activeRun.status === "failed" || activeRun.status === "cancelled" || activeRun.status === "completed_with_limitations") ? <button type="button" onClick={() => void retryRun(activeRun.id)} disabled={runActionId === activeRun.id} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">{runActionId === activeRun.id ? <LoaderCircle size={13} className="animate-spin"/> : <RefreshCw size={13}/>}Retry run</button> : null}
+                </div>
+              </div>
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500"><span>{activeRun.mode} · up to {activeRun.max_sources} sources</span><span>{formatDate(activeRun.created_at)}</span><span className="font-mono">ID {activeRun.id.slice(0, 8)}</span></div>
               {activeRun.error_message ? <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{activeRun.error_message}</div> : null}
               {activeRun.status === "queued" || activeRun.status === "running" ? <div role="status" aria-live="polite" className="mt-5 rounded-xl bg-indigo-50 px-4 py-3"><div className="flex items-center gap-2 text-sm font-medium text-indigo-800"><LoaderCircle size={16} className="animate-spin"/> Research is in progress</div><p className="mt-1 text-xs text-indigo-700">This panel updates automatically.</p></div> : null}
-              {activeRun.status === "completed" ? <div className="mt-5 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4"><div><p className="text-sm font-semibold text-slate-900">Research report</p><p className="mt-0.5 text-xs text-slate-500">{reportLoading ? "Loading latest report…" : activeReport ? "Latest saved version" : "No report version found for this run."}</p></div><div className="flex gap-2"><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("markdown")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "markdown" ? "Exporting…" : "Export .md"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("json")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "json" ? "Exporting…" : "Export .json"}</button></div></div>
+              {activeRun.status === "cancel_requested" ? <div role="status" aria-live="polite" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"><p className="text-sm font-semibold text-amber-900">Cancellation requested</p><p className="mt-1 text-xs leading-5 text-amber-800">Chronicle is stopping current external work at a safe cancellation point. The original records are preserved.</p></div> : null}
+              {activeRun.status === "cancelled" ? <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-sm font-semibold text-slate-800">Run cancelled</p><p className="mt-1 text-xs leading-5 text-slate-600">A new retry can be launched without changing the original run history.</p></div> : null}
+              {activeRun.status === "completed" || activeRun.status === "completed_with_limitations" ? <div className="mt-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4"><div><p className="text-sm font-semibold text-slate-900">Research report</p><p className="mt-0.5 text-xs text-slate-500">{reportLoading ? "Loading latest report…" : activeReport ? "Latest saved version" : "No report version found for this run."}</p></div><div className="flex flex-wrap gap-2"><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("markdown")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "markdown" ? "Exporting…" : "Export .md"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("json")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "json" ? "Exporting…" : "Export .json"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("pdf")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "pdf" ? "Exporting…" : "Export .pdf"}</button></div></div>
                 {activeReport ? <div className="max-h-[460px] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/70 p-4 sm:p-5"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
                   h1: ({ children }) => <h1 className="mb-3 mt-5 text-xl font-semibold text-slate-900 first:mt-0">{children}</h1>,
                   h2: ({ children }) => <h2 className="mb-2 mt-5 text-lg font-semibold text-slate-900">{children}</h2>,
@@ -771,7 +1027,7 @@ export default function ChronicleWorkbench() {
             </section>
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
               <button onClick={() => setShowPdfUpload((current) => !current)} aria-expanded={showPdfUpload} className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-slate-50"><span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><Upload size={17}/></span><span><span className="block text-sm font-semibold text-slate-900">Add a PDF</span><span className="mt-0.5 block text-xs text-slate-500">Extract text passages for evidence inspection.</span></span></span><ChevronDown size={17} className={"shrink-0 text-slate-400 transition " + (showPdfUpload ? "rotate-180" : "")}/></button>
-              {showPdfUpload ? <div className="border-t border-slate-100 p-5"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-indigo-300 hover:bg-indigo-50/40"><Upload size={20} className="text-slate-500"/><span className="mt-2 text-sm font-medium text-slate-800">{uploadingPdf ? "Uploading PDF…" : "Choose a PDF up to 3 MB"}</span><span className="mt-1 text-xs text-slate-500">Original files are stored temporarily on this prototype.</span><input className="sr-only" type="file" accept=".pdf,application/pdf" disabled={uploadingPdf} onChange={(event) => void handlePdfUpload(event.target.files?.[0])}/></label>{uploadMessage ? <p role="status" className="mt-3 text-sm text-slate-600">{uploadMessage}</p> : null}</div> : null}
+              {showPdfUpload ? <div className="border-t border-slate-100 p-5"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-indigo-300 hover:bg-indigo-50/40"><Upload size={20} className="text-slate-500"/><span className="mt-2 text-sm font-medium text-slate-800">{uploadingPdf ? "Uploading PDF…" : "Choose a PDF (server limit applies)"}</span><span className="mt-1 text-xs text-slate-500">The server validates size and page limits. Original files are stored on the configured server filesystem.</span><input className="sr-only" type="file" accept=".pdf,application/pdf" disabled={uploadingPdf} onChange={(event) => void handlePdfUpload(event.target.files?.[0])}/></label>{uploadMessage ? <p role="status" className="mt-3 text-sm text-slate-600">{uploadMessage}</p> : null}</div> : null}
             </section>
           </div>
           <aside className="space-y-5">
@@ -788,17 +1044,27 @@ export default function ChronicleWorkbench() {
           {activeRunId && graphSource && graphSource.nodes.length === 0 ? <EmptyState icon={Network} title="No saved evidence yet" description="This run has no persisted papers, passages, studies, or claims to draw. Completed discovery runs may populate source nodes first; claim links appear as they are saved." action={<button onClick={() => setView("Research workspace")} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">View research run</button>}/> : null}
           {activeRunId && graphSource && graphSource.nodes.length > 0 ? <div className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_300px]">
             <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
-              <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center"><div className="relative min-w-0 flex-1"><Search size={15} className="absolute left-3 top-3 text-slate-400"/><input value={graphQuery} onChange={(event) => setGraphQuery(event.target.value)} placeholder="Find a paper, claim, or passage" className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/></div><label className="flex items-center gap-2 text-xs font-medium text-slate-500">Show<select value={graphType} onChange={(event) => setGraphType(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All node types</option><option value="paper">Papers</option><option value="paper_version">Versions</option><option value="passage">Passages</option><option value="study">Studies</option><option value="claim">Claims</option></select></label></div>
+              <div className="flex flex-col gap-3 border-b border-slate-100 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="relative min-w-0 flex-1"><Search size={15} className="absolute left-3 top-3 text-slate-400"/><input value={graphQuery} onChange={(event) => setGraphQuery(event.target.value)} placeholder="Find a paper, claim, or passage" className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/></div>
+                  <label className="flex items-center gap-2 text-xs font-medium text-slate-500">Node type<select value={graphType} onChange={(event) => setGraphType(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All types</option><option value="paper">Papers</option><option value="paper_version">Versions</option><option value="passage">Passages</option><option value="study">Studies</option><option value="claim">Claims</option><option value="conclusion">Report findings</option><option value="report_version">Report versions</option><option value="recommendation">Recommendations</option></select></label>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-xs font-medium text-slate-500">Claim status<select value={graphClaimStatus} onChange={(event) => setGraphClaimStatus(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All claims</option><option value="needs_review">Needs review</option><option value="unassessed">Unassessed</option><option value="supported">Supported</option><option value="partially_supported">Partially supported</option><option value="contradicted">Contradicted</option><option value="insufficient_evidence">Insufficient evidence</option><option value="unverifiable">Unverifiable</option></select></label>
+                  <label className="flex items-center gap-2 text-xs font-medium text-slate-500">Relationship<select value={graphRelationType} onChange={(event) => setGraphRelationType(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All relationships</option>{Array.from(new Set((graphSource?.edges ?? []).map((edge) => edge.type))).sort().map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
+                  <label className="ml-1 inline-flex items-center gap-2 text-xs font-medium text-slate-600"><input type="checkbox" checked={graphOpenIssuesOnly} onChange={(event) => setGraphOpenIssuesOnly(event.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"/>Open review issues only</label>
+                </div>
+              </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 px-4 py-3 text-xs text-slate-500"><span><strong className="text-slate-900">{graphSource.nodes.length}</strong> nodes</span><span><strong className="text-slate-900">{graphSource.edges.length}</strong> relationships</span><span><strong className="text-slate-900">{graphSource.nodes.filter((node) => node.type === "claim").length}</strong> claims</span>{graphLoading ? <span role="status" className="inline-flex items-center gap-1 text-indigo-600"><LoaderCircle size={13} className="animate-spin"/>Refreshing</span> : null}</div>
               {visibleNodes.length === 0 ? <div className="p-8 text-center"><Search size={20} className="mx-auto text-slate-400"/><p className="mt-2 text-sm font-medium text-slate-800">No matching nodes</p><p className="mt-1 text-xs text-slate-500">Change the search or node filter.</p></div> : <div className="graph-canvas max-h-[680px] overflow-auto">
-                <svg viewBox={"0 0 960 " + graphLayout.height} className="block min-w-[960px] w-full" role="img" aria-label="Interactive map of persisted evidence relationships">
+                <svg viewBox={"0 0 1200 " + graphLayout.height} className="block min-w-[1200px] w-full" role="img" aria-label="Interactive map of persisted evidence relationships">
                   <defs><marker id="chronicle-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#9aa7bd"/></marker></defs>
-                  {["Papers", "Versions", "Passages & studies", "Claims"].map((label, index) => <text key={label} x={[123, 361, 599, 837][index]} y="25" textAnchor="middle" fontSize="10" fontWeight="700" letterSpacing="1.3" fill="#8591a6">{label.toUpperCase()}</text>)}
+                  {["Papers", "Versions", "Passages & studies", "Claims & findings", "Reports & recommendations"].map((label, index) => <text key={label} x={[123, 361, 599, 837, 1075][index]} y="25" textAnchor="middle" fontSize="10" fontWeight="700" letterSpacing="1.3" fill="#8591a6">{label.toUpperCase()}</text>)}
                   {graphLayout.lines.filter((line) => visibleGraphEdges.includes(line.edge)).map((line, index) => <g key={line.edge.id ?? (line.edge.source + "-" + line.edge.target + "-" + index)}><path d={line.path} fill="none" stroke={edgeColor(line.edge.type)} strokeWidth="1.8" strokeOpacity="0.78" markerEnd="url(#chronicle-arrow)"/>{graphLayout.lines.length < 18 ? <text x={line.labelX} y={line.labelY} textAnchor="middle" fontSize="10" fill="#64748b" paintOrder="stroke" stroke="#ffffff" strokeWidth="4" strokeLinejoin="round">{shorten(line.edge.type.replaceAll("_", " "), 24)}</text> : null}</g>)}
                   {graphLayout.placed.map(({ node, x, y }) => {
                     const selected = node.id === selectedGraphNodeId;
                     const lines = wrapSvgLabel(node.label);
-                    const meta = node.type === "claim" ? (node.assessment ?? "unassessed").replaceAll("_", " ") : node.type === "passage" && node.page_number ? "Page " + node.page_number : node.publication_status?.replaceAll("_", " ") ?? "";
+                    const meta = node.type === "claim" || node.type === "conclusion" ? (node.assessment ?? (node.review_required ? "needs_review" : "unassessed")).replaceAll("_", " ") : node.type === "passage" && node.page_number ? "Page " + node.page_number : node.type === "report_version" ? "Report v" + (node.report_version_number ?? "") : node.review_status?.replaceAll("_", " ") ?? node.provenance_basis?.replaceAll("_", " ") ?? node.publication_status?.replaceAll("_", " ") ?? "";
                     return <g key={node.id} role="button" tabIndex={0} aria-label={node.type + ": " + node.label} aria-pressed={selected} onClick={() => setSelectedGraphNodeId(node.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedGraphNodeId(node.id); } }} className="cursor-pointer outline-none">
                       <rect x={x} y={y} width={graphLayout.nodeWidth} height={graphLayout.nodeHeight} rx="12" fill={selected ? "#eef2ff" : "#ffffff"} stroke={selected ? "#6366f1" : "#dbe2ee"} strokeWidth={selected ? "2.4" : "1.2"}/>
                       <text x={x + 12} y={y + 17} fontSize="9.5" fontWeight="700" letterSpacing=".5" fill={selected ? "#4f46e5" : "#64748b"}>{node.type.replaceAll("_", " ").toUpperCase()}</text>
@@ -814,17 +1080,76 @@ export default function ChronicleWorkbench() {
             <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30">
               {selectedGraphNode ? <><div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">Node details</span><StatusPill status={selectedGraphNode.type}>{selectedGraphNode.type.replaceAll("_", " ")}</StatusPill></div><h3 className="mt-3 break-words text-base font-semibold leading-6 text-slate-950">{selectedGraphNode.label}</h3>
                 {selectedGraphNode.assessment ? <div className="mt-3"><StatusPill status={selectedGraphNode.assessment}>{selectedGraphNode.assessment.replaceAll("_", " ")}</StatusPill></div> : null}
-                {selectedGraphNode.review_required ? <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">This claim needs human review.</p> : null}
+                {selectedGraphNode.review_required ? <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">This item needs human review.</p> : null}
                 {selectedGraphNode.doi ? <p className="mt-4 break-all text-xs leading-5 text-slate-500">DOI: {selectedGraphNode.doi}</p> : null}
                 {selectedGraphNode.page_number ? <p className="mt-3 text-xs text-slate-500">Page {selectedGraphNode.page_number}</p> : null}
                 {selectedGraphNode.population ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Population</p><p className="mt-1 text-sm leading-5 text-slate-600">{selectedGraphNode.population}</p></div> : null}
                 {selectedGraphNode.method ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Method</p><p className="mt-1 text-sm leading-5 text-slate-600">{selectedGraphNode.method}</p></div> : null}
                 {selectedGraphNode.limitations?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Limitations</p><ul className="mt-1 list-disc space-y-1 pl-4 text-sm leading-5 text-slate-600">{selectedGraphNode.limitations.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
+                {selectedGraphNode.created_at ? <p className="mt-3 text-xs text-slate-500">Recorded: {formatDate(selectedGraphNode.created_at)}</p> : null}
+                {selectedGraphNode.provenance_basis ? <p className="mt-3 text-xs text-slate-500">Provenance: <span className="font-medium text-slate-700">{selectedGraphNode.provenance_basis.replaceAll("_", " ")}</span></p> : null}
+                {selectedGraphNode.rationale ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Rationale</p><p className="mt-1 text-sm leading-5 text-slate-600">{selectedGraphNode.rationale}</p></div> : null}
+                {selectedGraphNode.evidence_passage_ids?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Evidence trace</p><div className="mt-2 space-y-1.5">{selectedGraphNode.evidence_passage_ids.map((passageId) => <button key={passageId} type="button" onClick={() => { setGraphType("all"); setGraphQuery(""); setSelectedGraphNodeId("passage:" + passageId); }} className="block w-full break-all rounded-lg border border-slate-200 px-2.5 py-2 text-left text-[11px] leading-4 text-indigo-700 hover:bg-indigo-50">Open source passage · {passageId}</button>)}</div></div> : null}
+                {selectedGraphNode.prior_art_search_queries?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Suggested prior-art searches</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{selectedGraphNode.prior_art_search_queries.map((query) => <li key={query}>{query}</li>)}</ul></div> : null}
+                {selectedGraphNode.alternative_explanations?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Alternative explanations</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{selectedGraphNode.alternative_explanations.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
+                {selectedGraphNode.falsification_plan ? <div className="mt-4 rounded-lg bg-slate-50 p-3"><p className="text-xs font-semibold text-slate-700">Falsification plan</p><p className="mt-1 text-xs leading-5 text-slate-600">{selectedGraphNode.falsification_plan}</p></div> : null}
+                {selectedGraphNode.type === "report_version" ? <p className="mt-3 text-xs leading-5 text-slate-500">This version is a snapshot of the conclusions and recommendations emitted for this research run. Select a finding or recommendation node to inspect its evidence trace.</p> : null}
+                {selectedGraphNode.type === "recommendation" ? <button type="button" onClick={() => { setQuestion(selectedGraphNode.prior_art_search_queries?.[0] ?? selectedGraphNode.label); setResearchMode("forensic"); setView("Research workspace"); }} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700"><Search size={13}/>Investigate prior art</button> : null}
                 <details className="mt-5 border-t border-slate-100 pt-3"><summary className="cursor-pointer text-xs font-medium text-slate-500">Record ID</summary><code className="mt-2 block break-all text-[10px] leading-4 text-slate-500">{selectedGraphNode.id}</code></details>
-                {selectedGraphNode.type === "claim" ? <div className="mt-5 grid grid-cols-1 gap-2"><p className="text-xs leading-5 text-slate-500">Review relationships in the graph before changing claim status.</p>{visibleGraphEdges.filter((edge) => edge.id && (edge.source === selectedGraphNode.id || edge.target === selectedGraphNode.id) && edge.reviewer_status === "unreviewed").map((edge) => <div key={edge.id} className="rounded-xl border border-slate-100 p-3"><p className="text-xs font-medium text-slate-800">{edge.type.replaceAll("_", " ")}</p><p className="mt-1 text-[11px] text-slate-500">{shorten(graphSource.nodes.find((node) => node.id === (edge.source === selectedGraphNode.id ? edge.target : edge.source))?.label ?? "", 90)}</p><div className="mt-3 flex gap-2"><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "accepted")} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{reviewingRelationId === edge.id ? "Saving…" : "Accept"}</button><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "needs_review")} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Needs review</button></div></div>)}</div> : null}
+                {selectedGraphNode.type === "claim" ? <div className="mt-5 space-y-3">
+                  <div className="grid grid-cols-1 gap-2">
+                    <p className="text-xs leading-5 text-slate-500">Run a model-assisted comparison between this claim and its linked passages. The result is a review prompt, not proof of scientific truth.</p>
+                    <button onClick={() => void verifyClaim(selectedGraphNode.id)} disabled={verifyingClaimId === selectedGraphNode.id} className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+                      {verifyingClaimId === selectedGraphNode.id ? <><LoaderCircle size={14} className="animate-spin"/>Verifying citation support…</> : <><ShieldCheck size={14}/>Verify citation support</>}
+                    </button>
+                  </div>
+                  {verificationByClaim[selectedGraphNode.id] ? <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-slate-900">Model-assisted assessment</p><StatusPill status={verificationByClaim[selectedGraphNode.id].verdict}>{verificationByClaim[selectedGraphNode.id].verdict.replaceAll("_", " ")}</StatusPill></div>
+                    <p className="mt-2 text-sm leading-5 text-slate-700">{verificationByClaim[selectedGraphNode.id].rationale}</p>
+                    {verificationByClaim[selectedGraphNode.id].context_note ? <p className="mt-2 text-xs leading-5 text-slate-600">Context: {verificationByClaim[selectedGraphNode.id].context_note}</p> : null}
+                    {verificationByClaim[selectedGraphNode.id].evidence_passage_ids.length ? <p className="mt-2 break-words text-[11px] leading-5 text-slate-500">Evidence passage IDs: {verificationByClaim[selectedGraphNode.id].evidence_passage_ids.join(", ")}</p> : null}
+                    {verificationByClaim[selectedGraphNode.id].uncertainty_notes.length ? <div className="mt-2"><p className="text-[11px] font-semibold text-slate-600">Uncertainty notes</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{verificationByClaim[selectedGraphNode.id].uncertainty_notes.map((item, index) => <li key={index}>{item}</li>)}</ul></div> : null}
+                    <p className="mt-3 text-[11px] leading-5 text-amber-800">{verificationByClaim[selectedGraphNode.id].notice}</p>
+                  </div> : null}
+                  {visibleGraphEdges.filter((edge) => edge.id && (edge.source === selectedGraphNode.id || edge.target === selectedGraphNode.id) && edge.reviewer_status === "unreviewed").map((edge) => <div key={edge.id} className="rounded-xl border border-slate-100 p-3"><p className="text-xs font-medium text-slate-800">{edge.type.replaceAll("_", " ")}</p><p className="mt-1 text-[11px] text-slate-500">{shorten(graphSource.nodes.find((node) => node.id === (edge.source === selectedGraphNode.id ? edge.target : edge.source))?.label ?? "", 90)}</p><div className="mt-3 flex gap-2"><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "accepted")} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{reviewingRelationId === edge.id ? "Saving…" : "Accept"}</button><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "needs_review")} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Needs review</button></div></div>)}
+                </div> : null}
               </> : <div><Network size={20} className="text-slate-400"/><h3 className="mt-3 font-semibold text-slate-900">Select a node</h3><p className="mt-1 text-sm leading-5 text-slate-500">Its saved metadata and review state will appear here.</p></div>}
             </aside>
           </div> : null}
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Potential source-dependence links</h3>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Surface shared dataset or registry identifiers and near-duplicate abstracts. Suggestions are not saved until a researcher confirms them.</p>
+              </div>
+              <button onClick={() => void loadDependencyCandidates()} disabled={dependencyCandidatesLoading} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                {dependencyCandidatesLoading ? <LoaderCircle size={14} className="animate-spin"/> : <Search size={14}/>}
+                {dependencyCandidatesLoading ? "Scanning sources…" : dependencyCandidatesLoaded ? "Refresh suggestions" : "Find dependency candidates"}
+              </button>
+            </div>
+            {dependencyCandidateError ? <p role="alert" className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{dependencyCandidateError}</p> : null}
+            {dependencyCandidatesLoaded && dependencyCandidates.length === 0 && !dependencyCandidatesLoading ? <p className="mt-4 rounded-xl bg-slate-50 p-4 text-xs leading-5 text-slate-600">No candidates matched the current high-specificity heuristics. This does not prove the papers are independent.</p> : null}
+            {dependencyCandidates.length > 0 ? <div className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-100">
+              {dependencyCandidates.map((candidate) => <article key={candidate.id} className="flex flex-col justify-between gap-4 p-4 lg:flex-row lg:items-start">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusPill status="needs_review">{candidate.relation_type.replaceAll("_", " ")}</StatusPill>
+                    <span className="text-[11px] text-slate-500">Heuristic signal · {Math.round(candidate.confidence * 100)}% score (not a calibrated probability)</span>
+                  </div>
+                  <p className="mt-2 break-words text-sm font-semibold leading-5 text-slate-900">{candidate.paper_a_title}</p>
+                  <p className="my-1 text-[11px] font-medium text-slate-400">↔ possible shared evidence ↔</p>
+                  <p className="break-words text-sm font-semibold leading-5 text-slate-900">{candidate.paper_b_title}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-600">{candidate.rationale}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">{candidate.signals.map((signal) => <span key={signal} className="rounded-md bg-slate-100 px-2 py-1 text-[10px] text-slate-600">{signal.replaceAll("_", " ")}</span>)}</div>
+                </div>
+                <button onClick={() => void confirmDependencyCandidate(candidate)} disabled={savingDependencyCandidateId === candidate.id} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                  {savingDependencyCandidateId === candidate.id ? <LoaderCircle size={13} className="animate-spin"/> : <Check size={13}/>}
+                  {savingDependencyCandidateId === candidate.id ? "Saving…" : "Confirm link"}
+                </button>
+              </article>)}
+            </div> : null}
+            <p className="mt-3 text-[11px] leading-5 text-slate-400">Confirmed shared-dataset and overlap links may flag both papers after a source event; the system does not automatically invalidate related claims.</p>
+          </section>
         </section> : null}
 
         {view === "Source timeline" ? <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -856,6 +1181,19 @@ export default function ChronicleWorkbench() {
             <div className="space-y-5">
               {modelSynthesis.executive_summary ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><h3 className="text-sm font-semibold text-slate-900">Evidence summary</h3><p className="mt-2 text-sm leading-6 text-slate-600">{modelSynthesis.executive_summary}</p></section> : null}
               {modelSynthesis.candidate_research_questions?.length ? <div className="grid gap-3 md:grid-cols-2">{modelSynthesis.candidate_research_questions.map((item, index) => <article key={item} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><div className="flex items-center justify-between"><span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">Candidate {index + 1}</span><FlaskConical size={17} className="text-indigo-500"/></div><h3 className="mt-3 text-sm font-semibold leading-6 text-slate-900">{item}</h3></article>)}</div> : <EmptyState icon={FlaskConical} title="No candidate questions in this report" description="The current report did not produce a candidate question list."/>}
+              {modelSynthesis.research_opportunities?.length ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30">
+                <div><h3 className="text-sm font-semibold text-slate-900">Evidence-linked research opportunities</h3><p className="mt-1 text-xs leading-5 text-slate-500">Candidates are not novelty claims. Inspect the cited passages, search prior work, and test alternative explanations before proposing a contribution.</p></div>
+                <div className="mt-3 space-y-3">{modelSynthesis.research_opportunities.map((opportunity, index) => <article key={opportunity.question + index} className="rounded-xl border border-slate-100 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">Opportunity {index + 1}</span><span className="text-[10px] font-medium text-amber-700">Prior-art review required</span></div>
+                  <h4 className="mt-3 text-sm font-semibold leading-6 text-slate-900">{opportunity.question}</h4>
+                  <p className="mt-2 text-xs leading-5 text-slate-600">{opportunity.rationale}</p>
+                  {opportunity.evidence_passage_ids?.length ? <div className="mt-3"><p className="text-[11px] font-semibold text-slate-700">Evidence passage IDs</p><p className="mt-1 break-all text-[11px] leading-5 text-slate-500">{opportunity.evidence_passage_ids.join(", ")}</p></div> : null}
+                  {opportunity.prior_art_search_queries?.length ? <div className="mt-3"><p className="text-[11px] font-semibold text-slate-700">Suggested prior-art searches</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{opportunity.prior_art_search_queries.map((query) => <li key={query}>{query}</li>)}</ul></div> : null}
+                  {opportunity.alternative_explanations?.length ? <div className="mt-3"><p className="text-[11px] font-semibold text-slate-700">Alternative explanations</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{opportunity.alternative_explanations.map((alternative) => <li key={alternative}>{alternative}</li>)}</ul></div> : null}
+                  <div className="mt-3 rounded-lg bg-slate-50 p-3"><p className="text-[11px] font-semibold text-slate-700">Falsification plan</p><p className="mt-1 text-xs leading-5 text-slate-600">{opportunity.falsification_plan}</p></div>
+                  <button onClick={() => { setQuestion(opportunity.prior_art_search_queries?.[0] ?? opportunity.question); setResearchMode("forensic"); setView("Research workspace"); }} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><Search size={13}/>Investigate prior art</button>
+                </article>)}</div>
+              </section> : null}
               {modelSynthesis.disagreements?.length ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><h3 className="text-sm font-semibold text-slate-900">Evidence disagreements</h3><div className="mt-3 divide-y divide-slate-100">{modelSynthesis.disagreements.map((item, index) => <div key={index} className="py-3 first:pt-0 last:pb-0"><p className="text-sm leading-6 text-slate-700">{item.description}</p>{item.comparability_note ? <p className="mt-1 text-xs leading-5 text-slate-500">{item.comparability_note}</p> : null}</div>)}</div></section> : null}
             </div>
             <aside className="space-y-4"><section className="rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white"><Sparkles size={20} className="text-indigo-300"/><h3 className="mt-3 text-sm font-semibold">Review before asserting novelty</h3><p className="mt-2 text-xs leading-5 text-slate-300">Compare prior work, identify alternatives, and define what would falsify each candidate.</p></section>{modelSynthesis.limitations?.length ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><h3 className="text-sm font-semibold text-slate-900">Limitations</h3><ul className="mt-3 list-disc space-y-2 pl-4 text-sm leading-5 text-slate-600">{modelSynthesis.limitations.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}{modelSynthesis.uncertainty_statement ? <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-xs font-semibold text-amber-900">Uncertainty</p><p className="mt-1 text-sm leading-5 text-amber-800">{modelSynthesis.uncertainty_statement}</p></section> : null}</aside>

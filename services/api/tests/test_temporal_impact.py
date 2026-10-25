@@ -189,3 +189,45 @@ def test_upload_rejects_non_pdf(client) -> None:
         files={"file": ("fake.pdf", b"not a PDF", "application/pdf")},
     )
     assert response.status_code == 415
+
+
+def test_dependency_suggestions_do_not_auto_create_graph_edges(client) -> None:
+    first = client.post(
+        "/api/v1/sources/papers",
+        json={"provider": "manual", "title": "One study", "abstract": "This paper uses MIMIC-IV patient records."},
+    )
+    second = client.post(
+        "/api/v1/sources/papers",
+        json={"provider": "manual", "title": "Another study", "abstract": "This paper also uses MIMIC-IV patient records."},
+    )
+    assert first.status_code == 201 and second.status_code == 201
+    candidates = client.get("/api/v1/evidence/dependency-candidates").json()["candidates"]
+    assert any({c["paper_a_id"], c["paper_b_id"]} == {first.json()["id"], second.json()["id"]} for c in candidates)
+
+
+def test_corrects_relationship_flags_correction_and_target_when_source_changes(client) -> None:
+    target = client.post("/api/v1/sources/papers", json={
+        "provider": "manual", "title": "Corrected source", "abstract": "Original results from a prior study."
+    })
+    notice = client.post("/api/v1/sources/papers", json={
+        "provider": "manual", "title": "Correction notice", "abstract": "This notice corrects a prior study."
+    })
+    assert target.status_code == 201 and notice.status_code == 201
+    dependency = client.post("/api/v1/evidence/paper-dependencies", json={
+        "dependent_paper_id": notice.json()["id"],
+        "depends_on_paper_id": target.json()["id"],
+        "relation_type": "corrects",
+        "provenance_basis": "human_reviewed",
+        "rationale": "The publisher notice explicitly corrects the target paper.",
+        "confidence": 1.0,
+    })
+    assert dependency.status_code == 201, dependency.text
+    event = client.post(f"/api/v1/sources/papers/{target.json()['id']}/events", json={
+        "event_type": "metadata_change",
+        "description": "A source event requires reassessment of the correction relationship.",
+        "source_url": "https://example.org/correction",
+        "verification_status": "human_verified",
+    })
+    assert event.status_code == 201, event.text
+    impacted = set(event.json()["impact"]["impacted_paper_ids"])
+    assert {target.json()["id"], notice.json()["id"]} <= impacted

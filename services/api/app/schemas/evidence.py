@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-RelationType = Literal["supports", "contradicts", "qualifies", "not_comparable", "insufficient_evidence", "depends_on"]
+RelationType = Literal["supports", "contradicts", "qualifies", "not_comparable", "insufficient_evidence", "depends_on", "cites", "derived_from", "corrects", "retracts"]
 ProvenanceBasis = Literal["source_documented", "metadata_derived", "metadata_inferred", "model_inferred", "human_reviewed"]
 ReviewStatus = Literal["unreviewed", "accepted", "rejected", "needs_review"]
 
@@ -106,6 +106,8 @@ class EvidenceRelationCreate(BaseModel):
             raise ValueError("Provide exactly one of passage_id or related_claim_id.")
         if self.related_claim_id and self.relation_type not in {"depends_on", "supports", "contradicts", "qualifies", "not_comparable"}:
             raise ValueError("Invalid claim-to-claim relationship type.")
+        if self.passage_id and self.relation_type not in {"supports", "contradicts", "qualifies", "not_comparable", "insufficient_evidence"}:
+            raise ValueError("Invalid claim-to-passage relationship type.")
         return self
 
 
@@ -125,7 +127,7 @@ class EvidenceRelationRead(BaseModel):
 class PaperDependencyCreate(BaseModel):
     dependent_paper_id: str
     depends_on_paper_id: str
-    relation_type: Literal["derived_from", "same_dataset", "duplicate_or_overlap", "cites_as_primary_source"] = "derived_from"
+    relation_type: Literal["derived_from", "depends_on", "same_dataset", "duplicate_or_overlap", "cites_as_primary_source", "cites", "corrects", "retracts"] = "derived_from"
     provenance_basis: ProvenanceBasis = "metadata_inferred"
     rationale: str = Field(min_length=4, max_length=3000)
     confidence: float | None = Field(default=None, ge=0, le=1)

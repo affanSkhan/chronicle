@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.entities import (
@@ -9,6 +10,8 @@ from app.models.entities import (
     ReportVersion, ResearchRun, SourceEvent, SourceStatusCheck, Study, User,
 )
 from app.services.audit import record_audit_event
+from app.services.citation_verification import verify_claim_with_llm
+from app.services.dependency_candidates import suggest_dependency_candidates
 from app.schemas.evidence import (
     ClaimCreate, ClaimRead, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
     PaperDependencyCreate, StudyCreate,
@@ -60,6 +63,113 @@ def list_claim_relations(claim_id: str, db: Session = Depends(get_db), current_u
     if claim is None:
         raise HTTPException(status_code=404, detail="Claim not found.")
     return list(db.scalars(select(EvidenceRelation).where(EvidenceRelation.claim_id == claim_id).order_by(EvidenceRelation.created_at)).all())
+
+
+@router.post("/claims/{claim_id}/verify")
+async def verify_claim_citation_support(
+    claim_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Assess linked passages against one claim; model output always remains pending human review."""
+    claim = db.scalar(
+        select(Claim)
+        .join(ResearchRun, Claim.run_id == ResearchRun.id)
+        .where(Claim.id == claim_id, ResearchRun.owner_user_id == current_user.id)
+    )
+    if claim is None:
+        raise HTTPException(status_code=404, detail="Claim not found.")
+
+    relations = db.scalars(
+        select(EvidenceRelation).where(
+            EvidenceRelation.claim_id == claim.id,
+            EvidenceRelation.passage_id.is_not(None),
+            EvidenceRelation.reviewer_status != "rejected",
+        )
+    ).all()
+    passage_ids = {edge.passage_id for edge in relations if edge.passage_id}
+    if not passage_ids:
+        raise HTTPException(status_code=422, detail="Link at least one source passage before verifying this claim.")
+
+    rows = db.execute(
+        select(Passage, Paper.title, Paper.doi)
+        .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+        .join(Paper, PaperVersion.paper_id == Paper.id)
+        .where(Passage.id.in_(passage_ids), Paper.owner_user_id == current_user.id)
+    ).all()
+    passages = [
+        {
+            "id": passage.id,
+            "paper_title": title,
+            "doi": doi,
+            "page_number": passage.page_number,
+            "section_title": passage.section_title,
+            "text": passage.text[:8000],
+        }
+        for passage, title, doi in rows
+    ]
+    if not passages:
+        raise HTTPException(status_code=422, detail="No accessible source passages were found for this claim.")
+
+    settings = get_settings()
+    api_key = settings.openai_api_key.get_secret_value().strip() if settings.openai_api_key else ""
+    model = settings.openai_model.strip()
+    if not api_key or not model:
+        raise HTTPException(
+            status_code=503,
+            detail="Citation verification requires OPENAI_API_KEY and OPENAI_MODEL on the server. No assessment was changed.",
+        )
+
+    try:
+        result = await verify_claim_with_llm(
+            claim_statement=claim.statement,
+            claim_scope=claim.scope or {},
+            passages=passages,
+            api_key=api_key,
+            api_base=settings.openai_api_base,
+            model=model,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="The configured verifier returned an invalid result. No assessment was changed.") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Citation verification failed. No assessment was changed.") from exc
+
+    previous = {
+        "assessment": claim.assessment,
+        "review_required": claim.review_required,
+    }
+    claim.assessment = result["verdict"]
+    claim.review_required = True
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=claim.run_id,
+        target_entity_type="claim",
+        target_entity_id=claim.id,
+        action="claim.citation_verification_completed",
+        previous_value=previous,
+        new_value={
+            "assessment": claim.assessment,
+            "review_required": True,
+            "evidence_passage_ids": result["evidence_passage_ids"],
+            "rationale": result["rationale"],
+            "uncertainty_notes": result["uncertainty_notes"],
+            "model": model,
+            "provenance_basis": "model_inferred",
+        },
+        reason="Model-assisted claim-to-passage assessment; a human reviewer must confirm or revise the result.",
+        resolution_status="needs_review",
+    )
+    db.commit()
+    return {
+        **result,
+        "claim_id": claim.id,
+        "review_required": True,
+        "reviewer_status": "needs_review",
+        "provenance_basis": "model_inferred",
+        "verifier_model": model,
+        "notice": "This is a model-assisted evidence assessment, not proof of scientific truth. Human review is required.",
+    }
 
 
 @router.post("/claims/{claim_id}/relations", response_model=EvidenceRelationRead, status_code=201)
@@ -226,6 +336,24 @@ def review_evidence_relation(
     return relation
 
 
+@router.get("/dependency-candidates")
+def list_dependency_candidates(
+    limit: int = Query(default=30, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return heuristic dependency candidates for human adjudication; does not save graph edges."""
+    candidates = suggest_dependency_candidates(db, current_user.id, limit=limit)
+    return {
+        "count": len(candidates),
+        "candidates": candidates,
+        "note": (
+            "These are heuristic suggestions from shared dataset/registry identifiers or near-duplicate abstracts. "
+            "They are not verified dependencies or independent-evidence judgments. Confirm study context before saving."
+        ),
+    }
+
+
 @router.post("/paper-dependencies", status_code=201)
 def add_paper_dependency(payload: PaperDependencyCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     if payload.dependent_paper_id == payload.depends_on_paper_id:
@@ -293,27 +421,50 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
         or_(EvidenceRelation.claim_id.in_(claim_ids), EvidenceRelation.related_claim_id.in_(claim_ids))
     )).all()) if claim_ids else []
 
-    passage_ids = {rel.passage_id for rel in relations if rel.passage_id}
-    passages = list(db.scalars(select(Passage).where(Passage.id.in_(passage_ids))).all()) if passage_ids else []
-    version_ids = {p.paper_version_id for p in passages}
-    versions = list(db.scalars(select(PaperVersion).where(PaperVersion.id.in_(version_ids))).all()) if version_ids else []
-    paper_ids = {v.paper_id for v in versions}
-    latest_report = db.scalar(select(ReportVersion).where(
-        ReportVersion.run_id == run_id
-    ).order_by(ReportVersion.version_number.desc()))
-    if latest_report and isinstance(latest_report.evidence_snapshot, dict):
-        snapshot_paper_ids = latest_report.evidence_snapshot.get("paper_ids", [])
+    report_versions = list(db.scalars(
+        select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number.asc())
+    ).all())
+    latest_report = report_versions[-1] if report_versions else None
+
+    # All report versions may have different source sets after temporal updates.
+    paper_ids: set[str] = set()
+    for report in report_versions:
+        snapshot = report.evidence_snapshot if isinstance(report.evidence_snapshot, dict) else {}
+        snapshot_paper_ids = snapshot.get("paper_ids", [])
         if isinstance(snapshot_paper_ids, list):
             paper_ids.update(item for item in snapshot_paper_ids if isinstance(item, str))
+
+    passage_ids = {rel.passage_id for rel in relations if rel.passage_id}
+    passages = list(db.scalars(
+        select(Passage)
+        .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+        .join(Paper, PaperVersion.paper_id == Paper.id)
+        .where(Passage.id.in_(passage_ids), Paper.owner_user_id == current_user.id)
+    ).all()) if passage_ids else []
+    owned_passage_ids = {passage.id for passage in passages}
+    # A malformed or stale cross-tenant relation should not create a dangling edge or expose a source.
+    relations = [relation for relation in relations if not relation.passage_id or relation.passage_id in owned_passage_ids]
+    version_ids = {passage.paper_version_id for passage in passages}
+    versions = list(db.scalars(select(PaperVersion).where(PaperVersion.id.in_(version_ids))).all()) if version_ids else []
+    paper_ids.update(version.paper_id for version in versions)
 
     # Include every retrieved paper version and abstract passage from this run,
     # even before claims have been extracted and human-reviewed.
     if paper_ids:
-        versions = list(db.scalars(select(PaperVersion).where(PaperVersion.paper_id.in_(paper_ids))).all())
+        versions = list(db.scalars(
+            select(PaperVersion)
+            .join(Paper, PaperVersion.paper_id == Paper.id)
+            .where(PaperVersion.paper_id.in_(paper_ids), Paper.owner_user_id == current_user.id)
+        ).all())
         version_ids = {version.id for version in versions}
         known_passage_ids = {passage.id for passage in passages}
         if version_ids:
-            stored_passages = list(db.scalars(select(Passage).where(Passage.paper_version_id.in_(version_ids))).all())
+            stored_passages = list(db.scalars(
+                select(Passage)
+                .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+                .join(Paper, PaperVersion.paper_id == Paper.id)
+                .where(Passage.paper_version_id.in_(version_ids), Paper.owner_user_id == current_user.id)
+            ).all())
             for passage in stored_passages:
                 if passage.id not in known_passage_ids:
                     passages.append(passage)
@@ -321,7 +472,15 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
 
     # Include the transitive paper-dependency neighborhood for the papers
     # referenced by this run's evidence. The relationship basis stays visible.
-    all_dependencies = list(db.scalars(select(PaperDependency)).all())
+    owned_paper_ids = set(db.scalars(
+        select(Paper.id).where(Paper.owner_user_id == current_user.id)
+    ).all())
+    all_dependencies = list(db.scalars(
+        select(PaperDependency).where(
+            PaperDependency.dependent_paper_id.in_(owned_paper_ids),
+            PaperDependency.depends_on_paper_id.in_(owned_paper_ids),
+        )
+    ).all()) if owned_paper_ids else []
     relevant_dependencies: list[PaperDependency] = []
     changed = True
     while changed:
@@ -337,8 +496,8 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
                 if len(paper_ids) != before:
                     changed = True
 
-    papers = list(db.scalars(select(Paper).where(Paper.id.in_(paper_ids))).all()) if paper_ids else []
-    studies = list(db.scalars(select(Study).where(Study.paper_id.in_(paper_ids)).order_by(Study.created_at.asc())).all()) if paper_ids else []
+    papers = list(db.scalars(select(Paper).where(Paper.id.in_(paper_ids), Paper.owner_user_id == current_user.id)).all()) if paper_ids else []
+    studies = list(db.scalars(select(Study).join(Paper, Study.paper_id == Paper.id).where(Study.paper_id.in_(paper_ids), Paper.owner_user_id == current_user.id).order_by(Study.created_at.asc())).all()) if paper_ids else []
 
     nodes: list[dict] = [{
         "id": f"claim:{c.id}", "type": "claim", "label": c.statement,
@@ -368,6 +527,15 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
         "outcomes": study.outcomes or [],
         "limitations": study.limitations or [],
     } for study in studies)
+
+    nodes.extend({
+        "id": f"report-version:{report.id}",
+        "type": "report_version",
+        "label": f"{report.title} · v{report.version_number}",
+        "report_version_number": report.version_number,
+        "review_required": report.review_required,
+        "created_at": report.created_at.isoformat() if report.created_at else None,
+    } for report in report_versions)
     edges: list[dict] = []
     for relation in relations:
         if relation.passage_id:
@@ -408,6 +576,140 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
             "confidence": dependency.confidence,
             "rationale": dependency.rationale,
         })
+    known_passage_ids = {passage.id for passage in passages}
+    known_claim_ids = {claim.id for claim in claims}
+    for report in report_versions:
+        snapshot = report.evidence_snapshot if isinstance(report.evidence_snapshot, dict) else {}
+        report_node_id = f"report-version:{report.id}"
+        for claim_id in snapshot.get("claim_ids", []):
+            if isinstance(claim_id, str) and claim_id in known_claim_ids:
+                edges.append({
+                    "source": f"claim:{claim_id}",
+                    "target": report_node_id,
+                    "type": "included_in",
+                    "provenance_basis": "system_recorded",
+                })
+
+        synthesis = snapshot.get("model_synthesis")
+        if not isinstance(synthesis, dict):
+            continue
+
+        findings = synthesis.get("findings", [])
+        if isinstance(findings, list):
+            for index, finding in enumerate(findings, start=1):
+                if not isinstance(finding, dict) or not isinstance(finding.get("statement"), str):
+                    continue
+                finding_statement = finding["statement"].strip()
+                if not finding_statement:
+                    continue
+                allowed_refs = [
+                    ref for ref in (finding.get("evidence_passage_ids") or [])
+                    if isinstance(ref, str) and ref in known_passage_ids
+                ]
+                conclusion_id = f"conclusion:{report.id}:{index}"
+                relation_type = finding.get("relation_type")
+                if relation_type not in {"supports", "contradicts", "qualifies", "not_comparable"}:
+                    relation_type = "qualifies"
+                nodes.append({
+                    "id": conclusion_id,
+                    "type": "conclusion",
+                    "label": finding_statement[:1200],
+                    "assessment": relation_type,
+                    "review_required": True,
+                    "provenance_basis": "model_inferred",
+                    "rationale": finding.get("context_note") or "Model-generated synthesis finding; researcher review required.",
+                    "evidence_passage_ids": allowed_refs,
+                })
+                edges.append({
+                    "source": report_node_id,
+                    "target": conclusion_id,
+                    "type": "contains_conclusion",
+                    "provenance_basis": "system_recorded",
+                })
+                for passage_id in allowed_refs:
+                    edges.append({
+                        "source": f"passage:{passage_id}",
+                        "target": conclusion_id,
+                        "type": relation_type,
+                        "provenance_basis": "model_inferred",
+                        "reviewer_status": "needs_review",
+                        "rationale": finding.get("context_note") or "The report synthesis links this finding to the cited passage; review the original source text.",
+                    })
+
+        opportunities = synthesis.get("research_opportunities", [])
+        if isinstance(opportunities, list):
+            for index, opportunity in enumerate(opportunities, start=1):
+                if not isinstance(opportunity, dict) or not isinstance(opportunity.get("question"), str):
+                    continue
+                question = opportunity["question"].strip()
+                if not question:
+                    continue
+                allowed_refs = [
+                    ref for ref in (opportunity.get("evidence_passage_ids") or [])
+                    if isinstance(ref, str) and ref in known_passage_ids
+                ]
+                recommendation_id = f"recommendation:{report.id}:{index}"
+                nodes.append({
+                    "id": recommendation_id,
+                    "type": "recommendation",
+                    "label": question[:1200],
+                    "review_required": True,
+                    "provenance_basis": "model_inferred",
+                    "rationale": opportunity.get("rationale"),
+                    "evidence_passage_ids": allowed_refs,
+                    "prior_art_search_queries": opportunity.get("prior_art_search_queries") or [],
+                    "alternative_explanations": opportunity.get("alternative_explanations") or [],
+                    "falsification_plan": opportunity.get("falsification_plan"),
+                    "review_status": opportunity.get("review_status", "requires_prior_art_review"),
+                })
+                edges.append({
+                    "source": report_node_id,
+                    "target": recommendation_id,
+                    "type": "proposes_recommendation",
+                    "provenance_basis": "system_recorded",
+                })
+                for passage_id in allowed_refs:
+                    edges.append({
+                        "source": f"passage:{passage_id}",
+                        "target": recommendation_id,
+                        "type": "motivates_recommendation",
+                        "provenance_basis": "model_inferred",
+                        "reviewer_status": "needs_review",
+                        "rationale": opportunity.get("rationale") or "The research opportunity was proposed from this passage; confirm the source context.",
+                    })
+
+        # Legacy free-text questions remain explicit recommendations but have
+        # no fabricated evidence edges when the model supplied no exact passage IDs.
+        legacy_questions = synthesis.get("candidate_research_questions", [])
+        if isinstance(legacy_questions, list):
+            structured_questions = {
+                item.get("question") for item in opportunities
+                if isinstance(item, dict) and isinstance(item.get("question"), str)
+            } if isinstance(opportunities, list) else set()
+            legacy_index = 1
+            for legacy_question in legacy_questions:
+                if not isinstance(legacy_question, str) or not legacy_question.strip() or legacy_question in structured_questions:
+                    continue
+                recommendation_id = f"recommendation:{report.id}:legacy:{legacy_index}"
+                legacy_index += 1
+                nodes.append({
+                    "id": recommendation_id,
+                    "type": "recommendation",
+                    "label": legacy_question.strip()[:1200],
+                    "review_required": True,
+                    "provenance_basis": "model_inferred",
+                    "rationale": "Legacy candidate question has no validated evidence-passage pointers.",
+                    "evidence_passage_ids": [],
+                    "review_status": "requires_prior_art_review",
+                })
+                edges.append({
+                    "source": report_node_id,
+                    "target": recommendation_id,
+                    "type": "proposes_recommendation",
+                    "provenance_basis": "system_recorded",
+                    "reviewer_status": "needs_review",
+                })
+
     return {
         "run_id": run_id, "nodes": nodes, "edges": edges,
         "note": "Only persisted relationships are shown. Missing edges are not evidence that a relationship does not exist.",
@@ -543,7 +845,7 @@ def list_run_audit_events(
 @router.get("/runs/{run_id}/passport")
 def export_evidence_passport(
     run_id: str,
-    format: str = Query(default="markdown", pattern="^(markdown|json)$"),
+    format: str = Query(default="markdown", pattern="^(markdown|json|pdf)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -764,7 +1066,7 @@ def export_evidence_passport(
         } for report in reports],
     }
 
-    filename = f"chronicle-evidence-passport-{run_id[:8]}.{ 'json' if format == 'json' else 'md' }"
+    filename = f"chronicle-evidence-passport-{run_id[:8]}.{ {'json': 'json', 'markdown': 'md', 'pdf': 'pdf'}[format] }"
     if format == "json":
         return JSONResponse(
             content=passport,
@@ -883,6 +1185,88 @@ def export_evidence_passport(
         if report["change_summary"]:
             lines.append(f"- **Change summary:** {report['change_summary']}")
         lines.extend(["", report["content_markdown"], ""])
+    if format == "pdf":
+        # Keep PDF rendering dependency-light: PyMuPDF is already used by the
+        # ingestion pipeline. Render the same export content so PDF/Markdown
+        # exports cannot silently diverge in scope or interpretation warnings.
+        import fitz
+        import textwrap
+
+        pdf_document = fitz.open()
+        page_width, page_height = 595, 842  # A4 portrait, PDF points
+        margin_x, margin_top, margin_bottom = 44, 46, 42
+        page = pdf_document.new_page(width=page_width, height=page_height)
+        y = margin_top
+        content_width = page_width - (2 * margin_x)
+
+        def add_page():
+            nonlocal page, y
+            page = pdf_document.new_page(width=page_width, height=page_height)
+            y = margin_top
+
+        for raw_line in lines:
+            line = raw_line.replace("**", "").replace("`", "")
+            level = 0
+            if line.startswith("# "):
+                level, line = 1, line[2:]
+            elif line.startswith("## "):
+                level, line = 2, line[3:]
+            elif line.startswith("### "):
+                level, line = 3, line[4:]
+            elif line.startswith("- "):
+                line = "• " + line[2:]
+
+            # Base-14 Helvetica supports Western text. Replace characters it
+            # cannot represent rather than failing the entire passport export.
+            line = line.encode("cp1252", errors="replace").decode("cp1252")
+            if not line.strip():
+                y += 5
+                if y > page_height - margin_bottom:
+                    add_page()
+                continue
+
+            font_size = 17 if level == 1 else 12 if level == 2 else 10 if level == 3 else 8.5
+            font_name = "hebo" if level else "helv"
+            available_chars = max(36, int(content_width / (font_size * 0.52)))
+            wrapped_lines = textwrap.wrap(
+                line,
+                width=available_chars,
+                break_long_words=True,
+                break_on_hyphens=False,
+                replace_whitespace=False,
+            ) or [""]
+            if level:
+                y += 5
+            for wrapped in wrapped_lines:
+                line_height = font_size * 1.4
+                if y + line_height > page_height - margin_bottom:
+                    add_page()
+                page.insert_text(
+                    (margin_x, y),
+                    wrapped,
+                    fontname=font_name,
+                    fontsize=font_size,
+                    color=(0.12, 0.16, 0.24),
+                )
+                y += line_height
+
+        # Add a page number to every page after the content is laid out.
+        for page_number, output_page in enumerate(pdf_document, start=1):
+            output_page.insert_text(
+                (page_width - margin_x - 12, page_height - 18),
+                str(page_number),
+                fontname="helv",
+                fontsize=8,
+                color=(0.35, 0.39, 0.46),
+            )
+        pdf_bytes = pdf_document.tobytes()
+        pdf_document.close()
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
     return Response(
         content="\n".join(lines),
         media_type="text/markdown; charset=utf-8",

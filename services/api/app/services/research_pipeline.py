@@ -4,6 +4,8 @@ Model-generated claims remain unreviewed. Each edge is checked against the
 passage IDs supplied to the model and labelled model-inferred, not verified.
 """
 from datetime import datetime, timezone
+import asyncio
+import math
 import hashlib
 import re
 
@@ -16,6 +18,70 @@ from app.services.academic_search import search_papers
 from app.services.audit import record_audit_event
 from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
+from app.services.dependency_candidates import build_dependency_clusters, suggest_dependency_candidates
+from app.services.research_planner import build_research_plan, focus_for_mode
+
+
+class ResearchRunCancelled(Exception):
+    """Raised internally when the owner requests cooperative run cancellation."""
+
+
+def _run_cancellation_requested(run_id: str) -> bool:
+    with SessionLocal() as db:
+        run = db.get(ResearchRun, run_id)
+        return run is None or run.status in {"cancel_requested", "cancelled"}
+
+
+def _finalize_cancelled_run(run_id: str, reason: str = "Owner requested cancellation.") -> None:
+    with SessionLocal() as db:
+        run = db.get(ResearchRun, run_id)
+        if run is None:
+            return
+        previous_status = run.status
+        if run.status != "cancelled":
+            now = datetime.now(timezone.utc)
+            run.status = "cancelled"
+            run.cancel_requested_at = run.cancel_requested_at or now
+            run.cancelled_at = now
+            run.error_message = None
+            run.configuration = {
+                **(run.configuration or {}),
+                "cancellation": {
+                    **((run.configuration or {}).get("cancellation") or {}),
+                    "finalized_at": now.isoformat(),
+                    "previous_status": previous_status,
+                    "reason": reason,
+                },
+            }
+            record_audit_event(
+                db,
+                actor_user_id=None,
+                run_id=run.id,
+                target_entity_type="research_run",
+                target_entity_id=run.id,
+                action="research_run.cancelled",
+                previous_value={"status": previous_status},
+                new_value={"status": "cancelled", "cancelled_at": now.isoformat()},
+                reason=reason,
+                resolution_status="cancelled",
+            )
+        db.commit()
+
+
+async def _await_with_cancellation(awaitable, run_id: str):
+    """Await an external stage while polling for owner cancellation."""
+    if _run_cancellation_requested(run_id):
+        raise ResearchRunCancelled("Research run cancellation was requested.")
+    task = asyncio.create_task(awaitable)
+    while not task.done():
+        if _run_cancellation_requested(run_id):
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            raise ResearchRunCancelled("Research run cancellation was requested.")
+        await asyncio.wait({task}, timeout=0.5)
+    if _run_cancellation_requested(run_id):
+        raise ResearchRunCancelled("Research run cancellation was requested.")
+    return task.result()
 
 
 def _normalize_doi(value: str | None) -> str | None:
@@ -38,6 +104,9 @@ def _markdown_report(
     synthesis: dict | None,
     synthesis_note: str,
     study_contexts: list[dict],
+    execution_plan: dict | None = None,
+    dependency_candidates: list[dict] | None = None,
+    dependency_analysis: dict | None = None,
 ) -> str:
     lines = [
         "# Academic Discovery Snapshot",
@@ -54,6 +123,23 @@ def _markdown_report(
         "## Retrieved literature",
         "",
     ]
+    if execution_plan:
+        plan_lines = [
+            "",
+            "## Execution plan",
+            "",
+            f"- **Profile:** {execution_plan.get('profile_label', mode)}",
+            f"- **Planner version:** {execution_plan.get('version', '1.0')}",
+            f"- **Source budget:** {execution_plan.get('source_budget', len(papers))}",
+            "- **Search subqueries actually executed:**",
+        ]
+        plan_lines.extend(f"  - {query}" for query in execution_plan.get("queries", []))
+        plan_lines.append("- **Workflow modules:**")
+        plan_lines.extend(f"  - {module}" for module in execution_plan.get("modules", []))
+        plan_lines.extend(["", f"**Mode focus:** {execution_plan.get('focus', 'General scholarly discovery')}", ""])
+        insert_at = lines.index("## Important interpretation note")
+        lines[insert_at:insert_at] = plan_lines
+
     if not papers:
         lines.append("No papers were returned by the configured metadata providers.")
     for index, paper in enumerate(papers, start=1):
@@ -136,9 +222,67 @@ def _markdown_report(
         if questions:
             lines.extend(["", "### Candidate research questions (not novelty claims)", ""])
             lines.extend(f"- {item}" for item in questions)
+        opportunities = synthesis.get("research_opportunities", [])
+        if opportunities:
+            lines.extend(["", "### Evidence-linked research opportunities (not novelty claims)", ""])
+            for index, opportunity in enumerate(opportunities, start=1):
+                lines.append(f"{index}. **{opportunity.get('question', 'Candidate research question')}**")
+                if opportunity.get("rationale"):
+                    lines.append(f"   - Motivation: {opportunity['rationale']}")
+                for passage_id in opportunity.get("evidence_passage_ids", []):
+                    paper = next((item for item in papers if item.get("passage_id") == passage_id), None)
+                    if paper:
+                        doi = _normalize_doi(paper.get("doi"))
+                        source_url = f"https://doi.org/{doi}" if doi else (paper.get("landing_url") or "")
+                        title = paper.get("title") or "Source paper"
+                        source_label = f"[{title}]({source_url})" if source_url else title
+                        lines.append(f"   - Evidence trace: {source_label} · passage ID {passage_id}")
+                    else:
+                        lines.append(f"   - Evidence trace: passage ID {passage_id}")
+                if opportunity.get("prior_art_search_queries"):
+                    lines.append("   - Prior-art search queries: " + " | ".join(opportunity["prior_art_search_queries"]))
+                if opportunity.get("alternative_explanations"):
+                    lines.append("   - Alternative explanations: " + "; ".join(opportunity["alternative_explanations"]))
+                if opportunity.get("falsification_plan"):
+                    lines.append("   - Falsification plan: " + opportunity["falsification_plan"])
+                lines.append("   - Status: candidate only; prior-art search and human review are required.")
+                lines.append("")
         lines.extend(["", "**Uncertainty:** " + synthesis.get("uncertainty_statement", "Uncertainty was not provided."), ""])
     lines.append(synthesis_note)
     lines.append("")
+
+    if execution_plan and execution_plan.get("stages", {}).get("dependency_candidate_scan"):
+        analysis = dependency_analysis or {}
+        lines.extend(["## Potential source-dependence analysis (heuristic; human review required)", ""])
+        lines.append(f"- Raw retrieved source records: {analysis.get('raw_source_count', len(papers))}")
+        lines.append(f"- Candidate links surfaced: {analysis.get('candidate_link_count', len(dependency_candidates or []))}")
+        lines.append(f"- Candidate dependency clusters: {analysis.get('candidate_cluster_count', 0)}")
+        lines.append(f"- Sources outside candidate clusters: {analysis.get('unclustered_source_count', len(papers))}")
+        lines.append("- Unclustered sources are not proven independent, and clustered sources are not proven dependent.")
+        lines.append("")
+        clusters = analysis.get("clusters", [])
+        if clusters:
+            for cluster in clusters:
+                lines.append(f"### Candidate cluster · {cluster['source_count']} source records")
+                lines.append("Members: " + "; ".join(cluster.get("paper_titles", [])))
+                lines.append("Candidate link types: " + ", ".join(cluster.get("relation_types", [])))
+                lines.append("Signals: " + "; ".join(cluster.get("signals", [])))
+                lines.append(f"Review state: {cluster.get('status', 'candidate_requires_human_review')}")
+                lines.append(f"Interpretation: {cluster.get('interpretation', 'Manual source-lineage review required.')}")
+                lines.append("")
+        elif not dependency_candidates:
+            lines.append("No candidate dependency links were surfaced by the current heuristic set. This does not establish source independence.")
+            lines.append("")
+        if dependency_candidates:
+            lines.extend(["### Individual candidate links", ""])
+            for candidate in dependency_candidates:
+                lines.append(f"- **{candidate['relation_type'].replace('_', ' ').title()}:** {candidate['paper_a_title']} ↔ {candidate['paper_b_title']}")
+                lines.append("  - Signal: " + "; ".join(candidate.get("signals", [])))
+                lines.append(f"  - Heuristic score (not a calibrated probability): {candidate.get('confidence', 0)}")
+                lines.append(f"  - Rationale: {candidate.get('rationale', '')}")
+                lines.append("  - Status: candidate only; researcher confirmation is required.")
+                lines.append("")
+
 
     lines.extend(["## Candidate claims", ""])
     if not extracted_claims:
@@ -166,27 +310,144 @@ def _markdown_report(
     return "\n".join(lines)
 
 
+async def _execute_planned_search(
+    question: str,
+    mode: str,
+    max_sources: int,
+    plan: dict | None = None,
+    run_id: str | None = None,
+) -> tuple[dict, dict]:
+    """Run bounded planned searches and cancel pending requests when requested."""
+    plan = plan or build_research_plan(question, mode, max_sources)
+    queries = plan["queries"]
+    per_query_limit = max(1, math.ceil(max_sources / max(1, len(queries))))
+    tasks = {
+        asyncio.create_task(search_papers(query, limit=per_query_limit, provider="all")): index
+        for index, query in enumerate(queries)
+    }
+    responses: list[dict | Exception | None] = [None] * len(queries)
+    pending = set(tasks)
+    while pending:
+        if run_id and _run_cancellation_requested(run_id):
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+            raise ResearchRunCancelled("Research run cancellation was requested.")
+        done, pending = await asyncio.wait(
+            pending,
+            timeout=0.5,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for task in done:
+            try:
+                responses[tasks[task]] = task.result()
+            except Exception as exc:
+                responses[tasks[task]] = exc
+    if run_id and _run_cancellation_requested(run_id):
+        raise ResearchRunCancelled("Research run cancellation was requested.")
+
+    provider_errors: dict[str, str] = {}
+    merged: dict[str, dict] = {}
+    successful_queries = 0
+    for index, (query, response) in enumerate(zip(queries, responses), start=1):
+        if isinstance(response, Exception) or response is None:
+            provider_errors[f"query_{index}"] = "This planned search failed or a provider was unavailable."
+            continue
+        successful_queries += 1
+        for name, message in (response.get("provider_errors") or {}).items():
+            provider_errors[f"query_{index}_{name}"] = message
+        for raw_item in response.get("results", []):
+            item = dict(raw_item)
+            doi = _normalize_doi(item.get("doi"))
+            normalized_title = " ".join(str(item.get("title") or "").lower().split())
+            key = f"doi:{doi.lower()}" if doi else f"title:{normalized_title}"
+            if not normalized_title:
+                continue
+            if key not in merged:
+                item["matched_queries"] = [query]
+                merged[key] = item
+            else:
+                prior = merged[key]
+                prior["abstract"] = prior.get("abstract") or item.get("abstract")
+                prior["authors"] = prior.get("authors") or item.get("authors") or []
+                prior["landing_url"] = prior.get("landing_url") or item.get("landing_url")
+                prior["publisher"] = prior.get("publisher") or item.get("publisher")
+                prior["publication_year"] = prior.get("publication_year") or item.get("publication_year")
+                prior["doi"] = prior.get("doi") or item.get("doi")
+                prior["matched_queries"] = sorted(set(prior.get("matched_queries", []) + [query]))
+    if successful_queries == 0:
+        raise RuntimeError("All planned scholarly searches failed.")
+
+    result_items = list(merged.values())
+    result_items.sort(
+        key=lambda item: (
+            item.get("publication_year") or 0,
+            bool(item.get("abstract")),
+            str(item.get("title") or "").lower(),
+        ),
+        reverse=True,
+    )
+    result_items = result_items[:max_sources]
+    provider_result = {
+        "query": question,
+        "queries": queries,
+        "providers_requested": "all",
+        "results": result_items,
+        "provider_errors": provider_errors,
+        "execution_plan": plan,
+        "note": "Mode-specific metadata retrieval; abstracts remain source text, not claim verification.",
+    }
+    return provider_result, plan
+
+
 async def execute_research_run(run_id: str) -> None:
     """Execute a discovery run and persist its status, source records and report."""
+    cancel_before_start = False
     with SessionLocal() as db:
         run = db.get(ResearchRun, run_id)
         if run is None:
             return
-        run.status = "running"
-        run.error_message = None
-        run.configuration = {
-            **(run.configuration or {}),
-            "pipeline": "scholarly-metadata-discovery",
-            "started_at": datetime.now(timezone.utc).isoformat(),
-        }
-        question = run.question
-        limit = run.max_sources
-        mode = run.mode
-        owner_user_id = run.owner_user_id
-        db.commit()
+        if run.status in {"cancel_requested", "cancelled"}:
+            cancel_before_start = True
+        else:
+            run.status = "running"
+            run.demo = False
+            run.error_message = None
+            run.configuration = {
+                **(run.configuration or {}),
+                "pipeline": "mode-specific-scholarly-discovery",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+            }
+            question = run.question
+            limit = run.max_sources
+            mode = run.mode
+            owner_user_id = run.owner_user_id
+            db.commit()
+    if cancel_before_start:
+        _finalize_cancelled_run(run_id, "Run was cancelled before the worker began.")
+        return
 
     try:
-        provider_result = await search_papers(question, limit=limit, provider="all")
+        execution_plan = build_research_plan(question, mode, limit)
+        # Persist the plan before network I/O so a failed or partial run remains inspectable.
+        with SessionLocal() as db:
+            run = db.get(ResearchRun, run_id)
+            if run is None:
+                return
+            run.configuration = {
+                **(run.configuration or {}),
+                "pipeline": "mode-specific-scholarly-discovery",
+                "planner_version": execution_plan["version"],
+                "execution_plan": execution_plan,
+                "planned_search_queries": execution_plan["queries"],
+            }
+            db.commit()
+
+        provider_result, execution_plan = await _execute_planned_search(
+            question, mode, limit, plan=execution_plan, run_id=run_id
+        )
+        if _run_cancellation_requested(run_id):
+            raise ResearchRunCancelled("Research run cancellation was requested.")
         result_items = provider_result.get("results", [])
         saved_papers: list[dict] = []
         passages_for_extraction: list[dict] = []
@@ -252,7 +513,8 @@ async def execute_research_run(run_id: str) -> None:
                         metadata_snapshot={
                             "provider": item.get("provider"),
                             "external_id": item.get("external_id"),
-                            "search_query": question,
+                            "search_queries": item.get("matched_queries") or [question],
+                            "planner_version": execution_plan.get("version", "1.0"),
                             "retrieved_at": datetime.now(timezone.utc).isoformat(),
                             "content_hash": abstract_hash,
                         },
@@ -303,37 +565,48 @@ async def execute_research_run(run_id: str) -> None:
             db.commit()
 
         # Phase 2: optional model-backed candidates; retrieval-only mode is valid.
+        if _run_cancellation_requested(run_id):
+            raise ResearchRunCancelled("Research run cancellation was requested.")
         settings = get_settings()
         extracted_claims: list[dict] = []
-        llm_note = "LLM extraction skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured."
+        stages = execution_plan.get("stages", {})
+        should_extract_claims = bool(stages.get("claim_extraction", True))
+        should_synthesize_evidence = bool(stages.get("evidence_synthesis", True))
+        should_scan_dependencies = bool(stages.get("dependency_candidate_scan", False))
+        llm_note = ("Claim extraction skipped by the Quick Discovery profile; this run is retrieval-only."
+                    if not should_extract_claims else
+                    "LLM extraction skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured.")
         extraction_error: str | None = None
         api_key = settings.openai_api_key.get_secret_value().strip() if settings.openai_api_key else ""
-        if api_key and settings.openai_model.strip() and passages_for_extraction:
+        model_question = question + "\n\nRun profile: " + execution_plan["profile_label"] + ". Focus: " + focus_for_mode(mode)
+        if should_extract_claims and api_key and settings.openai_model.strip() and passages_for_extraction:
             try:
-                extracted_claims = await extract_claims_from_passages(
-                    question=question,
+                extracted_claims = await _await_with_cancellation(extract_claims_from_passages(
+                    question=model_question,
                     passages=passages_for_extraction,
                     api_key=api_key,
                     api_base=settings.openai_api_base,
                     model=settings.openai_model.strip(),
-                )
+                ), run_id)
                 llm_note = "Structured extraction completed; generated claims and evidence edges still require human review."
             except Exception as exc:
                 extraction_error = type(exc).__name__
                 llm_note = "LLM extraction failed; the bibliographic discovery report was completed without model-generated claims."
 
         synthesis_result: dict | None = None
-        synthesis_note = "Model synthesis skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured."
+        synthesis_note = ("Synthesis skipped by the Quick Discovery profile to keep this run retrieval-only."
+                          if not should_synthesize_evidence else
+                          "Model synthesis skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured.")
         synthesis_error: str | None = None
-        if api_key and settings.openai_model.strip() and passages_for_extraction:
+        if should_synthesize_evidence and api_key and settings.openai_model.strip() and passages_for_extraction:
             try:
-                synthesis_result = await synthesize_evidence(
-                    question=question,
+                synthesis_result = await _await_with_cancellation(synthesize_evidence(
+                    question=model_question,
                     passages=passages_for_extraction,
                     api_key=api_key,
                     api_base=settings.openai_api_base,
                     model=settings.openai_model.strip(),
-                )
+                ), run_id)
                 synthesis_note = "Model synthesis completed; draft findings and candidate research questions still require human review."
             except Exception as exc:
                 synthesis_error = type(exc).__name__
@@ -440,13 +713,47 @@ async def execute_research_run(run_id: str) -> None:
                     })
                 db.commit()
 
+        dependency_candidates: list[dict] = []
+        dependency_analysis: dict = {
+            "status": "not_scanned",
+            "raw_source_count": len(saved_papers),
+            "candidate_link_count": 0,
+            "candidate_cluster_count": 0,
+            "clustered_source_count": 0,
+            "unclustered_source_count": None,
+            "clusters": [],
+            "interpretation": "This mode does not run the dependency-candidate scan. No independence conclusion is implied.",
+        }
+        if should_scan_dependencies:
+            # Forensic scanning is bounded to this run and does not persist any graph edges.
+            if owner_user_id and len(saved_papers) >= 2:
+                with SessionLocal() as db:
+                    dependency_candidates = suggest_dependency_candidates(
+                        db,
+                        owner_user_id,
+                        limit=30,
+                        paper_ids={paper["paper_id"] for paper in saved_papers},
+                    )
+            dependency_analysis = build_dependency_clusters(saved_papers, dependency_candidates)
+
+        provider_errors = provider_result.get("provider_errors", {})
+        llm_stage_expected = should_extract_claims or should_synthesize_evidence
+        llm_provider_unavailable = llm_stage_expected and (not api_key or not settings.openai_model.strip())
+        has_limitations = bool(provider_errors) or bool(extraction_error) or bool(synthesis_error) or not saved_papers or llm_provider_unavailable
+        completion_status = "completed_with_limitations" if has_limitations else "completed"
+
         # Phase 3: immutable report snapshot and final job state.
+        if _run_cancellation_requested(run_id):
+            raise ResearchRunCancelled("Research run cancellation was requested.")
         generated_at = datetime.now(timezone.utc).isoformat()
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
             if run is None:
                 return
             latest = db.scalar(select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number.desc()))
+            if run.status in {"cancel_requested", "cancelled"}:
+                db.rollback()
+                raise ResearchRunCancelled("Research run cancellation was requested before report commit.")
             report = ReportVersion(
                 run_id=run_id,
                 version_number=(latest.version_number + 1) if latest else 1,
@@ -455,10 +762,15 @@ async def execute_research_run(run_id: str) -> None:
                 content_markdown=_markdown_report(
                     question, mode, saved_papers, provider_result.get("provider_errors", {}),
                     generated_at, persisted_claims, llm_note, synthesis_result, synthesis_note, persisted_studies,
+                    execution_plan=execution_plan,
+                    dependency_candidates=dependency_candidates,
+                    dependency_analysis=dependency_analysis,
                 ),
                 evidence_snapshot={
                     "query": question,
                     "mode": mode,
+                    "execution_plan": execution_plan,
+                    "executed_search_queries": provider_result.get("queries", []),
                     "providers_requested": provider_result.get("providers_requested"),
                     "provider_errors": provider_result.get("provider_errors", {}),
                     "paper_ids": [paper["paper_id"] for paper in saved_papers],
@@ -472,38 +784,79 @@ async def execute_research_run(run_id: str) -> None:
                     "model_synthesis_error": synthesis_error,
                     "model_synthesis_note": synthesis_note,
                     "model_synthesis": synthesis_result,
+                    "dependency_candidates": dependency_candidates,
+                    "source_dependence_analysis": dependency_analysis,
+                    "completion_status": completion_status,
+                    "completed_with_limitations": has_limitations,
                 },
                 change_summary="Initial scholarly discovery snapshot; extracted claims remain unreviewed candidates.",
             )
             db.add(report)
-            run.status = "completed"
+            run.status = completion_status
             run.demo = False
             run.error_message = None
             run.configuration = {
                 **(run.configuration or {}),
-                "pipeline": "scholarly-metadata-discovery",
+                "pipeline": "mode-specific-scholarly-discovery",
+                "execution_plan": execution_plan,
+                "executed_search_queries": provider_result.get("queries", []),
                 "completed_at": generated_at,
                 "paper_count": len(saved_papers),
                 "passage_count": sum(1 for paper in saved_papers if paper["passage_id"]),
                 "claim_candidate_count": len(persisted_claims),
                 "study_context_count": len(persisted_studies),
+                "dependency_candidate_count": len(dependency_candidates),
+                "source_dependence_analysis": dependency_analysis,
                 "provider_errors": provider_result.get("provider_errors", {}),
                 "llm_extraction_error": extraction_error,
                 "claim_verification_completed": False,
+                "completion_status": run.status,
+                "completed_with_limitations": has_limitations,
             }
             db.commit()
 
+    except ResearchRunCancelled:
+        _finalize_cancelled_run(run_id)
     except Exception as exc:
-        # Store a user-safe error; don't persist request URLs, headers or secrets.
+        # A concurrent cancellation takes precedence over a generic provider error.
+        # Store user-safe errors; never persist request URLs, headers or secrets.
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
             if run is not None:
-                run.status = "failed"
-                run.demo = False
-                run.error_message = "Scholarly discovery failed. Check provider availability and server logs."
-                run.configuration = {
-                    **(run.configuration or {}),
-                    "failed_at": datetime.now(timezone.utc).isoformat(),
-                    "failure_type": type(exc).__name__,
-                }
+                if run.status in {"cancel_requested", "cancelled"}:
+                    now = datetime.now(timezone.utc)
+                    previous_status = run.status
+                    run.status = "cancelled"
+                    run.cancel_requested_at = run.cancel_requested_at or now
+                    run.cancelled_at = now
+                    run.error_message = None
+                    run.configuration = {
+                        **(run.configuration or {}),
+                        "cancellation": {
+                            **((run.configuration or {}).get("cancellation") or {}),
+                            "finalized_at": now.isoformat(),
+                            "reason": "Cancellation was observed while handling a provider failure.",
+                        },
+                    }
+                    record_audit_event(
+                        db,
+                        actor_user_id=None,
+                        run_id=run.id,
+                        target_entity_type="research_run",
+                        target_entity_id=run.id,
+                        action="research_run.cancelled",
+                        previous_value={"status": previous_status},
+                        new_value={"status": "cancelled", "cancelled_at": now.isoformat()},
+                        reason="Cancellation was observed while handling a provider failure.",
+                        resolution_status="cancelled",
+                    )
+                else:
+                    run.status = "failed"
+                    run.demo = False
+                    run.error_message = "Scholarly discovery failed. Check provider availability and server logs."
+                    run.configuration = {
+                        **(run.configuration or {}),
+                        "failed_at": datetime.now(timezone.utc).isoformat(),
+                        "failure_type": type(exc).__name__,
+                    }
                 db.commit()
