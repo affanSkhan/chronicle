@@ -16,6 +16,8 @@ class RunStatus(StrEnum):
     COMPLETED = "completed"
     COMPLETED_WITH_LIMITATIONS = "completed_with_limitations"
     FAILED = "failed"
+    CANCEL_REQUESTED = "cancel_requested"
+    CANCELLED = "cancelled"
 
 
 class ResearchRunCreate(BaseModel):
@@ -37,6 +39,9 @@ class ResearchRun(BaseModel):
     created_at: datetime
     demo: bool = False
     error_message: str | None = None
+    cancel_requested_at: datetime | None = None
+    cancelled_at: datetime | None = None
+    retry_of_run_id: str | None = None
 
 
 class ProjectCreate(BaseModel):

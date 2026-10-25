@@ -134,6 +134,121 @@ def list_research_runs(db: Session = Depends(get_db), current_user: User = Depen
     return list(db.scalars(select(ResearchRun).where(ResearchRun.owner_user_id == current_user.id).order_by(ResearchRun.created_at.desc()).limit(100)).all())
 
 
+@router.post("/research/runs/{run_id}/cancel", response_model=ResearchRunSchema)
+def cancel_research_run(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ResearchRun:
+    run = db.scalar(select(ResearchRun).where(
+        ResearchRun.id == run_id,
+        ResearchRun.owner_user_id == current_user.id,
+    ))
+    if run is None:
+        raise HTTPException(status_code=404, detail="Research run not found.")
+
+    previous_status = run.status
+    if run.status == "queued":
+        run.status = "cancelled"
+        run.cancelled_at = datetime.now(timezone.utc)
+    elif run.status == "running":
+        run.status = "cancel_requested"
+        run.cancel_requested_at = datetime.now(timezone.utc)
+    elif run.status == "cancel_requested":
+        return run
+    elif run.status == "cancelled":
+        return run
+    else:
+        raise HTTPException(status_code=409, detail=f"Run cannot be cancelled from status '{run.status}'.")
+
+    run.configuration = {
+        **(run.configuration or {}),
+        "cancellation": {
+            "requested_at": (run.cancel_requested_at or run.cancelled_at).isoformat(),
+            "requested_by": current_user.id,
+            "previous_status": previous_status,
+        },
+    }
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=run.id,
+        target_entity_type="research_run",
+        target_entity_id=run.id,
+        action="research_run.cancel_requested" if run.status == "cancel_requested" else "research_run.cancelled",
+        previous_value={"status": previous_status},
+        new_value={"status": run.status, "cancel_requested_at": run.cancel_requested_at.isoformat() if run.cancel_requested_at else None, "cancelled_at": run.cancelled_at.isoformat() if run.cancelled_at else None},
+        reason="Cancellation requested by the workspace owner.",
+        resolution_status="needs_review" if run.status == "cancel_requested" else "cancelled",
+    )
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+@router.post("/research/runs/{run_id}/retry", response_model=ResearchRunSchema, status_code=201)
+def retry_research_run(
+    run_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ResearchRun:
+    original = db.scalar(select(ResearchRun).where(
+        ResearchRun.id == run_id,
+        ResearchRun.owner_user_id == current_user.id,
+    ))
+    if original is None:
+        raise HTTPException(status_code=404, detail="Research run not found.")
+    if original.status not in {"failed", "cancelled", "completed_with_limitations"}:
+        raise HTTPException(
+            status_code=409,
+            detail="Only failed, cancelled, or completed-with-limitations runs can be retried.",
+        )
+    if original.project_id:
+        project = db.scalar(select(ResearchProject).where(
+            ResearchProject.id == original.project_id,
+            ResearchProject.owner_user_id == current_user.id,
+        ))
+        if project is None:
+            raise HTTPException(status_code=404, detail="Research project not found.")
+        if project.archived_at is not None:
+            raise HTTPException(status_code=409, detail="This workspace is archived. Restore it before retrying the run.")
+
+    retry = ResearchRun(
+        owner_user_id=current_user.id,
+        project_id=original.project_id,
+        question=original.question,
+        mode=original.mode,
+        status="queued",
+        max_sources=original.max_sources,
+        demo=False,
+        retry_of_run_id=original.id,
+        configuration={
+            "pipeline": "mode-specific-scholarly-discovery",
+            "retry_of_run_id": original.id,
+            "retried_at": datetime.now(timezone.utc).isoformat(),
+            "retry_policy": "fresh_run_with_original_question_mode_source_budget",
+        },
+    )
+    db.add(retry)
+    db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=retry.id,
+        target_entity_type="research_run",
+        target_entity_id=retry.id,
+        action="research_run.retried",
+        previous_value={"original_run_id": original.id, "original_status": original.status},
+        new_value={"retry_run_id": retry.id, "status": retry.status, "mode": retry.mode, "max_sources": retry.max_sources},
+        reason="Owner requested a fresh retry using the original run parameters.",
+    )
+    db.commit()
+    db.refresh(retry)
+    background_tasks.add_task(execute_research_run, retry.id)
+    return retry
+
+
 @router.get("/research/runs/{run_id}", response_model=ResearchRunSchema)
 def get_research_run(run_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> ResearchRun:
     run = db.scalar(select(ResearchRun).where(ResearchRun.id == run_id, ResearchRun.owner_user_id == current_user.id))
