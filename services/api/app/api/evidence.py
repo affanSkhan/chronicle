@@ -426,9 +426,10 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
     version_ids = {p.paper_version_id for p in passages}
     versions = list(db.scalars(select(PaperVersion).where(PaperVersion.id.in_(version_ids))).all()) if version_ids else []
     paper_ids = {v.paper_id for v in versions}
-    latest_report = db.scalar(select(ReportVersion).where(
-        ReportVersion.run_id == run_id
-    ).order_by(ReportVersion.version_number.desc()))
+    report_versions = list(db.scalars(
+        select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number.asc())
+    ).all())
+    latest_report = report_versions[-1] if report_versions else None
     if latest_report and isinstance(latest_report.evidence_snapshot, dict):
         snapshot_paper_ids = latest_report.evidence_snapshot.get("paper_ids", [])
         if isinstance(snapshot_paper_ids, list):
@@ -496,6 +497,15 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
         "outcomes": study.outcomes or [],
         "limitations": study.limitations or [],
     } for study in studies)
+
+    nodes.extend({
+        "id": f"report-version:{report.id}",
+        "type": "report_version",
+        "label": f"{report.title} · v{report.version_number}",
+        "report_version_number": report.version_number,
+        "review_required": report.review_required,
+        "created_at": report.created_at.isoformat() if report.created_at else None,
+    } for report in report_versions)
     edges: list[dict] = []
     for relation in relations:
         if relation.passage_id:
@@ -536,6 +546,140 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
             "confidence": dependency.confidence,
             "rationale": dependency.rationale,
         })
+    known_passage_ids = {passage.id for passage in passages}
+    known_claim_ids = {claim.id for claim in claims}
+    for report in report_versions:
+        snapshot = report.evidence_snapshot if isinstance(report.evidence_snapshot, dict) else {}
+        report_node_id = f"report-version:{report.id}"
+        for claim_id in snapshot.get("claim_ids", []):
+            if isinstance(claim_id, str) and claim_id in known_claim_ids:
+                edges.append({
+                    "source": f"claim:{claim_id}",
+                    "target": report_node_id,
+                    "type": "included_in",
+                    "provenance_basis": "system_recorded",
+                })
+
+        synthesis = snapshot.get("model_synthesis")
+        if not isinstance(synthesis, dict):
+            continue
+
+        findings = synthesis.get("findings", [])
+        if isinstance(findings, list):
+            for index, finding in enumerate(findings, start=1):
+                if not isinstance(finding, dict) or not isinstance(finding.get("statement"), str):
+                    continue
+                finding_statement = finding["statement"].strip()
+                if not finding_statement:
+                    continue
+                allowed_refs = [
+                    ref for ref in (finding.get("evidence_passage_ids") or [])
+                    if isinstance(ref, str) and ref in known_passage_ids
+                ]
+                conclusion_id = f"conclusion:{report.id}:{index}"
+                relation_type = finding.get("relation_type")
+                if relation_type not in {"supports", "contradicts", "qualifies", "not_comparable"}:
+                    relation_type = "qualifies"
+                nodes.append({
+                    "id": conclusion_id,
+                    "type": "conclusion",
+                    "label": finding_statement[:1200],
+                    "assessment": relation_type,
+                    "review_required": True,
+                    "provenance_basis": "model_inferred",
+                    "rationale": finding.get("context_note") or "Model-generated synthesis finding; researcher review required.",
+                    "evidence_passage_ids": allowed_refs,
+                })
+                edges.append({
+                    "source": report_node_id,
+                    "target": conclusion_id,
+                    "type": "contains_conclusion",
+                    "provenance_basis": "system_recorded",
+                })
+                for passage_id in allowed_refs:
+                    edges.append({
+                        "source": f"passage:{passage_id}",
+                        "target": conclusion_id,
+                        "type": relation_type,
+                        "provenance_basis": "model_inferred",
+                        "reviewer_status": "needs_review",
+                        "rationale": finding.get("context_note") or "The report synthesis links this finding to the cited passage; review the original source text.",
+                    })
+
+        opportunities = synthesis.get("research_opportunities", [])
+        if isinstance(opportunities, list):
+            for index, opportunity in enumerate(opportunities, start=1):
+                if not isinstance(opportunity, dict) or not isinstance(opportunity.get("question"), str):
+                    continue
+                question = opportunity["question"].strip()
+                if not question:
+                    continue
+                allowed_refs = [
+                    ref for ref in (opportunity.get("evidence_passage_ids") or [])
+                    if isinstance(ref, str) and ref in known_passage_ids
+                ]
+                recommendation_id = f"recommendation:{report.id}:{index}"
+                nodes.append({
+                    "id": recommendation_id,
+                    "type": "recommendation",
+                    "label": question[:1200],
+                    "review_required": True,
+                    "provenance_basis": "model_inferred",
+                    "rationale": opportunity.get("rationale"),
+                    "evidence_passage_ids": allowed_refs,
+                    "prior_art_search_queries": opportunity.get("prior_art_search_queries") or [],
+                    "alternative_explanations": opportunity.get("alternative_explanations") or [],
+                    "falsification_plan": opportunity.get("falsification_plan"),
+                    "review_status": opportunity.get("review_status", "requires_prior_art_review"),
+                })
+                edges.append({
+                    "source": report_node_id,
+                    "target": recommendation_id,
+                    "type": "proposes_recommendation",
+                    "provenance_basis": "system_recorded",
+                })
+                for passage_id in allowed_refs:
+                    edges.append({
+                        "source": f"passage:{passage_id}",
+                        "target": recommendation_id,
+                        "type": "motivates_recommendation",
+                        "provenance_basis": "model_inferred",
+                        "reviewer_status": "needs_review",
+                        "rationale": opportunity.get("rationale") or "The research opportunity was proposed from this passage; confirm the source context.",
+                    })
+
+        # Legacy free-text questions remain explicit recommendations but have
+        # no fabricated evidence edges when the model supplied no exact passage IDs.
+        legacy_questions = synthesis.get("candidate_research_questions", [])
+        if isinstance(legacy_questions, list):
+            structured_questions = {
+                item.get("question") for item in opportunities
+                if isinstance(item, dict) and isinstance(item.get("question"), str)
+            } if isinstance(opportunities, list) else set()
+            legacy_index = 1
+            for legacy_question in legacy_questions:
+                if not isinstance(legacy_question, str) or not legacy_question.strip() or legacy_question in structured_questions:
+                    continue
+                recommendation_id = f"recommendation:{report.id}:legacy:{legacy_index}"
+                legacy_index += 1
+                nodes.append({
+                    "id": recommendation_id,
+                    "type": "recommendation",
+                    "label": legacy_question.strip()[:1200],
+                    "review_required": True,
+                    "provenance_basis": "model_inferred",
+                    "rationale": "Legacy candidate question has no validated evidence-passage pointers.",
+                    "evidence_passage_ids": [],
+                    "review_status": "requires_prior_art_review",
+                })
+                edges.append({
+                    "source": report_node_id,
+                    "target": recommendation_id,
+                    "type": "proposes_recommendation",
+                    "provenance_basis": "system_recorded",
+                    "reviewer_status": "needs_review",
+                })
+
     return {
         "run_id": run_id, "nodes": nodes, "edges": edges,
         "note": "Only persisted relationships are shown. Missing edges are not evidence that a relationship does not exist.",

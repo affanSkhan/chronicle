@@ -240,11 +240,20 @@ export interface EvidenceGraphNode {
   doi?: string | null;
   source_passage_id?: string | null;
   extraction_basis?: string;
+  provenance_basis?: string;
+  report_version_number?: number;
+  created_at?: string | null;
   population?: string | null;
   method?: string | null;
   intervention?: string | null;
   outcomes?: string[];
   limitations?: string[];
+  rationale?: string | null;
+  evidence_passage_ids?: string[];
+  prior_art_search_queries?: string[];
+  alternative_explanations?: string[];
+  falsification_plan?: string | null;
+  review_status?: string;
 }
 
 export interface EvidenceGraphEdge {

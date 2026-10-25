@@ -177,7 +177,21 @@ def test_optional_synthesis_persists_source_linked_study_context(monkeypatch, cl
         passage_id = passages[0]["id"]
         return {
             "executive_summary": "The retrieved abstract describes a randomized evaluation with a stated population, intervention, outcomes and limitations.",
-            "findings": [],
+            "findings": [{
+                "statement": "The abstract reports a provenance-aware intervention in one institution.",
+                "evidence_passage_ids": [passage_id],
+                "relation_type": "qualifies",
+                "context_note": "The study is limited to one institution.",
+            }],
+            "research_opportunities": [{
+                "question": "Does this result generalize across institutions?",
+                "rationale": "The abstract reports only one institution, which leaves transferability unresolved.",
+                "evidence_passage_ids": [passage_id],
+                "prior_art_search_queries": ["external validation across institutions provenance-aware workflow"],
+                "alternative_explanations": ["The observed result may depend on a local workflow."],
+                "falsification_plan": "Pre-register an external multi-institution validation and test whether the effect persists.",
+                "review_status": "requires_prior_art_review",
+            }],
             "study_characterizations": [{
                 "passage_id": passage_id,
                 "study_type": "Randomized controlled study",
@@ -232,6 +246,14 @@ def test_optional_synthesis_persists_source_linked_study_context(monkeypatch, cl
     graph = client.get(f"/api/v1/evidence/runs/{run_id}/graph").json()
     assert any(node["id"] == f"study:{study_id}" for node in graph["nodes"])
     assert any(edge["source"] == f"passage:{passage_id}" and edge["target"] == f"study:{study_id}" for edge in graph["edges"])
+    report_version_node = next(node for node in graph["nodes"] if node["type"] == "report_version")
+    conclusion_node = next(node for node in graph["nodes"] if node["type"] == "conclusion")
+    recommendation_node = next(node for node in graph["nodes"] if node["type"] == "recommendation")
+    assert conclusion_node["review_required"] is True
+    assert recommendation_node["prior_art_search_queries"] == ["external validation across institutions provenance-aware workflow"]
+    assert any(edge["source"] == f"passage:{passage_id}" and edge["target"] == conclusion_node["id"] and edge["type"] == "qualifies" for edge in graph["edges"])
+    assert any(edge["source"] == f"passage:{passage_id}" and edge["target"] == recommendation_node["id"] for edge in graph["edges"])
+    assert any(edge["source"] == report_version_node["id"] and edge["target"] == recommendation_node["id"] and edge["type"] == "proposes_recommendation" for edge in graph["edges"])
 
     passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json").json()
     assert any(item["id"] == study_id and item["source_passage_id"] == passage_id for item in passport["studies"])
