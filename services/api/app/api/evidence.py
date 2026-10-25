@@ -845,7 +845,7 @@ def list_run_audit_events(
 @router.get("/runs/{run_id}/passport")
 def export_evidence_passport(
     run_id: str,
-    format: str = Query(default="markdown", pattern="^(markdown|json)$"),
+    format: str = Query(default="markdown", pattern="^(markdown|json|pdf)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1066,7 +1066,7 @@ def export_evidence_passport(
         } for report in reports],
     }
 
-    filename = f"chronicle-evidence-passport-{run_id[:8]}.{ 'json' if format == 'json' else 'md' }"
+    filename = f"chronicle-evidence-passport-{run_id[:8]}.{ {'json': 'json', 'markdown': 'md', 'pdf': 'pdf'}[format] }"
     if format == "json":
         return JSONResponse(
             content=passport,
@@ -1185,6 +1185,88 @@ def export_evidence_passport(
         if report["change_summary"]:
             lines.append(f"- **Change summary:** {report['change_summary']}")
         lines.extend(["", report["content_markdown"], ""])
+    if format == "pdf":
+        # Keep PDF rendering dependency-light: PyMuPDF is already used by the
+        # ingestion pipeline. Render the same export content so PDF/Markdown
+        # exports cannot silently diverge in scope or interpretation warnings.
+        import fitz
+        import textwrap
+
+        pdf_document = fitz.open()
+        page_width, page_height = 595, 842  # A4 portrait, PDF points
+        margin_x, margin_top, margin_bottom = 44, 46, 42
+        page = pdf_document.new_page(width=page_width, height=page_height)
+        y = margin_top
+        content_width = page_width - (2 * margin_x)
+
+        def add_page():
+            nonlocal page, y
+            page = pdf_document.new_page(width=page_width, height=page_height)
+            y = margin_top
+
+        for raw_line in lines:
+            line = raw_line.replace("**", "").replace("`", "")
+            level = 0
+            if line.startswith("# "):
+                level, line = 1, line[2:]
+            elif line.startswith("## "):
+                level, line = 2, line[3:]
+            elif line.startswith("### "):
+                level, line = 3, line[4:]
+            elif line.startswith("- "):
+                line = "• " + line[2:]
+
+            # Base-14 Helvetica supports Western text. Replace characters it
+            # cannot represent rather than failing the entire passport export.
+            line = line.encode("cp1252", errors="replace").decode("cp1252")
+            if not line.strip():
+                y += 5
+                if y > page_height - margin_bottom:
+                    add_page()
+                continue
+
+            font_size = 17 if level == 1 else 12 if level == 2 else 10 if level == 3 else 8.5
+            font_name = "hebo" if level else "helv"
+            available_chars = max(36, int(content_width / (font_size * 0.52)))
+            wrapped_lines = textwrap.wrap(
+                line,
+                width=available_chars,
+                break_long_words=True,
+                break_on_hyphens=False,
+                replace_whitespace=False,
+            ) or [""]
+            if level:
+                y += 5
+            for wrapped in wrapped_lines:
+                line_height = font_size * 1.4
+                if y + line_height > page_height - margin_bottom:
+                    add_page()
+                page.insert_text(
+                    (margin_x, y),
+                    wrapped,
+                    fontname=font_name,
+                    fontsize=font_size,
+                    color=(0.12, 0.16, 0.24),
+                )
+                y += line_height
+
+        # Add a page number to every page after the content is laid out.
+        for page_number, output_page in enumerate(pdf_document, start=1):
+            output_page.insert_text(
+                (page_width - margin_x - 12, page_height - 18),
+                str(page_number),
+                fontname="helv",
+                fontsize=8,
+                color=(0.35, 0.39, 0.46),
+            )
+        pdf_bytes = pdf_document.tobytes()
+        pdf_document.close()
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
     return Response(
         content="\n".join(lines),
         media_type="text/markdown; charset=utf-8",
