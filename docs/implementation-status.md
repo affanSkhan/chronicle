@@ -82,3 +82,6 @@ Remaining SRS gaps that are **not** completed by this pass include durable backg
 
 
 - Typed relationship validation now separates claim-to-passage labels from claim-to-claim dependencies and supports source links labelled cites/depends_on/corrects/retracts in addition to existing derived-from, same-dataset, duplicate/overlap, and cited-primary-source links. Regression coverage verifies that source-event propagation includes a linked correction notice.
+
+
+- Forensic reports now report raw retrieved source count separately from candidate-link count, clustered source count, candidate clusters, and unclustered source count. Both clustered and unclustered statuses explicitly avoid conclusions of proven dependence/independence. The source-dependence analysis is stored in the run configuration and Evidence Passport snapshot.

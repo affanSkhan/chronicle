@@ -18,7 +18,7 @@ from app.services.academic_search import search_papers
 from app.services.audit import record_audit_event
 from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
-from app.services.dependency_candidates import suggest_dependency_candidates
+from app.services.dependency_candidates import build_dependency_clusters, suggest_dependency_candidates
 from app.services.research_planner import build_research_plan, focus_for_mode
 
 
@@ -44,6 +44,7 @@ def _markdown_report(
     study_contexts: list[dict],
     execution_plan: dict | None = None,
     dependency_candidates: list[dict] | None = None,
+    dependency_analysis: dict | None = None,
 ) -> str:
     lines = [
         "# Academic Discovery Snapshot",
@@ -188,8 +189,38 @@ def _markdown_report(
     lines.append(synthesis_note)
     lines.append("")
 
-    if dependency_candidates:
-        lines.extend(["## Potential source-dependence links (human review required)", ""])
+    if execution_plan and execution_plan.get("stages", {}).get("dependency_candidate_scan"):
+        analysis = dependency_analysis or {}
+        lines.extend(["## Potential source-dependence analysis (heuristic; human review required)", ""])
+        lines.append(f"- Raw retrieved source records: {analysis.get('raw_source_count', len(papers))}")
+        lines.append(f"- Candidate links surfaced: {analysis.get('candidate_link_count', len(dependency_candidates or []))}")
+        lines.append(f"- Candidate dependency clusters: {analysis.get('candidate_cluster_count', 0)}")
+        lines.append(f"- Sources outside candidate clusters: {analysis.get('unclustered_source_count', len(papers))}")
+        lines.append("- Unclustered sources are not proven independent, and clustered sources are not proven dependent.")
+        lines.append("")
+        clusters = analysis.get("clusters", [])
+        if clusters:
+            for cluster in clusters:
+                lines.append(f"### Candidate cluster · {cluster['source_count']} source records")
+                lines.append("Members: " + "; ".join(cluster.get("paper_titles", [])))
+                lines.append("Candidate link types: " + ", ".join(cluster.get("relation_types", [])))
+                lines.append("Signals: " + "; ".join(cluster.get("signals", [])))
+                lines.append(f"Review state: {cluster.get('status', 'candidate_requires_human_review')}")
+                lines.append(f"Interpretation: {cluster.get('interpretation', 'Manual source-lineage review required.')}")
+                lines.append("")
+        elif not dependency_candidates:
+            lines.append("No candidate dependency links were surfaced by the current heuristic set. This does not establish source independence.")
+            lines.append("")
+        if dependency_candidates:
+            lines.extend(["### Individual candidate links", ""])
+            for candidate in dependency_candidates:
+                lines.append(f"- **{candidate['relation_type'].replace('_', ' ').title()}:** {candidate['paper_a_title']} ↔ {candidate['paper_b_title']}")
+                lines.append("  - Signal: " + "; ".join(candidate.get("signals", [])))
+                lines.append(f"  - Heuristic score (not a calibrated probability): {candidate.get('confidence', 0)}")
+                lines.append(f"  - Rationale: {candidate.get('rationale', '')}")
+                lines.append("  - Status: candidate only; researcher confirmation is required.")
+                lines.append("")
+
         lines.append("These heuristic candidates may indicate shared datasets or overlapping records. They are not verified dependencies and do not mean studies are invalid or statistically non-independent.")
         lines.append("")
         lines.append(f"- Supporting source records in this run: {len(papers)}")
@@ -596,15 +627,27 @@ async def execute_research_run(run_id: str) -> None:
                 db.commit()
 
         dependency_candidates: list[dict] = []
-        if should_scan_dependencies and owner_user_id and len(saved_papers) >= 2:
+        dependency_analysis: dict = {
+            "status": "not_scanned",
+            "raw_source_count": len(saved_papers),
+            "candidate_link_count": 0,
+            "candidate_cluster_count": 0,
+            "clustered_source_count": 0,
+            "unclustered_source_count": None,
+            "clusters": [],
+            "interpretation": "This mode does not run the dependency-candidate scan. No independence conclusion is implied.",
+        }
+        if should_scan_dependencies:
             # Forensic scanning is bounded to this run and does not persist any graph edges.
-            with SessionLocal() as db:
-                dependency_candidates = suggest_dependency_candidates(
-                    db,
-                    owner_user_id,
-                    limit=30,
-                    paper_ids={paper["paper_id"] for paper in saved_papers},
-                )
+            if owner_user_id and len(saved_papers) >= 2:
+                with SessionLocal() as db:
+                    dependency_candidates = suggest_dependency_candidates(
+                        db,
+                        owner_user_id,
+                        limit=30,
+                        paper_ids={paper["paper_id"] for paper in saved_papers},
+                    )
+            dependency_analysis = build_dependency_clusters(saved_papers, dependency_candidates)
 
         provider_errors = provider_result.get("provider_errors", {})
         llm_stage_expected = should_extract_claims or should_synthesize_evidence
@@ -629,6 +672,7 @@ async def execute_research_run(run_id: str) -> None:
                     generated_at, persisted_claims, llm_note, synthesis_result, synthesis_note, persisted_studies,
                     execution_plan=execution_plan,
                     dependency_candidates=dependency_candidates,
+                    dependency_analysis=dependency_analysis,
                 ),
                 evidence_snapshot={
                     "query": question,
@@ -649,6 +693,7 @@ async def execute_research_run(run_id: str) -> None:
                     "model_synthesis_note": synthesis_note,
                     "model_synthesis": synthesis_result,
                     "dependency_candidates": dependency_candidates,
+                    "source_dependence_analysis": dependency_analysis,
                     "completion_status": completion_status,
                     "completed_with_limitations": has_limitations,
                 },
@@ -669,6 +714,7 @@ async def execute_research_run(run_id: str) -> None:
                 "claim_candidate_count": len(persisted_claims),
                 "study_context_count": len(persisted_studies),
                 "dependency_candidate_count": len(dependency_candidates),
+                "source_dependence_analysis": dependency_analysis,
                 "provider_errors": provider_result.get("provider_errors", {}),
                 "llm_extraction_error": extraction_error,
                 "claim_verification_completed": False,

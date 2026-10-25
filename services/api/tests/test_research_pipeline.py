@@ -348,6 +348,13 @@ def test_forensic_mode_returns_run_scoped_dependency_suggestions(monkeypatch, cl
     assert snapshot["execution_plan"]["stages"]["dependency_candidate_scan"] is True
     assert snapshot["dependency_candidates"]
     assert snapshot["dependency_candidates"][0]["relation_type"] == "same_dataset"
+    analysis = snapshot["source_dependence_analysis"]
+    assert analysis["status"] == "heuristic_scan_completed"
+    assert analysis["raw_source_count"] == 2
+    assert analysis["candidate_link_count"] >= 1
+    assert analysis["candidate_cluster_count"] == 1
+    assert analysis["clusters"][0]["source_count"] == 2
+    assert "not proven independent" in analysis["interpretation"]
     assert "Potential source-dependence links" in report["content_markdown"]
 
     with TestingSessionLocal() as db:

@@ -177,3 +177,79 @@ def suggest_dependency_candidates(
 
     results.sort(key=lambda item: (-item["confidence"], item["relation_type"], item["paper_a_title"].lower(), item["paper_b_title"].lower()))
     return results[:maximum]
+
+
+def build_dependency_clusters(
+    sources: list[dict[str, Any]],
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Group candidate-linked source records without asserting statistical independence."""
+    source_by_id = {
+        str(source["paper_id"]): source
+        for source in sources
+        if source.get("paper_id")
+    }
+    adjacency: dict[str, set[str]] = {paper_id: set() for paper_id in source_by_id}
+    candidate_by_pair: dict[frozenset[str], list[dict[str, Any]]] = {}
+    for candidate in candidates:
+        left = str(candidate.get("paper_a_id") or "")
+        right = str(candidate.get("paper_b_id") or "")
+        if left not in source_by_id or right not in source_by_id or left == right:
+            continue
+        adjacency[left].add(right)
+        adjacency[right].add(left)
+        candidate_by_pair.setdefault(frozenset((left, right)), []).append(candidate)
+
+    visited: set[str] = set()
+    clusters: list[dict[str, Any]] = []
+    clustered_ids: set[str] = set()
+    for start_id in sorted(source_by_id, key=lambda item: (
+        str(source_by_id[item].get("title") or "").casefold(), item
+    )):
+        if start_id in visited:
+            continue
+        stack = [start_id]
+        component: set[str] = set()
+        while stack:
+            current = stack.pop()
+            if current in visited:
+                continue
+            visited.add(current)
+            component.add(current)
+            stack.extend(sorted(adjacency[current] - visited, reverse=True))
+        if len(component) < 2:
+            continue
+        clustered_ids.update(component)
+        component_candidates: list[dict[str, Any]] = []
+        for pair, pair_candidates in candidate_by_pair.items():
+            if pair.issubset(component):
+                component_candidates.extend(pair_candidates)
+        if not component_candidates:
+            continue
+        ordered_ids = sorted(component, key=lambda item: (
+            str(source_by_id[item].get("title") or "").casefold(), item
+        ))
+        candidate_ids = sorted({str(item.get("id") or "") for item in component_candidates if item.get("id")})
+        clusters.append({
+            "cluster_id": "dependency-cluster-" + hashlib.sha256("|".join(sorted(component)).encode("utf-8")).hexdigest()[:12],
+            "paper_ids": ordered_ids,
+            "paper_titles": [str(source_by_id[item].get("title") or "Untitled source") for item in ordered_ids],
+            "source_count": len(ordered_ids),
+            "candidate_link_ids": candidate_ids,
+            "candidate_link_count": len(component_candidates),
+            "relation_types": sorted({str(item.get("relation_type") or "unknown") for item in component_candidates}),
+            "signals": sorted({str(signal) for item in component_candidates for signal in item.get("signals", [])}),
+            "status": "candidate_requires_human_review",
+            "interpretation": "Potentially dependent sources; do not count as statistically independent until the underlying studies and data lineage are reviewed.",
+        })
+    clusters.sort(key=lambda item: (-item["source_count"], -item["candidate_link_count"], item["cluster_id"]))
+    return {
+        "status": "heuristic_scan_completed",
+        "raw_source_count": len(source_by_id),
+        "candidate_link_count": len(candidates),
+        "candidate_cluster_count": len(clusters),
+        "clustered_source_count": len(clustered_ids),
+        "unclustered_source_count": len(set(source_by_id) - clustered_ids),
+        "clusters": clusters,
+        "interpretation": "Unclustered records are not proven independent. These heuristic clusters are review prompts, not calibrated dependency or independence estimates.",
+    }
