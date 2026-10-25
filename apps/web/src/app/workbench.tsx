@@ -225,6 +225,9 @@ export default function ChronicleWorkbench() {
   const [graphRefreshKey, setGraphRefreshKey] = useState(0);
   const [graphQuery, setGraphQuery] = useState("");
   const [graphType, setGraphType] = useState("all");
+  const [graphClaimStatus, setGraphClaimStatus] = useState("all");
+  const [graphRelationType, setGraphRelationType] = useState("all");
+  const [graphOpenIssuesOnly, setGraphOpenIssuesOnly] = useState(false);
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null);
 
   const [sourceQuery, setSourceQuery] = useState("");
@@ -767,16 +770,40 @@ export default function ChronicleWorkbench() {
   const graphSource = graphData?.run_id === activeRunId ? graphData : null;
   const visibleNodes = useMemo(() => {
     const list = graphSource?.nodes ?? [];
+    const edges = graphSource?.edges ?? [];
     const q = graphQuery.trim().toLowerCase();
+    let statusScopedIds: Set<string> | null = null;
+    if (graphClaimStatus !== "all") {
+      const matchingClaims = list.filter((node) => node.type === "claim" && (
+        graphClaimStatus === "needs_review"
+          ? Boolean(node.review_required)
+          : (node.assessment ?? "unassessed") === graphClaimStatus
+      ));
+      statusScopedIds = new Set(matchingClaims.map((node) => node.id));
+      for (const edge of edges) {
+        if (statusScopedIds.has(edge.source) || statusScopedIds.has(edge.target)) {
+          statusScopedIds.add(edge.source);
+          statusScopedIds.add(edge.target);
+        }
+      }
+    }
     return list.filter((node) =>
+      (!statusScopedIds || statusScopedIds.has(node.id)) &&
       (graphType === "all" || node.type === graphType) &&
       (!q || (node.label + " " + node.type + " " + node.id).toLowerCase().includes(q))
     ).slice(0, 64);
-  }, [graphSource, graphQuery, graphType]);
+  }, [graphSource, graphQuery, graphType, graphClaimStatus]);
   const graphLayout = useGraphLayout(visibleNodes, graphSource?.edges ?? []);
   const selectedGraphNode = graphSource?.nodes.find((node) => node.id === selectedGraphNodeId) ?? null;
   const visibleGraphNodeIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
-  const visibleGraphEdges = (graphSource?.edges ?? []).filter((edge) => visibleGraphNodeIds.has(edge.source) && visibleGraphNodeIds.has(edge.target));
+  const visibleGraphEdges = (graphSource?.edges ?? []).filter((edge) =>
+    visibleGraphNodeIds.has(edge.source) &&
+    visibleGraphNodeIds.has(edge.target) &&
+    (graphRelationType === "all" || edge.type === graphRelationType) &&
+    (!graphOpenIssuesOnly || edge.reviewer_status === "unreviewed" || edge.reviewer_status === "needs_review" ||
+      Boolean(graphSource?.nodes.find((node) => node.id === edge.source)?.review_required) ||
+      Boolean(graphSource?.nodes.find((node) => node.id === edge.target)?.review_required))
+  );
   const currentPaperStatus = selectedPaper?.monitoring_enabled ? "Monitoring on" : "Monitoring off";
 
   if (authLoading) {
@@ -973,7 +1000,17 @@ export default function ChronicleWorkbench() {
           {activeRunId && graphSource && graphSource.nodes.length === 0 ? <EmptyState icon={Network} title="No saved evidence yet" description="This run has no persisted papers, passages, studies, or claims to draw. Completed discovery runs may populate source nodes first; claim links appear as they are saved." action={<button onClick={() => setView("Research workspace")} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">View research run</button>}/> : null}
           {activeRunId && graphSource && graphSource.nodes.length > 0 ? <div className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_300px]">
             <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
-              <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center"><div className="relative min-w-0 flex-1"><Search size={15} className="absolute left-3 top-3 text-slate-400"/><input value={graphQuery} onChange={(event) => setGraphQuery(event.target.value)} placeholder="Find a paper, claim, or passage" className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/></div><label className="flex items-center gap-2 text-xs font-medium text-slate-500">Show<select value={graphType} onChange={(event) => setGraphType(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All node types</option><option value="paper">Papers</option><option value="paper_version">Versions</option><option value="passage">Passages</option><option value="study">Studies</option><option value="claim">Claims</option></select></label></div>
+              <div className="flex flex-col gap-3 border-b border-slate-100 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="relative min-w-0 flex-1"><Search size={15} className="absolute left-3 top-3 text-slate-400"/><input value={graphQuery} onChange={(event) => setGraphQuery(event.target.value)} placeholder="Find a paper, claim, or passage" className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/></div>
+                  <label className="flex items-center gap-2 text-xs font-medium text-slate-500">Node type<select value={graphType} onChange={(event) => setGraphType(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All types</option><option value="paper">Papers</option><option value="paper_version">Versions</option><option value="passage">Passages</option><option value="study">Studies</option><option value="claim">Claims</option></select></label>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-xs font-medium text-slate-500">Claim status<select value={graphClaimStatus} onChange={(event) => setGraphClaimStatus(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All claims</option><option value="needs_review">Needs review</option><option value="unassessed">Unassessed</option><option value="supported">Supported</option><option value="partially_supported">Partially supported</option><option value="contradicted">Contradicted</option><option value="insufficient_evidence">Insufficient evidence</option><option value="unverifiable">Unverifiable</option></select></label>
+                  <label className="flex items-center gap-2 text-xs font-medium text-slate-500">Relationship<select value={graphRelationType} onChange={(event) => setGraphRelationType(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All relationships</option>{Array.from(new Set((graphSource?.edges ?? []).map((edge) => edge.type))).sort().map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
+                  <label className="ml-1 inline-flex items-center gap-2 text-xs font-medium text-slate-600"><input type="checkbox" checked={graphOpenIssuesOnly} onChange={(event) => setGraphOpenIssuesOnly(event.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"/>Open review issues only</label>
+                </div>
+              </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 px-4 py-3 text-xs text-slate-500"><span><strong className="text-slate-900">{graphSource.nodes.length}</strong> nodes</span><span><strong className="text-slate-900">{graphSource.edges.length}</strong> relationships</span><span><strong className="text-slate-900">{graphSource.nodes.filter((node) => node.type === "claim").length}</strong> claims</span>{graphLoading ? <span role="status" className="inline-flex items-center gap-1 text-indigo-600"><LoaderCircle size={13} className="animate-spin"/>Refreshing</span> : null}</div>
               {visibleNodes.length === 0 ? <div className="p-8 text-center"><Search size={20} className="mx-auto text-slate-400"/><p className="mt-2 text-sm font-medium text-slate-800">No matching nodes</p><p className="mt-1 text-xs text-slate-500">Change the search or node filter.</p></div> : <div className="graph-canvas max-h-[680px] overflow-auto">
                 <svg viewBox={"0 0 960 " + graphLayout.height} className="block min-w-[960px] w-full" role="img" aria-label="Interactive map of persisted evidence relationships">
