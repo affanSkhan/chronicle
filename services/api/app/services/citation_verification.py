@@ -7,6 +7,8 @@ import json
 from typing import Literal
 
 import httpx
+
+from app.core.config import get_llm_request_options
 from pydantic import BaseModel, Field, ValidationError
 
 
@@ -45,9 +47,9 @@ async def verify_claim_with_llm(
             "doi": p.get("doi"),
             "page_number": p.get("page_number"),
             "section_title": p.get("section_title"),
-            "text": str(p.get("text") or "")[:8000],
+            "text": str(p.get("text") or "")[:2200],
         }
-        for p in passages[:12]
+        for p in passages[:6]
     ]
     allowed_ids = {p["id"] for p in bounded}
     payload = {
@@ -75,8 +77,9 @@ async def verify_claim_with_llm(
             f"{api_base.rstrip('/')}/chat/completions",
             json={
                 "model": model,
-                "reasoning_effort": "none",
+                **get_llm_request_options(api_base, model),
                 "temperature": 0,
+                "max_completion_tokens": 900,
                 "response_format": {"type": "json_object"},
                 "messages": [
                     {"role": "system", "content": system_prompt},

@@ -63,13 +63,18 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
-## Optional model-assisted extraction and synthesis
-Configure these **on the backend only**:
-- `OPENAI_API_KEY`
-- `OPENAI_API_BASE` (defaults to the OpenAI-compatible API base)
-- `OPENAI_MODEL`
+## Free model-assisted extraction and synthesis
 
-With no key/model, scholarly discovery still runs in retrieval-only mode and saves a report with explicit limitations. Never place model API keys in `NEXT_PUBLIC_*` variables or source control.
+Chronicle can use Groq's free tier through its OpenAI-compatible API:
+- `LLM_API_KEY`: create a free key at https://console.groq.com/keys
+- `LLM_API_BASE=https://api.groq.com/openai/v1`
+- `LLM_MODEL=openai/gpt-oss-20b`
+
+No payment method or purchased credits are required for this configuration. The free plan has request/token limits, so Chronicle bounds prompts and response length. If the provider quota is reached, use retrieval-only workflows until it resets. Claims, synthesis, and citation assessments remain unverified drafts for human review.
+
+Google Gemini is another free-tier option: use a currently free-tier model ID, a Google AI Studio key, and `LLM_API_BASE=https://generativelanguage.googleapis.com/v1beta/openai/`. Google may use free-tier prompts and responses to improve its products, so do not send confidential material through that option.
+
+Legacy `OPENAI_API_KEY`, `OPENAI_API_BASE`, and `OPENAI_MODEL` variables remain supported. OpenAI API use is billed separately from ChatGPT. Never put model API keys in `NEXT_PUBLIC_*` variables or source control.
 
 ## Main API surface
 - `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me`

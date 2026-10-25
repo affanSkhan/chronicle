@@ -39,6 +39,10 @@ services:
       SOURCE_MONITOR_POLL_SECONDS: ${SOURCE_MONITOR_POLL_SECONDS:-60}
       SOURCE_MONITOR_BATCH_SIZE: ${SOURCE_MONITOR_BATCH_SIZE:-20}
       UPLOAD_DIR: /app/uploads
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_API_BASE: ${LLM_API_BASE:-https://api.groq.com/openai/v1}
+      LLM_MODEL: ${LLM_MODEL:-openai/gpt-oss-20b}
+      OPENALEX_API_KEY: ${OPENALEX_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
