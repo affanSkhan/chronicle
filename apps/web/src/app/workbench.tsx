@@ -15,10 +15,11 @@ import {
   importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents,
   listSourceStatusChecks, loginAccount, recordPaperStatusCheck, registerAccount,
   addPaperDependency, listDependencyCandidates,
+  createResearchProject, listResearchProjects, updateResearchProject,
   reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf,
   verifyClaimCitationSupport,
   type AcademicSearchResult, type AuthUser, type CitationVerificationResult, type DependencyCandidate, type EvidenceGraphResponse, type LibraryPaper,
-  type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchRun,
+  type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchProjectRecord, type ResearchRun,
   type SourceEventRecord, type SourceStatusCheckRecord
 } from "@/lib/api";
 
@@ -198,6 +199,16 @@ export default function ChronicleWorkbench() {
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceError, setWorkspaceError] = useState("");
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ResearchProjectRecord[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [showArchivedProjects, setShowArchivedProjects] = useState(false);
+  const [newProjectTitle, setNewProjectTitle] = useState("");
+  const [newProjectQuestion, setNewProjectQuestion] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingProjectTitle, setEditingProjectTitle] = useState("");
+  const [editingProjectQuestion, setEditingProjectQuestion] = useState("");
+  const [savingProject, setSavingProject] = useState(false);
 
   const [question, setQuestion] = useState("");
   const [researchMode, setResearchMode] = useState<ResearchMode>("deep");
@@ -301,17 +312,21 @@ export default function ChronicleWorkbench() {
           listResearchRuns(),
           listLibraryPapers(100),
           listSourceEvents(50),
-          listSourceStatusChecks(50, false)
+          listSourceStatusChecks(50, false),
+          listResearchProjects(true)
         ]);
         if (cancelled) return;
         const nextRuns = results[0] as ResearchRun[];
         const nextPapers = results[1] as LibraryPaper[];
+        const nextProjects = results[4] as ResearchProjectRecord[];
         setRuns(nextRuns);
         setPapers(nextPapers);
+        setProjects(nextProjects);
         setSourceEvents(results[2] as SourceEventRecord[]);
         setStatusChecks(results[3] as SourceStatusCheckRecord[]);
         setActiveRunId((current) => current && nextRuns.some((run) => run.id === current) ? current : (nextRuns[0]?.id ?? null));
         setEventPaperId((current) => current && nextPapers.some((paper) => paper.id === current) ? current : (nextPapers[0]?.id ?? ""));
+        setActiveProjectId((current) => current && nextProjects.some((project) => project.id === current && !project.archived_at) ? current : (nextProjects.find((project) => !project.archived_at)?.id ?? null));
       } catch (error) {
         if (!cancelled) setWorkspaceError(error instanceof Error ? error.message : "Could not load your workspace.");
       } finally {
@@ -403,6 +418,8 @@ export default function ChronicleWorkbench() {
     setAuthUser(null);
     setView("Overview");
     setRuns([]);
+    setProjects([]);
+    setActiveProjectId(null);
     setPapers([]);
     setSourceEvents([]);
     setReportVersions([]);
@@ -416,10 +433,13 @@ export default function ChronicleWorkbench() {
     setWorkspaceError("");
     try {
       const results = await Promise.all([
-        listResearchRuns(), listLibraryPapers(100), listSourceEvents(50), listSourceStatusChecks(50, false)
+        listResearchRuns(), listLibraryPapers(100), listSourceEvents(50), listSourceStatusChecks(50, false), listResearchProjects(true)
       ]);
       const nextRuns = results[0] as ResearchRun[];
+      const nextProjects = results[4] as ResearchProjectRecord[];
       setRuns(nextRuns);
+      setProjects(nextProjects);
+      setActiveProjectId((current) => current && nextProjects.some((project) => project.id === current && !project.archived_at) ? current : (nextProjects.find((project) => !project.archived_at)?.id ?? null));
       setPapers(results[1] as LibraryPaper[]);
       setSourceEvents(results[2] as SourceEventRecord[]);
       setStatusChecks(results[3] as SourceStatusCheckRecord[]);
@@ -428,6 +448,74 @@ export default function ChronicleWorkbench() {
       setWorkspaceError(error instanceof Error ? error.message : "Could not refresh your workspace.");
     } finally {
       setWorkspaceLoading(false);
+    }
+  }
+
+  async function submitNewProject(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (newProjectTitle.trim().length < 2 || newProjectQuestion.trim().length < 8) {
+      setNotice("Workspace title needs 2 characters and its research question needs 8.");
+      return;
+    }
+    setCreatingProject(true);
+    setWorkspaceError("");
+    try {
+      const project = await createResearchProject({
+        title: newProjectTitle.trim(),
+        research_question: newProjectQuestion.trim(),
+      });
+      setProjects((current) => [project, ...current.filter((item) => item.id !== project.id)]);
+      setActiveProjectId(project.id);
+      setNewProjectTitle("");
+      setNewProjectQuestion("");
+      setNotice("Research workspace created.");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not create the workspace.");
+    } finally {
+      setCreatingProject(false);
+    }
+  }
+
+  function beginEditProject(project: ResearchProjectRecord) {
+    setEditingProjectId(project.id);
+    setEditingProjectTitle(project.title);
+    setEditingProjectQuestion(project.research_question);
+  }
+
+  async function saveEditedProject(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingProjectId) return;
+    setSavingProject(true);
+    setWorkspaceError("");
+    try {
+      const updated = await updateResearchProject(editingProjectId, {
+        title: editingProjectTitle.trim(),
+        research_question: editingProjectQuestion.trim(),
+      });
+      setProjects((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setEditingProjectId(null);
+      setNotice("Workspace details updated.");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not update the workspace.");
+    } finally {
+      setSavingProject(false);
+    }
+  }
+
+  async function setProjectArchived(project: ResearchProjectRecord, archived: boolean) {
+    setSavingProject(true);
+    setWorkspaceError("");
+    try {
+      const updated = await updateResearchProject(project.id, { archived });
+      setProjects((current) => current.map((item) => item.id === updated.id ? updated : item));
+      if (archived && activeProjectId === project.id) setActiveProjectId(null);
+      if (!archived) setActiveProjectId(project.id);
+      if (editingProjectId === project.id) setEditingProjectId(null);
+      setNotice(archived ? "Workspace archived. Its historical runs remain available." : "Workspace restored.");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not change workspace archive state.");
+    } finally {
+      setSavingProject(false);
     }
   }
 
@@ -444,6 +532,7 @@ export default function ChronicleWorkbench() {
         question: question.trim(),
         mode: researchMode,
         max_sources: maxSources,
+        project_id: activeProjectId,
         execute: true
       });
       setRuns((current) => [created, ...current.filter((run) => run.id !== created.id)]);
@@ -784,6 +873,33 @@ export default function ChronicleWorkbench() {
               return <article key={item.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><div className="flex items-center justify-between"><span className="text-sm font-medium text-slate-500">{item.label}</span><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Icon size={18}/></span></div><div className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">{item.value}</div><p className="mt-1 text-xs text-slate-500">{item.hint}</p></article>;
             })}
           </section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+              <div><h3 className="text-sm font-semibold text-slate-900">Research workspaces</h3><p className="mt-1 text-xs leading-5 text-slate-500">Group questions and research runs by topic. Archived workspaces keep their history but cannot start new runs.</p></div>
+              <button type="button" onClick={() => setShowArchivedProjects((value) => !value)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">{showArchivedProjects ? "Hide archived" : "Show archived"}</button>
+            </div>
+            <form onSubmit={submitNewProject} className="mt-4 grid gap-3 border-b border-slate-100 pb-4 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto]">
+              <label className="block text-xs font-medium text-slate-700">Workspace title<input value={newProjectTitle} onChange={(event) => setNewProjectTitle(event.target.value)} minLength={2} maxLength={240} required placeholder="e.g. Major project literature" className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/></label>
+              <label className="block text-xs font-medium text-slate-700">Primary research question<input value={newProjectQuestion} onChange={(event) => setNewProjectQuestion(event.target.value)} minLength={8} maxLength={4000} required placeholder="What is the main question for this workspace?" className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/></label>
+              <button disabled={creatingProject} className="self-end rounded-lg bg-indigo-600 px-3.5 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">{creatingProject ? "Creating…" : "Create workspace"}</button>
+            </form>
+            <div className="mt-3 space-y-2">
+              {projects.filter((project) => showArchivedProjects || !project.archived_at).length === 0 ? <p className="rounded-lg bg-slate-50 p-4 text-xs text-slate-500">{showArchivedProjects ? "No workspaces found yet." : "No active workspaces yet. Create one above or run research without a workspace."}</p> : null}
+              {projects.filter((project) => showArchivedProjects || !project.archived_at).map((project) => <article key={project.id} className="rounded-xl border border-slate-100 p-3">
+                {editingProjectId === project.id ? <form onSubmit={saveEditedProject} className="grid gap-3 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto]">
+                  <label className="block text-xs font-medium text-slate-700">Title<input value={editingProjectTitle} onChange={(event) => setEditingProjectTitle(event.target.value)} minLength={2} maxLength={240} required className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"/></label>
+                  <label className="block text-xs font-medium text-slate-700">Research question<input value={editingProjectQuestion} onChange={(event) => setEditingProjectQuestion(event.target.value)} minLength={8} maxLength={4000} required className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"/></label>
+                  <div className="flex items-end gap-2"><button disabled={savingProject} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{savingProject ? "Saving…" : "Save"}</button><button type="button" onClick={() => setEditingProjectId(null)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600">Cancel</button></div>
+                </form> : <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                  <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold text-slate-900">{project.title}</h4>{project.archived_at ? <StatusPill status="archived">archived</StatusPill> : activeProjectId === project.id ? <StatusPill status="completed">selected</StatusPill> : null}</div><p className="mt-1 text-xs leading-5 text-slate-500">{project.research_question}</p></div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <button type="button" onClick={() => { setActiveProjectId(project.archived_at ? null : project.id); setView("Research workspace"); }} disabled={Boolean(project.archived_at)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">Open</button>
+                    {!project.archived_at ? <><button type="button" onClick={() => beginEditProject(project)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Rename / edit</button><button type="button" disabled={savingProject} onClick={() => void setProjectArchived(project, true)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Archive</button></> : <button type="button" disabled={savingProject} onClick={() => void setProjectArchived(project, false)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">Restore</button>}
+                  </div>
+                </div>}
+              </article>)}
+            </div>
+          </section>
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h3 className="font-semibold text-slate-900">Recent research</h3><p className="mt-0.5 text-xs text-slate-500">Open a run to continue.</p></div><button onClick={() => setView("Research workspace")} className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700">New run<ArrowRight size={15}/></button></div>
             {runsLoadingOrEmpty(workspaceLoading, runs) ? <div className="divide-y divide-slate-100">{[1, 2, 3].map((row) => <div key={row} className="animate-pulse px-5 py-4"><div className="h-3 w-2/3 rounded bg-slate-100"/><div className="mt-3 h-3 w-1/3 rounded bg-slate-100"/></div>)}</div> : null}
@@ -797,11 +913,13 @@ export default function ChronicleWorkbench() {
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30 sm:p-6">
               <div className="mb-5 flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">Research question</p><h2 className="mt-1.5 text-xl font-semibold tracking-tight">What do you want to investigate?</h2></div><span className="hidden rounded-xl bg-indigo-50 p-3 text-indigo-600 sm:flex"><Sparkles size={20}/></span></div>
               <form onSubmit={submitResearch} className="space-y-4">
+                <label className="block text-sm font-medium text-slate-700">Workspace<select value={activeProjectId ?? ""} onChange={(event) => setActiveProjectId(event.target.value || null)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="">No workspace (standalone run)</option>{projects.filter((project) => !project.archived_at).map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
                 <label className="block text-sm font-medium text-slate-700">Question<textarea value={question} onChange={(event) => setQuestion(event.target.value)} required minLength={8} maxLength={2000} rows={4} placeholder="e.g. How does retrieval practice affect long-term learning outcomes?" className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-indigo-500"/></label>
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px]">
                   <label className="block text-sm font-medium text-slate-700">Research mode<select value={researchMode} onChange={(event) => setResearchMode(event.target.value as ResearchMode)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">{MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                   <label className="block text-sm font-medium text-slate-700">Source limit<select value={maxSources} onChange={(event) => setMaxSources(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value={5}>5 sources</option><option value={10}>10 sources</option><option value={20}>20 sources</option><option value={30}>30 sources</option></select></label>
                 </div>
+                <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900">Provider disclosure: Chronicle sends the research query to scholarly metadata providers. When model-backed extraction or verification is run, selected source passages may be sent to the model provider configured by the server. Do not upload or process confidential or restricted material unless authorized.</p>
                 <div className="flex flex-col-reverse justify-between gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center"><p className="text-xs leading-5 text-slate-500">Results remain reviewable; missing evidence is not proof of absence.</p><button disabled={creatingRun} className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60">{creatingRun ? <LoaderCircle size={16} className="animate-spin"/> : <Sparkles size={16}/>} {creatingRun ? "Starting…" : "Start research"}</button></div>
               </form>
             </section>
@@ -837,7 +955,7 @@ export default function ChronicleWorkbench() {
             </section>
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
               <button onClick={() => setShowPdfUpload((current) => !current)} aria-expanded={showPdfUpload} className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-slate-50"><span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><Upload size={17}/></span><span><span className="block text-sm font-semibold text-slate-900">Add a PDF</span><span className="mt-0.5 block text-xs text-slate-500">Extract text passages for evidence inspection.</span></span></span><ChevronDown size={17} className={"shrink-0 text-slate-400 transition " + (showPdfUpload ? "rotate-180" : "")}/></button>
-              {showPdfUpload ? <div className="border-t border-slate-100 p-5"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-indigo-300 hover:bg-indigo-50/40"><Upload size={20} className="text-slate-500"/><span className="mt-2 text-sm font-medium text-slate-800">{uploadingPdf ? "Uploading PDF…" : "Choose a PDF up to 3 MB"}</span><span className="mt-1 text-xs text-slate-500">Original files are stored temporarily on this prototype.</span><input className="sr-only" type="file" accept=".pdf,application/pdf" disabled={uploadingPdf} onChange={(event) => void handlePdfUpload(event.target.files?.[0])}/></label>{uploadMessage ? <p role="status" className="mt-3 text-sm text-slate-600">{uploadMessage}</p> : null}</div> : null}
+              {showPdfUpload ? <div className="border-t border-slate-100 p-5"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-indigo-300 hover:bg-indigo-50/40"><Upload size={20} className="text-slate-500"/><span className="mt-2 text-sm font-medium text-slate-800">{uploadingPdf ? "Uploading PDF…" : "Choose a PDF (server limit applies)"}</span><span className="mt-1 text-xs text-slate-500">The server validates size and page limits. Original files are stored on the configured server filesystem.</span><input className="sr-only" type="file" accept=".pdf,application/pdf" disabled={uploadingPdf} onChange={(event) => void handlePdfUpload(event.target.files?.[0])}/></label>{uploadMessage ? <p role="status" className="mt-3 text-sm text-slate-600">{uploadMessage}</p> : null}</div> : null}
             </section>
           </div>
           <aside className="space-y-5">

@@ -116,6 +116,49 @@ export interface AcademicSearchResult {
   landing_url: string | null;
 }
 
+export interface ResearchProjectRecord {
+  id: string;
+  title: string;
+  research_question: string;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+}
+
+export async function listResearchProjects(includeArchived = false): Promise<ResearchProjectRecord[]> {
+  const params = new URLSearchParams({ include_archived: String(includeArchived) });
+  const response = await apiFetch(`${API_BASE}/api/v1/projects?${params.toString()}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<ResearchProjectRecord[]>;
+}
+
+export async function createResearchProject(input: {
+  title: string;
+  research_question: string;
+}): Promise<ResearchProjectRecord> {
+  const response = await apiFetch(`${API_BASE}/api/v1/projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<ResearchProjectRecord>;
+}
+
+export async function updateResearchProject(
+  projectId: string,
+  input: { title?: string; research_question?: string; archived?: boolean }
+): Promise<ResearchProjectRecord> {
+  const response = await apiFetch(`${API_BASE}/api/v1/projects/${encodeURIComponent(projectId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<ResearchProjectRecord>;
+}
+
+
 export async function searchAcademicSources(query: string, limit = 10, provider = "all") {
   const params = new URLSearchParams({ q: query, limit: String(limit), provider });
   const response = await apiFetch(`${API_BASE}/api/v1/sources/search?${params.toString()}`, { cache: "no-store" });
