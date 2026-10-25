@@ -75,6 +75,7 @@ async def verify_claim_with_llm(
             f"{api_base.rstrip('/')}/chat/completions",
             json={
                 "model": model,
+                "reasoning_effort": "none",
                 "temperature": 0,
                 "response_format": {"type": "json_object"},
                 "messages": [
