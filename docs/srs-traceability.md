@@ -45,11 +45,11 @@ Status definitions:
 | FR-032 | Counter-evidence pass | Forensic query variants explicitly search conflict/contradiction language | Partial | No iterative adversarial search agent or ablation study |
 | FR-033 | Track event and observed times | Source event/status-check/audit records timestamp events | Implemented | Event time depends on what provider metadata supplies |
 | FR-034 | Manual and scheduled source refresh | Manual check and opt-in polling workflow exist | Partial | Scheduler is process-local; multi-replica coordination is not guaranteed |
-| FR-035 | Propagate changes through dependencies | Directed dependencies and symmetric shared-dataset/overlap impact review | Partial | Impact precision/recall and deeper graph fixtures are not measured |
+| FR-035 | Propagate changes through dependencies | Directed multi-hop dependencies and symmetric shared-dataset/overlap impact review; regression covers a three-paper chain and dependent claims | Partial | Impact precision/recall and real-event coverage remain not measured |
 | FR-036 | Reverify or mark pending review | Source events flag claims/report versions; citation verifier is available to reviewers | Partial | Automated queued reverification after a source event is not implemented |
 | FR-037 | Preserve report versions | Source update creates a new report version and retains prior version | Implemented | Browser workflow smoke test still required |
 | FR-038 | Explain before/after change impact | Impact summary records affected papers/claims/report versions and review reasons | Partial | Full claim-by-claim before/after assessment diff is incomplete |
-| FR-039 | Do not auto-declare downstream claims false | Updates mark review required; no automatic truth invalidation | Implemented | Keep regression tests for multiple dependency depths |
+| FR-039 | Do not auto-declare downstream claims false | Updates flag claims/report versions for review; regression asserts no automatic contradicted verdict | Implemented | Extend regression coverage to cycles, mixed relationship types and real event notices |
 | FR-040 | Notify users of important events | No notification queue | Not implemented | Optional requirement |
 | FR-041 | Structured research report | Academic Discovery Snapshot covers sources, findings, limitations, uncertainties and candidate opportunities | Partial | PDF report export and stricter section-completeness validation |
 | FR-042 | Distinguish fact from model inference | Provenance labels, abstract-only notice, human-review warning | Partial | Every summary statement is not separately linked to a claim record |
@@ -76,7 +76,7 @@ Status definitions:
 | AT-01..AT-03 core workflow/PDF/citation | API integration/unit tests for research runs, PDF passages and citation checks | Partial | Complete acceptance run through a real deployment with external provider |
 | AT-04 dependency precision/recall | Evaluation harness accepts expected/predicted dependency edges | Not measured | Curated labelled dependency set and recorded held-out results |
 | AT-05 relation classification | Per-class precision/recall/F1 helpers | Not measured | Freeze labelled context/contradiction test set before evaluation |
-| AT-06 temporal impact | Set-based temporal impact metrics and source-event tests | Not measured | Label affected IDs and report precision, recall, F1, false alarms |
+| AT-06 temporal impact | Set-based temporal impact metrics, direct source-event tests, and new multi-hop regression | Not measured | Create an adjudicated labelled set; report precision, recall, F1, false alarms and missed high-impact entities |
 | AT-07 report history | Report version and source-event tests | Implemented | Browser acceptance test still needed |
 | AT-08 prompt injection | Prompt-injection and source-pointer filtering tests | Partial | Adversarial evaluation beyond a few unit tests |
 | AT-09 account isolation | Test coverage for authentication and project ownership | Implemented for tested routes | Route-by-route tenant audit |
