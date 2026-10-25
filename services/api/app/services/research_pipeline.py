@@ -586,7 +586,7 @@ async def execute_research_run(run_id: str) -> None:
                     passages=passages_for_extraction,
                     api_key=api_key,
                     api_base=api_base,
-                    model=settings.openai_model.strip(),
+                    model=model_name,
                 ), run_id)
                 llm_note = "Structured extraction completed; generated claims and evidence edges still require human review."
             except Exception as exc:
@@ -598,14 +598,14 @@ async def execute_research_run(run_id: str) -> None:
                           if not should_synthesize_evidence else
                           "Model synthesis skipped because LLM_API_KEY and LLM_MODEL are not both configured.")
         synthesis_error: str | None = None
-        if should_synthesize_evidence and api_key and settings.openai_model.strip() and passages_for_extraction:
+        if should_synthesize_evidence and api_key and model_name and passages_for_extraction:
             try:
                 synthesis_result = await _await_with_cancellation(synthesize_evidence(
                     question=model_question,
                     passages=passages_for_extraction,
                     api_key=api_key,
-                    api_base=settings.openai_api_base,
-                    model=settings.openai_model.strip(),
+                    api_base=api_base,
+                    model=model_name,
                 ), run_id)
                 synthesis_note = "Model synthesis completed; draft findings and candidate research questions still require human review."
             except Exception as exc:
@@ -738,7 +738,7 @@ async def execute_research_run(run_id: str) -> None:
 
         provider_errors = provider_result.get("provider_errors", {})
         llm_stage_expected = should_extract_claims or should_synthesize_evidence
-        llm_provider_unavailable = llm_stage_expected and (not api_key or not settings.openai_model.strip())
+        llm_provider_unavailable = llm_stage_expected and (not api_key or not model_name)
         has_limitations = bool(provider_errors) or bool(extraction_error) or bool(synthesis_error) or not saved_papers or llm_provider_unavailable
         completion_status = "completed_with_limitations" if has_limitations else "completed"
 
