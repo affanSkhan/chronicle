@@ -11,7 +11,7 @@ import re
 
 from sqlalchemy import func, select
 
-from app.core.config import get_settings
+from app.core.config import get_llm_config, get_settings
 from app.core.database import SessionLocal
 from app.models.entities import Claim, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun, Study
 from app.services.academic_search import search_papers
@@ -575,17 +575,17 @@ async def execute_research_run(run_id: str) -> None:
         should_scan_dependencies = bool(stages.get("dependency_candidate_scan", False))
         llm_note = ("Claim extraction skipped by the Quick Discovery profile; this run is retrieval-only."
                     if not should_extract_claims else
-                    "LLM extraction skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured.")
+                    "LLM extraction skipped because LLM_API_KEY and LLM_MODEL are not both configured.")
         extraction_error: str | None = None
-        api_key = settings.openai_api_key.get_secret_value().strip() if settings.openai_api_key else ""
+        api_key, api_base, model_name = get_llm_config(settings)
         model_question = question + "\n\nRun profile: " + execution_plan["profile_label"] + ". Focus: " + focus_for_mode(mode)
-        if should_extract_claims and api_key and settings.openai_model.strip() and passages_for_extraction:
+        if should_extract_claims and api_key and model_name and passages_for_extraction:
             try:
                 extracted_claims = await _await_with_cancellation(extract_claims_from_passages(
                     question=model_question,
                     passages=passages_for_extraction,
                     api_key=api_key,
-                    api_base=settings.openai_api_base,
+                    api_base=api_base,
                     model=settings.openai_model.strip(),
                 ), run_id)
                 llm_note = "Structured extraction completed; generated claims and evidence edges still require human review."
@@ -596,7 +596,7 @@ async def execute_research_run(run_id: str) -> None:
         synthesis_result: dict | None = None
         synthesis_note = ("Synthesis skipped by the Quick Discovery profile to keep this run retrieval-only."
                           if not should_synthesize_evidence else
-                          "Model synthesis skipped because OPENAI_API_KEY and OPENAI_MODEL are not both configured.")
+                          "Model synthesis skipped because LLM_API_KEY and LLM_MODEL are not both configured.")
         synthesis_error: str | None = None
         if should_synthesize_evidence and api_key and settings.openai_model.strip() and passages_for_extraction:
             try:
