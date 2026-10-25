@@ -1,8 +1,11 @@
 import asyncio
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app.api.auth import router as auth_router
 from app.api.routes import router as research_router
@@ -10,6 +13,7 @@ from app.api.sources import router as sources_router
 from app.api.documents import router as documents_router
 from app.api.evidence import router as evidence_router
 from app.core.config import get_settings
+from app.core.database import get_db
 from app.schemas.common import HealthResponse
 from app.services.status_monitor import scheduled_monitor_loop
 
@@ -55,6 +59,22 @@ def root() -> dict[str, str]:
 def health() -> HealthResponse:
     # Process liveness. Use readiness checks separately for database/provider dependencies.
     return HealthResponse(status="ok", service=settings.app_name, version=settings.app_version)
+
+
+@app.get("/api/v1/ready", tags=["system"])
+def readiness(db: Session = Depends(get_db)) -> dict[str, object]:
+    """Readiness check for traffic routing; unlike /health, it verifies database access."""
+    try:
+        db.execute(text("SELECT 1"))
+    except SQLAlchemyError as exc:
+        # Do not expose database URLs, SQL, or driver details in health responses.
+        raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
+    return {
+        "status": "ready",
+        "service": settings.app_name,
+        "version": settings.app_version,
+        "dependencies": {"database": "ok"},
+    }
 
 
 app.include_router(auth_router, prefix=settings.api_prefix)
