@@ -71,9 +71,9 @@ async def synthesize_evidence(
             "id": str(item["id"]),
             "paper_title": str(item.get("paper_title") or ""),
             "doi": item.get("doi"),
-            "text": str(item.get("text") or "")[:3500],
+            "text": str(item.get("text") or "")[:1800],
         }
-        for item in passages[:25]
+        for item in passages[:8]
     ]
     allowed_ids = {item["id"] for item in bounded}
 
@@ -104,8 +104,8 @@ async def synthesize_evidence(
             f"{api_base.rstrip('/')}/chat/completions",
             json={
                 "model": model,
-                "reasoning_effort": "none",
                 "temperature": 0,
+                "max_tokens": 1800,
                 "response_format": {"type": "json_object"},
                 "messages": [
                     {"role": "system", "content": system_prompt},
