@@ -69,3 +69,10 @@ Remaining SRS gaps that are **not** completed by this pass include durable backg
 
 - The planner now chooses executable stage policies: Quick Discovery performs retrieval/reporting only; Deep Research and Academic Review enable optional claim extraction and evidence synthesis; Forensic Analysis additionally performs a bounded dependency-candidate scan over papers returned by that run.
 - Forensic suggestions are stored with the report snapshot but are not silently inserted into the evidence graph. The integration tests assert Quick Discovery never calls configured model stages and Forensic Analysis emits source-linked candidates without persisting a dependency automatically.
+
+
+## SRS implementation pass: workspace lifecycle and untrusted input
+
+- Research workspaces now support rename and soft-archive/restore, with owner-scoped queries and audit events. Archived workspaces remain readable and preserve their historical runs, but new runs cannot be submitted until restoration.
+- Claim extraction explicitly treats retrieved passages as untrusted data rather than instructions. Automated tests assert the control separation and source-pointer filtering.
+- An SRS requirement traceability matrix separates implemented, partial, outstanding, and not-measured items. Empirical benchmark metrics are not claimed without a labelled held-out evaluation.

@@ -43,6 +43,12 @@ class ProjectCreate(BaseModel):
     research_question: str = Field(min_length=8, max_length=4000)
 
 
+class ProjectUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=2, max_length=240)
+    research_question: str | None = Field(default=None, min_length=8, max_length=4000)
+    archived: bool | None = None
+
+
 class ProjectRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
@@ -50,3 +56,4 @@ class ProjectRead(BaseModel):
     research_question: str
     created_at: datetime
     updated_at: datetime
+    archived_at: datetime | None = None

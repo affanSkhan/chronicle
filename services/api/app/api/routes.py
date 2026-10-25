@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -5,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.entities import ResearchProject, ResearchRun, User
-from app.schemas.research import ProjectCreate, ProjectRead, ResearchRun as ResearchRunSchema, ResearchRunCreate
+from app.schemas.research import ProjectCreate, ProjectRead, ProjectUpdate, ResearchRun as ResearchRunSchema, ResearchRunCreate
 from app.services.audit import record_audit_event
 from app.services.research_pipeline import execute_research_run
 
@@ -34,8 +36,15 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db), curren
 
 
 @router.get("/projects", response_model=list[ProjectRead])
-def list_projects(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[ResearchProject]:
-    return list(db.scalars(select(ResearchProject).where(ResearchProject.owner_user_id == current_user.id).order_by(ResearchProject.updated_at.desc())).all())
+def list_projects(
+    include_archived: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[ResearchProject]:
+    statement = select(ResearchProject).where(ResearchProject.owner_user_id == current_user.id)
+    if not include_archived:
+        statement = statement.where(ResearchProject.archived_at.is_(None))
+    return list(db.scalars(statement.order_by(ResearchProject.updated_at.desc())).all())
 
 
 @router.get("/projects/{project_id}", response_model=ProjectRead)
@@ -46,10 +55,44 @@ def get_project(project_id: str, db: Session = Depends(get_db), current_user: Us
     return project
 
 
+@router.patch("/projects/{project_id}", response_model=ProjectRead)
+def update_project(
+    project_id: str,
+    payload: ProjectUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ResearchProject:
+    updates = payload.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=422, detail="Provide at least one project field to update.")
+    project = db.scalar(select(ResearchProject).where(ResearchProject.id == project_id, ResearchProject.owner_user_id == current_user.id))
+    if project is None:
+        raise HTTPException(status_code=404, detail="Research project not found.")
+    previous = {"title": project.title, "research_question": project.research_question, "archived_at": project.archived_at.isoformat() if project.archived_at else None}
+    if "title" in updates and updates["title"] is not None:
+        project.title = updates["title"].strip()
+    if "research_question" in updates and updates["research_question"] is not None:
+        project.research_question = updates["research_question"].strip()
+    if "archived" in updates and updates["archived"] is not None:
+        if updates["archived"] and project.archived_at is None:
+            project.archived_at = datetime.now(timezone.utc)
+        elif not updates["archived"]:
+            project.archived_at = None
+    db.flush()
+    record_audit_event(db, actor_user_id=current_user.id, run_id=None, target_entity_type="research_project", target_entity_id=project.id, action="research_project.updated", previous_value=previous, new_value={"title": project.title, "research_question": project.research_question, "archived_at": project.archived_at.isoformat() if project.archived_at else None}, reason="Research workspace updated.")
+    db.commit()
+    db.refresh(project)
+    return project
+
+
 @router.post("/research/runs", response_model=ResearchRunSchema, status_code=201)
 def create_research_run(payload: ResearchRunCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> ResearchRun:
-    if payload.project_id and db.scalar(select(ResearchProject.id).where(ResearchProject.id == payload.project_id, ResearchProject.owner_user_id == current_user.id)) is None:
-        raise HTTPException(status_code=404, detail="Research project not found.")
+    if payload.project_id:
+        project = db.scalar(select(ResearchProject).where(ResearchProject.id == payload.project_id, ResearchProject.owner_user_id == current_user.id))
+        if project is None:
+            raise HTTPException(status_code=404, detail="Research project not found.")
+        if project.archived_at is not None:
+            raise HTTPException(status_code=409, detail="This workspace is archived. Restore it before starting a new research run.")
     run = ResearchRun(
         owner_user_id=current_user.id,
         project_id=payload.project_id,
