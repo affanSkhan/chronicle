@@ -7,6 +7,8 @@ import json
 from typing import Literal
 
 import httpx
+
+from app.core.config import get_llm_request_options
 from pydantic import BaseModel, Field, ValidationError
 
 
@@ -72,8 +74,9 @@ async def extract_claims_from_passages(
             f"{api_base.rstrip('/')}/chat/completions",
             json={
                 "model": model,
+                **get_llm_request_options(api_base, model),
                 "temperature": 0,
-                "max_tokens": 1000,
+                "max_completion_tokens": 1000,
                 "response_format": {"type": "json_object"},
                 "messages": [
                     {"role": "system", "content": system_prompt},
