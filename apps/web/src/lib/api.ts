@@ -1,5 +1,5 @@
 export type ResearchMode = "quick" | "deep" | "academic" | "forensic";
-export type RunStatus = "queued" | "running" | "completed" | "completed_with_limitations" | "failed";
+export type RunStatus = "queued" | "running" | "completed" | "completed_with_limitations" | "failed" | "cancel_requested" | "cancelled";
 
 export interface ResearchRun {
   id: string;
@@ -11,6 +11,9 @@ export interface ResearchRun {
   created_at: string;
   demo: boolean;
   error_message?: string | null;
+  cancel_requested_at?: string | null;
+  cancelled_at?: string | null;
+  retry_of_run_id?: string | null;
 }
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -93,6 +96,24 @@ export async function createResearchRun(input: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input)
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<ResearchRun>;
+}
+
+export async function cancelResearchRun(runId: string): Promise<ResearchRun> {
+  const response = await apiFetch(`${API_BASE}/api/v1/research/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: "POST",
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<ResearchRun>;
+}
+
+export async function retryResearchRun(runId: string): Promise<ResearchRun> {
+  const response = await apiFetch(`${API_BASE}/api/v1/research/runs/${encodeURIComponent(runId)}/retry`, {
+    method: "POST",
+    cache: "no-store"
   });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<ResearchRun>;

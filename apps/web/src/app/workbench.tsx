@@ -15,6 +15,7 @@ import {
   importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents,
   listSourceStatusChecks, loginAccount, recordPaperStatusCheck, registerAccount,
   addPaperDependency, listDependencyCandidates,
+  cancelResearchRun, retryResearchRun,
   createResearchProject, listResearchProjects, updateResearchProject,
   reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf,
   verifyClaimCitationSupport,
@@ -216,6 +217,7 @@ export default function ChronicleWorkbench() {
   const [researchMode, setResearchMode] = useState<ResearchMode>("deep");
   const [maxSources, setMaxSources] = useState(10);
   const [creatingRun, setCreatingRun] = useState(false);
+  const [runActionId, setRunActionId] = useState<string | null>(null);
   const [reportVersions, setReportVersions] = useState<ReportVersionSummary[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
   const [exporting, setExporting] = useState<"markdown" | "json" | null>(null);
@@ -343,7 +345,7 @@ export default function ChronicleWorkbench() {
   }, [authUser]);
 
   useEffect(() => {
-    if (!authUser || !activeRunId || (activeRun?.status !== "queued" && activeRun?.status !== "running")) return;
+    if (!authUser || !activeRunId || !["queued", "running", "cancel_requested"].includes(activeRun?.status ?? "")) return;
     let cancelled = false;
     const timer = setInterval(async () => {
       try {
@@ -521,6 +523,38 @@ export default function ChronicleWorkbench() {
       setWorkspaceError(error instanceof Error ? error.message : "Could not change workspace archive state.");
     } finally {
       setSavingProject(false);
+    }
+  }
+
+  async function cancelRun(runId: string) {
+    setRunActionId(runId);
+    setWorkspaceError("");
+    try {
+      const updated = await cancelResearchRun(runId);
+      setRuns((current) => current.map((run) => run.id === updated.id ? updated : run));
+      setNotice(updated.status === "cancel_requested"
+        ? "Cancellation requested. Chronicle will stop after it reaches a safe pipeline boundary."
+        : "Queued run cancelled. The run record and audit history are preserved.");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not cancel this research run.");
+    } finally {
+      setRunActionId(null);
+    }
+  }
+
+  async function retryRun(runId: string) {
+    setRunActionId(runId);
+    setWorkspaceError("");
+    try {
+      const retry = await retryResearchRun(runId);
+      setRuns((current) => [retry, ...current.filter((run) => run.id !== retry.id)]);
+      setActiveRunId(retry.id);
+      setNotice("A new retry run has been queued. The original run and its evidence history remain unchanged.");
+      setView("Research workspace");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not retry this research run.");
+    } finally {
+      setRunActionId(null);
     }
   }
 
@@ -954,10 +988,19 @@ export default function ChronicleWorkbench() {
             </section>
 
             {activeRun ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30 sm:p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Selected run</p><h3 className="mt-1.5 max-w-3xl text-lg font-semibold tracking-tight text-slate-950">{activeRun.question}</h3></div><StatusPill status={activeRun.status}>{activeRun.status}</StatusPill></div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Selected run</p><h3 className="mt-1.5 max-w-3xl text-lg font-semibold tracking-tight text-slate-950">{activeRun.question}</h3></div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusPill status={activeRun.status}>{activeRun.status.replaceAll("_", " ")}</StatusPill>
+                  {!activeRun.demo && (activeRun.status === "queued" || activeRun.status === "running") ? <button type="button" onClick={() => void cancelRun(activeRun.id)} disabled={runActionId === activeRun.id} className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">{runActionId === activeRun.id ? <LoaderCircle size={13} className="animate-spin"/> : <X size={13}/>}Cancel run</button> : null}
+                  {!activeRun.demo && (activeRun.status === "failed" || activeRun.status === "cancelled" || activeRun.status === "completed_with_limitations") ? <button type="button" onClick={() => void retryRun(activeRun.id)} disabled={runActionId === activeRun.id} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">{runActionId === activeRun.id ? <LoaderCircle size={13} className="animate-spin"/> : <RefreshCw size={13}/>}Retry run</button> : null}
+                </div>
+              </div>
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500"><span>{activeRun.mode} · up to {activeRun.max_sources} sources</span><span>{formatDate(activeRun.created_at)}</span><span className="font-mono">ID {activeRun.id.slice(0, 8)}</span></div>
               {activeRun.error_message ? <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{activeRun.error_message}</div> : null}
               {activeRun.status === "queued" || activeRun.status === "running" ? <div role="status" aria-live="polite" className="mt-5 rounded-xl bg-indigo-50 px-4 py-3"><div className="flex items-center gap-2 text-sm font-medium text-indigo-800"><LoaderCircle size={16} className="animate-spin"/> Research is in progress</div><p className="mt-1 text-xs text-indigo-700">This panel updates automatically.</p></div> : null}
+              {activeRun.status === "cancel_requested" ? <div role="status" aria-live="polite" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"><p className="text-sm font-semibold text-amber-900">Cancellation requested</p><p className="mt-1 text-xs leading-5 text-amber-800">Chronicle is stopping current external work at a safe cancellation point. The original records are preserved.</p></div> : null}
+              {activeRun.status === "cancelled" ? <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-sm font-semibold text-slate-800">Run cancelled</p><p className="mt-1 text-xs leading-5 text-slate-600">A new retry can be launched without changing the original run history.</p></div> : null}
               {activeRun.status === "completed" || activeRun.status === "completed_with_limitations" ? <div className="mt-5 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4"><div><p className="text-sm font-semibold text-slate-900">Research report</p><p className="mt-0.5 text-xs text-slate-500">{reportLoading ? "Loading latest report…" : activeReport ? "Latest saved version" : "No report version found for this run."}</p></div><div className="flex gap-2"><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("markdown")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "markdown" ? "Exporting…" : "Export .md"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("json")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "json" ? "Exporting…" : "Export .json"}</button></div></div>
                 {activeReport ? <div className="max-h-[460px] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/70 p-4 sm:p-5"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
