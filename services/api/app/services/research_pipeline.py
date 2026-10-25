@@ -159,17 +159,6 @@ def _markdown_report(
         if questions:
             lines.extend(["", "### Candidate research questions (not novelty claims)", ""])
             lines.extend(f"- {item}" for item in questions)
-        if dependency_candidates:
-            lines.extend(["", "### Potential source-dependence links (human review required)", ""])
-            lines.append("These heuristic candidates may indicate shared datasets or overlapping records. They are not verified dependencies and do not mean studies are invalid or statistically non-independent.")
-            lines.append("")
-            for candidate in dependency_candidates:
-                lines.append(f"- **{candidate['relation_type'].replace('_', ' ').title()}:** {candidate['paper_a_title']} ↔ {candidate['paper_b_title']}")
-                lines.append("  - Signal: " + "; ".join(candidate.get("signals", [])))
-                lines.append(f"  - Heuristic score (not a calibrated probability): {candidate.get('confidence', 0)}")
-                lines.append(f"  - Rationale: {candidate.get('rationale', '')}")
-                lines.append("  - Status: candidate only; researcher confirmation is required.")
-                lines.append("")
         opportunities = synthesis.get("research_opportunities", [])
         if opportunities:
             lines.extend(["", "### Evidence-linked research opportunities (not novelty claims)", ""])
@@ -198,6 +187,20 @@ def _markdown_report(
         lines.extend(["", "**Uncertainty:** " + synthesis.get("uncertainty_statement", "Uncertainty was not provided."), ""])
     lines.append(synthesis_note)
     lines.append("")
+
+    if dependency_candidates:
+        lines.extend(["## Potential source-dependence links (human review required)", ""])
+        lines.append("These heuristic candidates may indicate shared datasets or overlapping records. They are not verified dependencies and do not mean studies are invalid or statistically non-independent.")
+        lines.append("")
+        lines.append(f"- Supporting source records in this run: {len(papers)}")
+        lines.append(f"- Candidate source-dependence links surfaced: {len(dependency_candidates)}")
+        for candidate in dependency_candidates:
+            lines.append(f"- **{candidate['relation_type'].replace('_', ' ').title()}:** {candidate['paper_a_title']} ↔ {candidate['paper_b_title']}")
+            lines.append("  - Signal: " + "; ".join(candidate.get("signals", [])))
+            lines.append(f"  - Heuristic score (not a calibrated probability): {candidate.get('confidence', 0)}")
+            lines.append(f"  - Rationale: {candidate.get('rationale', '')}")
+            lines.append("  - Status: candidate only; researcher confirmation is required.")
+            lines.append("")
 
     lines.extend(["## Candidate claims", ""])
     if not extracted_claims:
