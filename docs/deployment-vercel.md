@@ -43,11 +43,17 @@ For optional model-assisted extraction and synthesis, add `OPENAI_API_KEY`, `OPE
 Do not run schema migrations in every Vercel build: preview builds may point at the same production database, and concurrent builds can race. Instead, use the repository's manual GitHub Actions workflow:
 
 1. In GitHub repository Settings → Secrets and variables → Actions, add or verify the repository secret `CHRONICLE_DATABASE_URL`. It should contain the same Neon database URL, kept secret.
-2. Open Actions → **Database Migrations** → Run workflow.
+2. Open Actions → **Database Migrations** → Run workflow and select branch `feat/srs-research-planning-verification` in the branch selector. **Do not dispatch this migration from `main` before PR #3 is merged:** `main` is still at migration `0005_source_monitoring` and does not contain migrations `0006` and `0007`.
 3. Enter `APPLY` in the confirmation field and run the workflow.
-4. Confirm the workflow ends successfully before exercising database-backed endpoints.
+4. Confirm the workflow ends successfully and the database `alembic_version` is `0007_run_cancel_retry` before exercising the new workspace/run-lifecycle endpoints.
 
 The workflow runs `alembic upgrade head` against that secret. It normalizes a standard `postgresql://` or `postgres://` URL to the project's Psycopg 3 driver scheme without printing the connection credentials.
+
+## Release gate for the SRS lifecycle branch
+
+Before promoting the SRS lifecycle changes, confirm API, web and container CI are green on the pull request head. Dispatch the database migration workflow from `feat/srs-research-planning-verification` as described above, not from the older `main` branch. The production database must report Alembic revision `0007_run_cancel_retry` before Vercel production receives the new API code.
+
+After merge, verify the new production deployment is READY and points to the merge SHA. Use the actual production aliases (not a preview URL) to test registration/login, source search, workspace create/rename/archive/restore, runs in all four research modes, PDF ingestion, model-assisted claim verification when a model is configured, dependency review, source-event impact propagation, report-version history, and Markdown/JSON/PDF Evidence Passport downloads. Test a second user to confirm private records remain isolated. The health endpoint is a liveness check only; successful health output does not prove database or optional AI-provider configuration is correct.
 
 ## B. Create the frontend project
 
