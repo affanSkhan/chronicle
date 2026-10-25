@@ -58,7 +58,7 @@ def test_groq_gpt_oss_uses_supported_low_effort_json_options():
     assert get_llm_request_options(
         "https://api.groq.com/openai/v1",
         "openai/gpt-oss-20b",
-    ) == {"reasoning_effort": "low", "reasoning_format": "hidden"}
+    ) == {"reasoning_effort": "low"}
 
 
 def test_other_provider_does_not_receive_groq_specific_options():
