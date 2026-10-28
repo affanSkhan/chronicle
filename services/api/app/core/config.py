@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr | None = None
     llm_api_base: str = ""
     llm_model: str = ""
+    # Optional semantic reranking uses Hugging Face Inference Providers only when explicitly enabled.
+    enable_semantic_reranking: bool = False
+    huggingface_api_token: SecretStr | None = None
+    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     # Backward-compatible names for existing deployments.
     openai_api_key: SecretStr | None = None
     openai_api_base: str = "https://api.openai.com/v1"

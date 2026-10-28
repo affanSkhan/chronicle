@@ -20,7 +20,7 @@ from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
 from app.services.dependency_candidates import build_dependency_clusters, suggest_dependency_candidates
 from app.services.research_planner import build_research_plan, focus_for_mode
-from app.services.local_retrieval import rank_passages
+from app.services.hybrid_retrieval import rank_passages_hybrid
 
 
 class ResearchRunCancelled(Exception):
@@ -168,7 +168,7 @@ def _markdown_report(
 
     if uploaded_pdf_evidence:
         lines.extend(["## Selected uploaded-PDF passages", "",
-                      "Passages are ranked with lexical BM25 against the research question. Scores are ranking signals, not probabilities or proof of support.", ""])
+                      "Passages are selected with BM25 and optional embedding reranking. Scores are ranking signals, not probabilities or proof of support.", ""])
         for item in uploaded_pdf_evidence:
             page = item.get("page_number")
             section = item.get("section_title") or "Section unavailable"
@@ -581,8 +581,9 @@ async def execute_research_run(run_id: str) -> None:
                 })
             db.commit()
 
+        settings = get_settings()
         # Phase 1b: selected user PDFs are first-class run inputs. Rank page-anchored
-        # stored passages lexically and bound model context to four PDF + four abstract excerpts.
+        # stored passages with local BM25 and optional, explicitly enabled embedding reranking.
         uploaded_pdf_passages: list[dict] = []
         uploaded_pdf_evidence: list[dict] = []
         if uploaded_paper_ids and owner_user_id:
@@ -633,8 +634,8 @@ async def execute_research_run(run_id: str) -> None:
                         "file_page_count": (latest_version.metadata_snapshot or {}).get("page_count"),
                     })
 
-            uploaded_pdf_evidence = rank_passages(question, uploaded_pdf_passages, limit=4)
-            ranked_abstracts = rank_passages(question, passages_for_extraction, limit=4)
+            uploaded_pdf_evidence = await rank_passages_hybrid(question, uploaded_pdf_passages, limit=4, settings=settings)
+            ranked_abstracts = await rank_passages_hybrid(question, passages_for_extraction, limit=4, settings=settings)
             passages_for_extraction = uploaded_pdf_evidence + ranked_abstracts
             selected_pdf_ids_by_paper: dict[str, list[str]] = {}
             for passage in uploaded_pdf_evidence:
@@ -648,12 +649,11 @@ async def execute_research_run(run_id: str) -> None:
                     paper["passage_id"] = ids[0] if ids else None
         else:
             # External metadata providers already rank results; keep their stable ordering.
-            passages_for_extraction = passages_for_extraction[:8]
+            passages_for_extraction = await rank_passages_hybrid(question, passages_for_extraction, limit=8, settings=settings)
 
         # Phase 2: optional model-backed candidates; retrieval-only mode is valid.
         if _run_cancellation_requested(run_id):
             raise ResearchRunCancelled("Research run cancellation was requested.")
-        settings = get_settings()
         extracted_claims: list[dict] = []
         stages = execution_plan.get("stages", {})
         should_extract_claims = bool(stages.get("claim_extraction", True))
@@ -863,7 +863,7 @@ async def execute_research_run(run_id: str) -> None:
                     "paper_ids": [paper["paper_id"] for paper in saved_papers],
                     "passage_ids": list(dict.fromkeys(str(item["id"]) for item in passages_for_extraction if item.get("id"))),
                     "uploaded_pdf_passage_ids": [str(item["id"]) for item in uploaded_pdf_evidence],
-                    "retrieval_strategy": "BM25 lexical top-k over uploaded PDF passages and scholarly abstracts",
+                    "retrieval_strategy": ("BM25 with Hugging Face embedding reranking via reciprocal-rank fusion" if any(item.get("retrieval_method") == "bm25_embedding_rrf" for item in passages_for_extraction) else "BM25 lexical ranking; embedding reranking disabled or unavailable"),
                     "claim_ids": [claim["id"] for claim in persisted_claims],
                     "study_ids": [study["id"] for study in persisted_studies],
                     "generated_at": generated_at,
