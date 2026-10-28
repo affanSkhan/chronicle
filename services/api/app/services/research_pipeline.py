@@ -580,7 +580,7 @@ async def execute_research_run(run_id: str) -> None:
                 for selected_document in selected_documents:
                     versions = db.scalars(select(PaperVersion).where(
                         PaperVersion.paper_id == selected_document.id
-                    ).order_by(PaperVersion.retrieved_at.desc(), PaperVersion.created_at.desc())).all()
+                    ).order_by(PaperVersion.retrieved_at.desc())).all()
                     if not versions:
                         continue
                     latest_version = versions[0]

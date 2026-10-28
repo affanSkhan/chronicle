@@ -19,9 +19,9 @@ def test_context_window_reserves_pdf_passages_and_reports_limits() -> None:
         for i in range(10)
     ]
     pdfs = [
-        {"id": "d1p1", "paper_id": "d1", "text": "The cohort used the same dataset for temporal impact assessment."},
-        {"id": "d1p2", "paper_id": "d1", "text": "The study describes an unrelated laboratory assay."},
-        {"id": "d2p1", "paper_id": "d2", "text": "Source update events require reviewing downstream evidence."},
+        {"id": "d1p1", "paper_id": "d1", "extraction_method": "pymupdf", "text": "The cohort used the same dataset for temporal impact assessment."},
+        {"id": "d1p2", "paper_id": "d1", "extraction_method": "pymupdf", "text": "The study describes an unrelated laboratory assay."},
+        {"id": "d2p1", "paper_id": "d2", "extraction_method": "pymupdf", "text": "Source update events require reviewing downstream evidence."},
     ]
     selected, meta = select_research_context(
         "source update events and temporal evidence impact",
