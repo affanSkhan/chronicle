@@ -230,6 +230,25 @@ export async function uploadPdf(file: File): Promise<PDFUploadResult> {
   return response.json() as Promise<PDFUploadResult>;
 }
 
+export interface PDFDeletionResult {
+  deleted: boolean;
+  paper_id: string;
+  deleted_passage_count: number;
+  deleted_claim_count: number;
+  redacted_report_version_count: number;
+  original_storage_backend: string;
+  note: string;
+}
+
+export async function deleteUploadedPdf(paperId: string): Promise<PDFDeletionResult> {
+  const response = await apiFetch(`${API_BASE}/api/v1/documents/papers/${encodeURIComponent(paperId)}`, {
+    method: "DELETE",
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<PDFDeletionResult>;
+}
+
 
 export interface ReportVersionSummary {
   id: string;
