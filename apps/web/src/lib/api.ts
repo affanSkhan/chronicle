@@ -90,6 +90,7 @@ export async function createResearchRun(input: {
   mode: ResearchMode;
   max_sources?: number;
   project_id?: string | null;
+  source_paper_ids?: string[];
   execute?: boolean;
 }): Promise<ResearchRun> {
   const response = await apiFetch(`${API_BASE}/api/v1/research/runs`, {
