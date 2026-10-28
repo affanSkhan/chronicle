@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.entities import Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage, ReportVersion, SourceEvent, Study, User
+from app.models.entities import AuditEvent, Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage, ReportVersion, SourceEvent, SourceStatusCheck, Study, User
 from app.services.pdf_ingestion import extract_pdf
 from app.services.private_object_storage import delete_original_pdf, store_original_pdf
 from app.services.audit import record_audit_event
@@ -241,7 +241,6 @@ def permanently_delete_uploaded_pdf(
         before = len(claims_to_delete)
         claims_to_delete.update(dependent_ids)
         changed = len(claims_to_delete) != before
-    claims_to_retain = []
     impacted_run_ids = {claim.run_id for claim in linked_claims}
     if claims_to_delete:
         impacted_run_ids.update(db.scalars(select(Claim.run_id).where(Claim.id.in_(claims_to_delete))).all())
@@ -275,13 +274,20 @@ def permanently_delete_uploaded_pdf(
         if caution not in existing_note:
             claim.uncertainty_notes = (existing_note + "\n" + caution).strip()
 
-    if passage_ids:
-        for relation in linked_relations:
-            db.delete(relation)
-    if claims_to_delete:
-        for claim in linked_claims:
-            if claim.id in claims_to_delete:
-                db.delete(claim)
+    # Remove all relationship rows touching deleted passages or claims, including
+    # downstream dependency edges that point at a claim being purged.
+    relations_to_delete = list(db.scalars(select(EvidenceRelation).where(or_(
+        EvidenceRelation.passage_id.in_(passage_ids) if passage_ids else False,
+        EvidenceRelation.claim_id.in_(claims_to_delete) if claims_to_delete else False,
+        EvidenceRelation.related_claim_id.in_(claims_to_delete) if claims_to_delete else False,
+    ))).all())
+    sensitive_target_ids = {paper.id, *version_ids, *passage_ids, *claims_to_delete}
+    sensitive_target_ids.update(relation.id for relation in relations_to_delete)
+    for relation in relations_to_delete:
+        db.delete(relation)
+    claims_to_delete_rows = list(db.scalars(select(Claim).where(Claim.id.in_(claims_to_delete))).all()) if claims_to_delete else []
+    for claim in claims_to_delete_rows:
+        db.delete(claim)
 
     report_redaction_count = 0
     redacted_at = datetime.now(timezone.utc).isoformat()
@@ -308,11 +314,28 @@ def permanently_delete_uploaded_pdf(
         PaperDependency.dependent_paper_id == paper.id,
         PaperDependency.depends_on_paper_id == paper.id,
     ))).all():
+        sensitive_target_ids.add(dependency.id)
         db.delete(dependency)
     for event in db.scalars(select(SourceEvent).where(SourceEvent.paper_id == paper.id)).all():
+        sensitive_target_ids.add(event.id)
         db.delete(event)
+    for check in db.scalars(select(SourceStatusCheck).where(SourceStatusCheck.paper_id == paper.id)).all():
+        sensitive_target_ids.add(check.id)
+        db.delete(check)
     for study in db.scalars(select(Study).where(Study.paper_id == paper.id)).all():
+        sensitive_target_ids.add(study.id)
         db.delete(study)
+
+    # Historical audit entries remain as records, but payloads/reasons that could
+    # contain source or generated claim text are redacted across impacted runs.
+    audit_query = select(AuditEvent).where(or_(
+        AuditEvent.target_entity_id.in_(sensitive_target_ids),
+        AuditEvent.run_id.in_(impacted_run_ids) if impacted_run_ids else False,
+    ))
+    for event in db.scalars(audit_query).all():
+        event.previous_value = None
+        event.new_value = {"redacted": True, "reason": "owner_requested_source_deletion"}
+        event.reason = "Details redacted after owner-requested source deletion."
 
     record_audit_event(
         db,
