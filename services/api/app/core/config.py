@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     pdf_ocr_min_text_chars: int = 40
     pdf_ocr_language: str = "eng"
     upload_dir: str = "uploads"
+    # Optional S3-compatible private object storage for original uploaded PDF bytes.
+    # When unset, local filesystem fallback works for development only.
+    object_storage_endpoint_url: str = ""
+    object_storage_bucket: str = ""
+    object_storage_access_key_id: SecretStr | None = None
+    object_storage_secret_access_key: SecretStr | None = None
+    object_storage_region: str = "auto"
+    object_storage_prefix: str = "chronicle-private"
     openalex_api_key: SecretStr | None = None
     # Provider-agnostic OpenAI-compatible API settings; prefer these over legacy names.
     llm_api_key: SecretStr | None = None
