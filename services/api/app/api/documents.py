@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 import hashlib
 import re
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.entities import AuditEvent, Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage, ReportVersion, SourceEvent, Study, User
+from app.models.entities import Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage, ReportVersion, SourceEvent, Study, User
 from app.services.pdf_ingestion import extract_pdf
 from app.services.private_object_storage import delete_original_pdf, store_original_pdf
 from app.services.audit import record_audit_event
@@ -227,12 +228,23 @@ def permanently_delete_uploaded_pdf(
     for relation in all_claim_relations:
         if relation.passage_id and relation.passage_id not in passage_ids and relation.reviewer_status != "rejected":
             surviving_passages_by_claim.setdefault(relation.claim_id, set()).add(relation.passage_id)
-    claims_to_delete = {
-        claim.id for claim in linked_claims
-        if not surviving_passages_by_claim.get(claim.id)
-    }
-    claims_to_retain = [claim for claim in linked_claims if claim.id not in claims_to_delete]
+    # Permanently remove every claim that referenced the PDF, plus claims that
+    # explicitly depend on those claims. A surviving second citation is not enough
+    # to prove the text itself contains no information from the deleted document.
+    claims_to_delete = set(linked_claim_ids)
+    changed = True
+    while changed:
+        dependent_ids = set(db.scalars(select(EvidenceRelation.claim_id).where(
+            EvidenceRelation.related_claim_id.in_(claims_to_delete),
+            EvidenceRelation.relation_type == "depends_on",
+        )).all()) if claims_to_delete else set()
+        before = len(claims_to_delete)
+        claims_to_delete.update(dependent_ids)
+        changed = len(claims_to_delete) != before
+    claims_to_retain = []
     impacted_run_ids = {claim.run_id for claim in linked_claims}
+    if claims_to_delete:
+        impacted_run_ids.update(db.scalars(select(Claim.run_id).where(Claim.id.in_(claims_to_delete))).all())
 
     reports = list(db.scalars(select(ReportVersion)).all())
     for report in reports:
@@ -272,7 +284,7 @@ def permanently_delete_uploaded_pdf(
                 db.delete(claim)
 
     report_redaction_count = 0
-    redacted_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+    redacted_at = datetime.now(timezone.utc).isoformat()
     for report in reports:
         if report.run_id not in impacted_run_ids:
             continue
@@ -313,7 +325,7 @@ def permanently_delete_uploaded_pdf(
         new_value={
             "deleted_passage_count": len(passage_ids),
             "deleted_claim_count": len(claims_to_delete),
-            "claims_flagged_for_review": len(claims_to_retain),
+            "claims_flagged_for_review": 0,
             "redacted_report_version_count": report_redaction_count,
             "storage_backend": storage_result.get("backend"),
         },
@@ -327,7 +339,7 @@ def permanently_delete_uploaded_pdf(
         "paper_id": paper_id,
         "deleted_passage_count": len(passage_ids),
         "deleted_claim_count": len(claims_to_delete),
-        "claims_flagged_for_review": len(claims_to_retain),
+        "claims_flagged_for_review": 0,
         "redacted_report_version_count": report_redaction_count,
         "original_storage_backend": storage_result.get("backend"),
         "note": "The uploaded PDF and extracted passages were removed. Impacted report versions were redacted; claims with other evidence remain flagged for review.",
