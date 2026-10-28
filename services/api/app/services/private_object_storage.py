@@ -98,3 +98,44 @@ def store_original_pdf(
         "durable": durable,
         "object_key": None,
     }
+
+
+def delete_original_pdf(reference: str | None, *, owner_id: str, settings: Any) -> dict[str, Any]:
+    """Delete an owner's original PDF, rejecting references outside their storage namespace."""
+    if not reference:
+        return {"deleted": False, "backend": "none"}
+
+    if reference.startswith("s3://"):
+        from urllib.parse import urlparse
+
+        parsed = urlparse(reference)
+        endpoint = str(getattr(settings, "object_storage_endpoint_url", "") or "").strip()
+        bucket = str(getattr(settings, "object_storage_bucket", "") or "").strip()
+        access_key = _secret_text(getattr(settings, "object_storage_access_key_id", None))
+        secret_key = _secret_text(getattr(settings, "object_storage_secret_access_key", None))
+        region = str(getattr(settings, "object_storage_region", "auto") or "auto").strip()
+        prefix = str(getattr(settings, "object_storage_prefix", "chronicle-private") or "chronicle-private").strip("/")
+        if not all([endpoint, bucket, access_key, secret_key]):
+            raise ValueError("The private object-storage configuration is required to delete this PDF's original bytes.")
+        key = parsed.path.lstrip("/")
+        expected_prefix = f"{prefix}/{owner_id}/"
+        if parsed.netloc != bucket or not key.startswith(expected_prefix) or not key.endswith(".pdf"):
+            raise ValueError("The stored PDF reference is outside this account's private storage namespace.")
+        import boto3
+
+        client = boto3.client(
+            "s3",
+            endpoint_url=endpoint,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name=region,
+        )
+        client.delete_object(Bucket=bucket, Key=key)
+        return {"deleted": True, "backend": "s3"}
+
+    root = (Path(str(getattr(settings, "upload_dir", "uploads"))) / owner_id).resolve()
+    candidate = Path(reference).resolve()
+    if candidate != root and not candidate.is_relative_to(root):
+        raise ValueError("The stored PDF reference is outside this account's local storage namespace.")
+    candidate.unlink(missing_ok=True)
+    return {"deleted": True, "backend": "filesystem"}
