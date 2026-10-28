@@ -20,6 +20,7 @@ from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
 from app.services.dependency_candidates import build_dependency_clusters, suggest_dependency_candidates
 from app.services.research_planner import build_research_plan, focus_for_mode
+from app.services.local_passage_retrieval import rank_passages_bm25
 
 
 class ResearchRunCancelled(Exception):
@@ -114,11 +115,11 @@ def _markdown_report(
         f"**Research question:** {question}",
         f"**Mode:** {mode}",
         f"**Generated:** {created_at}",
-        "**Workflow:** Crossref/OpenAlex metadata retrieval, abstract passage persistence, and optional structured claim extraction.",
+        "**Workflow:** Crossref/OpenAlex metadata retrieval plus BM25-style lexical ranking of selected local PDF passages; optional structured claim extraction.",
         "",
         "## Important interpretation note",
         "",
-        "This is a bibliographic discovery snapshot, not a completed systematic review. Abstracts and metadata are retrieved, but they do not replace full-text appraisal. Any model-generated claim below is unreviewed and must be checked by a researcher.",
+        "This is a research discovery snapshot, not a completed systematic review. Metadata abstracts and selected uploaded-PDF excerpts may both appear in the evidence context. BM25 is lexical ranking, not semantic retrieval; page location and extraction quality still require inspection. Any model-generated claim below is unreviewed and must be checked by a researcher.",
         "",
         "## Retrieved literature",
         "",
@@ -153,12 +154,19 @@ def _markdown_report(
             lines.append(f"- **DOI:** [{doi}](https://doi.org/{doi})")
         elif url:
             lines.append(f"- **Source:** {url}")
-        if paper.get("passage_id"):
-            lines.append(f"- **Abstract passage ID:** {paper['passage_id']}")
+        if paper.get("is_uploaded_document"):
+            lines.append("- **Source kind:** User-uploaded PDF")
+            lines.append(f"- **Selected evidence passages:** {paper.get('selected_passage_count', 0)}")
+            for passage_id in paper.get("passage_ids", []):
+                page_number = (paper.get("passage_pages") or {}).get(passage_id)
+                location = f" · page {page_number}" if page_number else ""
+                lines.append(f"- **PDF evidence passage:** {passage_id}{location}")
+        elif paper.get("passage_ids"):
+            lines.append("- **Selected abstract evidence passage(s):** " + ", ".join(paper.get("passage_ids", [])))
         abstract = (paper.get("abstract") or "").strip()
         if abstract:
             lines.extend(["", "**Abstract**", "", "> " + abstract.replace("\n", "\n> "), ""])
-        else:
+        elif not paper.get("is_uploaded_document"):
             lines.extend(["", "_No abstract was available from the metadata provider._", ""])
 
     lines.extend(["## Evidence-bounded synthesis", ""])
@@ -196,13 +204,17 @@ def _markdown_report(
             if finding.get("context_note"):
                 lines.append(f"   - Context: {finding['context_note']}")
             for passage_id in finding.get("evidence_passage_ids", []):
-                paper = next((item for item in papers if item.get("passage_id") == passage_id), None)
+                paper = next((item for item in papers if passage_id in (item.get("passage_ids") or [item.get("passage_id")])), None)
                 if paper:
                     doi = _normalize_doi(paper.get("doi"))
                     source_url = f"https://doi.org/{doi}" if doi else (paper.get("landing_url") or "")
                     title = paper.get("title") or "Source paper"
                     source_label = f"[{title}]({source_url})" if source_url else title
-                    lines.append(f"   - Evidence trace: {source_label} · abstract passage ID {passage_id}")
+                    is_pdf = bool(paper.get("is_uploaded_document"))
+                    page_number = (paper.get("passage_pages") or {}).get(passage_id)
+                    location = f" · page {page_number}" if page_number else ""
+                    kind = "PDF passage" if is_pdf else "abstract passage"
+                    lines.append(f"   - Evidence trace: {source_label} · {kind} ID {passage_id}{location}")
                 else:
                     lines.append(f"   - Evidence trace: abstract passage ID {passage_id}")
             lines.append("")
@@ -422,6 +434,10 @@ async def execute_research_run(run_id: str) -> None:
             limit = run.max_sources
             mode = run.mode
             owner_user_id = run.owner_user_id
+            source_paper_ids = list(dict.fromkeys(
+                item for item in ((run.configuration or {}).get("source_paper_ids") or [])
+                if isinstance(item, str) and item
+            ))[:5]
             db.commit()
     if cancel_before_start:
         _finalize_cancelled_run(run_id, "Run was cancelled before the worker began.")
@@ -554,6 +570,9 @@ async def execute_research_run(run_id: str) -> None:
                     "paper_id": paper.id,
                     "paper_version_id": version.id,
                     "passage_id": passage_id,
+                    "passage_ids": [passage_id] if passage_id else [],
+                    "passage_pages": {},
+                    "is_uploaded_document": False,
                     "title": paper.title,
                     "authors": paper.authors or [],
                     "publication_year": paper.publication_year,
@@ -563,6 +582,101 @@ async def execute_research_run(run_id: str) -> None:
                     "source_provider": paper.source_provider,
                 })
             db.commit()
+
+        # Attach user-selected PDFs to the actual research run, not just the library.
+        # Their extracted passages are already persisted in PostgreSQL; original file bytes
+        # are not reopened from the ephemeral function filesystem here.
+        selected_pdf_passages: list[dict] = []
+        if source_paper_ids:
+            with SessionLocal() as db:
+                selected_papers = list(db.scalars(select(Paper).where(
+                    Paper.id.in_(source_paper_ids),
+                    Paper.owner_user_id == owner_user_id,
+                    Paper.source_provider == "upload",
+                )).all()) if owner_user_id else []
+                paper_ids_already_saved = {item["paper_id"] for item in saved_papers}
+                for document in selected_papers:
+                    latest_version = db.scalar(
+                        select(PaperVersion)
+                        .where(PaperVersion.paper_id == document.id)
+                        .order_by(PaperVersion.retrieved_at.desc())
+                        .limit(1)
+                    )
+                    document_passages = list(db.scalars(
+                        select(Passage)
+                        .where(Passage.paper_version_id == latest_version.id)
+                        .order_by(Passage.page_number.asc().nullsfirst(), Passage.char_start.asc().nullsfirst())
+                        .limit(250)
+                    ).all()) if latest_version else []
+                    for passage in document_passages:
+                        selected_pdf_passages.append({
+                            "id": passage.id,
+                            "paper_id": document.id,
+                            "paper_title": document.title,
+                            "doi": document.doi,
+                            "page_number": passage.page_number,
+                            "section_title": passage.section_title,
+                            "text": passage.text,
+                            "retrieval_method": "bm25_lexical",
+                            "source_kind": "uploaded_pdf",
+                        })
+                    if document.id not in paper_ids_already_saved:
+                        saved_papers.append({
+                            "paper_id": document.id,
+                            "paper_version_id": latest_version.id if latest_version else None,
+                            "passage_id": None,
+                            "passage_ids": [],
+                            "passage_pages": {},
+                            "title": document.title,
+                            "authors": document.authors or [],
+                            "publication_year": document.publication_year,
+                            "doi": document.doi,
+                            "landing_url": document.landing_url,
+                            "abstract": None,
+                            "source_provider": "upload",
+                            "is_uploaded_document": True,
+                            "sha256": document.file_sha256,
+                        })
+
+        # Rank metadata abstracts and uploaded-PDF excerpts together with BM25-style
+        # lexical retrieval. Reserve one highest-ranked passage per attached PDF, then
+        # fill the remaining context budget by global lexical rank.
+        candidate_passages = []
+        seen_candidate_ids: set[str] = set()
+        for candidate in passages_for_extraction + selected_pdf_passages:
+            candidate_id = str(candidate.get("id") or "")
+            if not candidate_id or candidate_id in seen_candidate_ids:
+                continue
+            seen_candidate_ids.add(candidate_id)
+            prepared = dict(candidate)
+            prepared.setdefault("retrieval_method", "metadata_abstract")
+            prepared.setdefault("source_kind", "metadata_abstract")
+            candidate_passages.append(prepared)
+        ranked_candidates = rank_passages_bm25(question, candidate_passages, top_k=len(candidate_passages))
+        first_for_each_pdf: dict[str, dict] = {}
+        for item in ranked_candidates:
+            paper_id = str(item.get("paper_id") or "")
+            if paper_id in source_paper_ids and item.get("source_kind") == "uploaded_pdf":
+                first_for_each_pdf.setdefault(paper_id, item)
+        selected_context = list(first_for_each_pdf.values())
+        selected_context_ids = {str(item["id"]) for item in selected_context}
+        for item in ranked_candidates:
+            if len(selected_context) >= 8:
+                break
+            if str(item["id"]) not in selected_context_ids:
+                selected_context.append(item)
+                selected_context_ids.add(str(item["id"]))
+        passages_for_extraction = selected_context[:8]
+        ranked_passage_by_id = {str(item["id"]): item for item in ranked_candidates}
+        for paper in saved_papers:
+            paper_id = str(paper["paper_id"])
+            source_passages = [
+                item for item in passages_for_extraction if str(item.get("paper_id") or "") == paper_id
+            ]
+            paper["passage_ids"] = [str(item["id"]) for item in source_passages]
+            paper["passage_id"] = paper["passage_ids"][0] if paper["passage_ids"] else None
+            paper["passage_pages"] = {str(item["id"]): item.get("page_number") for item in source_passages}
+            paper["selected_passage_count"] = len(source_passages)
 
         # Phase 2: optional model-backed candidates; retrieval-only mode is valid.
         if _run_cancellation_requested(run_id):
@@ -774,7 +888,15 @@ async def execute_research_run(run_id: str) -> None:
                     "providers_requested": provider_result.get("providers_requested"),
                     "provider_errors": provider_result.get("provider_errors", {}),
                     "paper_ids": [paper["paper_id"] for paper in saved_papers],
-                    "passage_ids": [paper["passage_id"] for paper in saved_papers if paper["passage_id"]],
+                    "passage_ids": list(dict.fromkeys(
+                        passage_id
+                        for paper in saved_papers
+                        for passage_id in (paper.get("passage_ids") or ([paper["passage_id"]] if paper.get("passage_id") else []))
+                    )),
+                    "source_paper_ids": source_paper_ids,
+                    "retrieval_method": "crossref_openalex_plus_bm25_local_passages",
+                    "selected_context_passage_ids": [str(item["id"]) for item in passages_for_extraction],
+                    "selected_context_count": len(passages_for_extraction),
                     "claim_ids": [claim["id"] for claim in persisted_claims],
                     "study_ids": [study["id"] for study in persisted_studies],
                     "generated_at": generated_at,
@@ -802,7 +924,10 @@ async def execute_research_run(run_id: str) -> None:
                 "executed_search_queries": provider_result.get("queries", []),
                 "completed_at": generated_at,
                 "paper_count": len(saved_papers),
-                "passage_count": sum(1 for paper in saved_papers if paper["passage_id"]),
+                "passage_count": len(passages_for_extraction),
+                "source_paper_ids": source_paper_ids,
+                "retrieval_method": "crossref_openalex_plus_bm25_local_passages",
+                "selected_context_count": len(passages_for_extraction),
                 "claim_candidate_count": len(persisted_claims),
                 "study_context_count": len(persisted_studies),
                 "dependency_candidate_count": len(dependency_candidates),
