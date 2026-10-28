@@ -1007,7 +1007,7 @@ export default function ChronicleWorkbench() {
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-100"><FileText size={19}/></span>
                       <div className="min-w-0">
                         <h3 className="text-sm font-semibold text-slate-900">Research source documents</h3>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">Choose private PDFs to search alongside Crossref and OpenAlex. Chronicle uses lexical BM25 ranking to select page-anchored passages relevant to this question for extraction and synthesis. Relevance scores are ranking hints—not proof that a passage supports a claim.</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">Choose private PDFs to search alongside Crossref and OpenAlex. Chronicle uses local BM25 lexical ranking, with optional embedding reranking when explicitly configured. Relevance scores are ranking hints—not proof that a passage supports a claim.</p>
                       </div>
                     </div>
                     <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-700 ring-1 ring-indigo-100">{selectedPdfPaperIds.length} selected</span>
@@ -1017,7 +1017,7 @@ export default function ChronicleWorkbench() {
                       const checked = selectedPdfPaperIds.includes(paper.id);
                       return <label key={paper.id} className={"flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition " + (checked ? "border-indigo-300 bg-white shadow-sm ring-1 ring-indigo-100" : "border-slate-200/80 bg-white/70 hover:border-slate-300 hover:bg-white")}>
                         <input type="checkbox" checked={checked} onChange={(event) => setSelectedPdfPaperIds((current) => event.target.checked ? [...current.filter((id) => id !== paper.id), paper.id].slice(-10) : current.filter((id) => id !== paper.id))} className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"/>
-                        <span className="min-w-0"><span className="block line-clamp-2 text-xs font-semibold leading-5 text-slate-900">{paper.title}</span><span className="mt-1 block text-[11px] text-slate-500">PDF · BM25-ranked passages · page anchors</span></span>
+                        <span className="min-w-0"><span className="block line-clamp-2 text-xs font-semibold leading-5 text-slate-900">{paper.title}</span><span className="mt-1 block text-[11px] text-slate-500">PDF · BM25 / optional embedding rerank · page anchors</span></span>
                         {checked ? <Check size={15} className="mt-0.5 shrink-0 text-indigo-600"/> : null}
                       </label>;
                     })}

@@ -89,6 +89,10 @@ Both projects can auto-deploy on pushes to `main`. Ensure the GitHub import is a
 
 - **PDF request size:** Vercel Functions impose a 4.5 MB request/response payload limit. Chronicle currently uploads PDFs through the API, so `MAX_UPLOAD_MB=3` is a safe starting setting. To support large PDFs, change the upload flow to send files directly to object storage (e.g. Vercel Blob) and have the API process them by object reference.
 - **File durability:** new original PDF bytes are persisted in the Neon database via `papers.file_content` migration `0008_persistent_pdf_content`; Vercel production uploads are capped at 3 MB because function request bodies are capped at 4.5 MB including multipart overhead. This is suitable for the current academic prototype only. Migrate larger-document workloads to private object storage before broad production use.
+
+### Optional semantic reranking
+
+Set `ENABLE_SEMANTIC_RERANKING=true`, `HUGGINGFACE_API_TOKEN`, and `EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2` only after reviewing the current [Hugging Face Inference Providers pricing and terms](https://huggingface.co/docs/inference-providers/index). The feature uses feature extraction to rerank a bounded BM25 candidate set with reciprocal-rank fusion; it does not create a persistent vector index. Without all three settings, Chronicle uses local BM25. Embedding failures fall back to BM25. Passage text sent to the embedding provider is limited to candidate snippets.
 - **Function lifetime:** FastAPI runs as a Vercel Function, not as an always-on server. Request-triggered work must complete within the configured function duration. Long-running/durable jobs should be moved to a queue/worker design.
 - **Scheduled monitoring:** Keep the API's in-process scheduler disabled on Vercel. The repository's GitHub Actions source-monitor workflow is the better fit for scheduled polling, using `CHRONICLE_DATABASE_URL`.
 - **Database:** The application runtime is on Vercel, but PostgreSQL remains hosted by Neon. Use a connection URL and pool strategy supported by your Neon project; do not use SQLite or store relational data on the function filesystem.
