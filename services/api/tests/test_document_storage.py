@@ -1,9 +1,13 @@
+import fitz
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from app.services import document_storage
+from app.api import documents
+from app.models.entities import Paper, PaperVersion
+from conftest import TestingSessionLocal
 
 
 def _secret(value: str) -> SimpleNamespace:
@@ -70,3 +74,55 @@ def test_unknown_storage_backend_is_rejected() -> None:
         document_storage.store_uploaded_pdf(
             b"%PDF-test", owner_id="user-123", sha256_hex="d" * 64, settings=settings
         )
+
+
+
+def test_pdf_upload_route_records_s3_durability_in_response_and_metadata(monkeypatch, client) -> None:
+    captured = {}
+    class FakeS3:
+        def put_object(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(document_storage.boto3, "client", lambda *args, **kwargs: FakeS3())
+    monkeypatch.setattr(documents, "settings", SimpleNamespace(
+        max_upload_mb=5,
+        max_pdf_pages=300,
+        enable_pdf_ocr=False,
+        pdf_ocr_max_pages=3,
+        pdf_ocr_dpi=100,
+        pdf_ocr_min_text_chars=20,
+        pdf_ocr_language="eng",
+        document_storage_backend="s3",
+        object_storage_bucket="private-chronicle-bucket",
+        object_storage_endpoint_url="https://objects.example.test",
+        object_storage_region="auto",
+        object_storage_access_key_id=_secret("test-access-key"),
+        object_storage_secret_access_key=_secret("test-secret-key"),
+    ))
+
+    pdf = fitz.open()
+    page = pdf.new_page()
+    page.insert_text((72, 72), "A small source PDF whose original bytes should be stored privately.")
+    data = pdf.tobytes()
+    pdf.close()
+
+    response = client.post(
+        "/api/v1/documents/upload",
+        files={"file": ("source.pdf", data, "application/pdf")},
+    )
+    assert response.status_code == 201, response.text
+    payload = response.json()
+    assert payload["storage_backend"] == "s3"
+    assert payload["durable_storage"] is True
+    assert "private object storage" in payload["note"]
+    assert captured["ContentType"] == "application/pdf"
+    assert "ACL" not in captured
+
+    with TestingSessionLocal() as db:
+        paper = db.get(Paper, payload["paper_id"])
+        version = db.get(PaperVersion, payload["paper_version_id"])
+        assert paper is not None
+        assert version is not None
+        assert paper.source_file_path.startswith("s3://private-chronicle-bucket/users/")
+        assert version.metadata_snapshot["storage_backend"] == "s3"
+        assert version.metadata_snapshot["durable_storage"] is True

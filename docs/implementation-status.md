@@ -1,6 +1,6 @@
 # Chronicle implementation status
 
-Last updated: 2026-10-25
+Last updated: 2026-10-29
 
 This status separates completed prototype behavior from research objectives in the VIIT SRS. It is not a claim that all specified requirements have been satisfied.
 
@@ -20,10 +20,10 @@ This status separates completed prototype behavior from research objectives in t
 ## Important limitations / not yet implemented
 - **Not a full multi-agent system yet:** current executed flow is a bounded scholarly discovery pipeline, not the complete seven-layer planner/agent orchestration in the project proposal.
 - **Retrieval and verification:** selected uploaded PDF passages now join provider-ranked abstracts in an eight-passage BM25-ranked, source-diverse model context. This closes the missing upload-to-run path, but it is lexical ranking—not dense embedding retrieval or a full-text acquisition service. No citation-entailment benchmark or calibrated evidence-weight score exists.
-- **Worker durability:** the feature branch adds owner-scoped cancellation and retry-as-a-fresh-run, with audit records and run lineage. Runs still use FastAPI in-process background tasks rather than a durable queue; a process restart can interrupt work, per-subtask checkpoints are not persisted, and restart-safe recovery/distributed cancellation are not implemented. In-process scheduled monitoring remains single-process; for sleeping/free hosts, the hourly GitHub Actions workflow requires the CHRONICLE_DATABASE_URL repository secret.
+- **Worker durability:** inline FastAPI background tasks remain the default for Vercel. A separate PostgreSQL-backed worker mode is available for persistent deployments, using queued records, SKIP LOCKED claims, heartbeat leases and failure plus explicit retry for expired leases. Per-subtask checkpoints, automatic resume and distributed cancellation are not implemented. In-process scheduled monitoring remains single-process; for sleeping/free hosts, the hourly GitHub Actions workflow requires the CHRONICLE_DATABASE_URL repository secret.
 - **Temporal coverage:** Crossref/OpenAlex checks can be scheduled for papers opted into monitoring, but these public metadata feeds are incomplete and do not equal comprehensive publisher surveillance. New signals remain review prompts; the scheduler does not automatically change paper status or create SourceEvents.
 - **Research Hypothesis Lab:** displays optional model-suggested candidate questions based on the current synthesis. It is not a graph-based novelty detector, and no prior-art recall or hypothesis-quality experiment has been performed.
-- **PDF/records:** bounded Tesseract OCR fallback for low-text pages is implemented on the feature branch, with per-passage extraction metadata and coverage warnings; OCR accuracy on real scanned papers is not measured. Private durable object storage and retention/permanent-deletion controls remain unfinished.
+- **PDF/records:** bounded Tesseract OCR fallback and selected-PDF-to-run retrieval are implemented. Optional S3-compatible private storage for original PDFs is available; durability is reported only when that backend is configured and successfully saves the object. Local storage is explicitly reported as non-durable in serverless deployments. OCR accuracy on representative scans and retention/permanent-deletion controls remain unfinished.
 - **Deployment status (25-Oct-2026):** the SRS lifecycle branch was merged as commit `5ee35f2aa2be6bf576345a0fcb64063332324433`. Vercel reports both production projects READY on that commit. The connected Neon `chronicle` database was snapshotted before migration and now reports Alembic revision `0007_run_cancel_retry`; verification confirmed the `archived_at`, cancellation/retry columns, `VARCHAR(40)` run status and retry index. The live aliases could not be fetched from this audit session because the Vercel integration denied deployment-protection access, so a signed-in browser walkthrough and live `/api/v1/ready` request remain to be performed by an authorized project user. The Render Blueprint is an alternative deployment path and is not proof that Render services exist. Vercel function filesystems are temporary, so original PDF bytes still need private durable object storage.
 - **Production readiness:** no production/SLA deployment, monitoring/alerting, rate-limit/abuse controls, regular backup/restore validation or independently reviewed secure-cookie session model has been configured. JWT secret defaults are explicitly local-only; production setting rejects the known default secret.
 - **Security testing:** API tests now include two-account isolation and private-route checks, but a comprehensive security review, prompt-injection evaluation, load test and privacy/retention audit remain outstanding.
@@ -34,7 +34,7 @@ All sample/demo content and model-assisted claims must be treated as unverified 
 
 ## SRS implementation pass: planning and citation verification
 
-Branch: `feat/srs-research-planning-verification` (changes are staged for review; this note is not a claim of production deployment).
+Historical change set: `feat/srs-research-planning-verification` (merged into main; the remaining production and research-evaluation gaps listed above still apply).
 
 - Added a deterministic Research Planner with four distinct, bounded execution profiles. It creates mode-specific scholarly subqueries, selects a documented set of workflow modules, persists the plan with the run/report snapshot, and displays the plan in the report.
 - The research runner now executes the planned Crossref/OpenAlex searches, merges duplicate DOI/title records across subqueries, retains the query trail, and uses the selected mode's focus in optional claim extraction and synthesis prompts.
@@ -111,3 +111,6 @@ Remaining SRS gaps that are **not** completed by this pass include durable backg
 - Added an optional S3-compatible private object-storage adapter for original PDF bytes. Storage backend/durability are returned to the upload UI; no public ACL or public download URL is created. Local mode is explicitly reported as non-durable for serverless deployments.
 - Vercel continues using inline execution by default and its existing deployment filesystem is not made durable by this change. To get durable original PDFs in Vercel, configure a private S3-compatible bucket and credentials in the API project's environment variables.
 - Remaining: the queue worker still has no per-stage checkpoints or automatic resume; original bytes stored locally are non-durable; S3 configuration has not been verified against a real bucket in this environment; OCR and retrieval quality still need representative evaluation.
+
+
+Current follow-up branch: feat/ff180-completion-acceptance-ui. It adds selected uploaded-PDF context, optional separate embedding-provider fusion, database-worker queue mode for persistent hosts and an opt-in S3-compatible original-document adapter. These paths are covered by CI tests; actual external embedding-provider quality, a real S3 bucket configuration, real scanned-document accuracy and scientific benchmark performance have not been measured.

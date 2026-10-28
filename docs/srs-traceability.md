@@ -18,14 +18,14 @@ Status definitions:
 | FR-004 | Persist bounded execution plan and stages | Plan/query trail saved before provider calls and in run/report snapshots; failed-run persistence test | Implemented | Cost/token budget and durable subtask progress remain incomplete |
 | FR-005 | Persist run metadata and source references | SQL run/source/report IDs, configuration and timestamps | Implemented | Full execution fingerprint and per-subtask metadata remain partial |
 | FR-006 | Run state includes partial completion | Queued/running/completed/completed_with_limitations/failed/cancel_requested/cancelled; UI surfaces active/cancelled/limited states | Implemented | All statuses are persistent; task progress is not durable across server restarts |
-| FR-007 | Cancel and retry failed runs | Owner-scoped cancel/retry endpoints, cooperative cancellation during search/model calls, retry lineage/audit, lifecycle tests | Partial | Cancellation/retry are in-process; durable queue, restart-safe resume, persisted subtasks and distributed cancellation are outstanding |
+| FR-007 | Cancel and retry failed runs | Owner-scoped cancel/retry endpoints, cooperative cancellation during search/model calls, retry lineage/audit, optional PostgreSQL worker mode and stale-lease tests | Partial | Queue mode preserves queued records and marks stale leases failed for explicit fresh retry; per-stage checkpoints, auto-resume and distributed cancellation remain outstanding |
 | FR-008 | Planned scholarly queries | Bounded mode-specific subqueries executed against Crossref/OpenAlex; query trail retained | Implemented | Live provider availability/rate-limit testing still needed |
 | FR-009 | Persist source metadata/provenance | DOI/title/authors/year/provider/landing URL/abstract passages persisted | Partial | Raw provider payload and timestamp coverage vary by provider |
 | FR-010 | Deduplicate sources | DOI/title dedupe in research pipeline and library import | Partial | Author/year fallback and cross-provider duplicate fixtures need more coverage |
 | FR-011 | Validate PDF file/type/size/page count | PyMuPDF upload validation, configurable server limits and OCR page budget | Partial | Server cap is enforced; real-world scan quality still needs sampled testing |
 | FR-012 | Page-aware text extraction | Stored passages include page number and text offsets | Implemented | Section segmentation varies by PDF layout |
 | FR-013 | OCR scanned documents | Bounded Tesseract fallback for low-text pages; passage methods, OCR page counts, low-text pages, coverage ratio and warnings; test_pdf_ingestion.py | Partial | OCR accuracy is not measured; unsupported languages/poor scans need quality review; Docker image installs English Tesseract |
-| FR-014 | Preserve uploaded-file provenance | SHA-256 checksum, source file metadata and passages | Partial | Retention/deletion controls and richer source-kind UI |
+| FR-014 | Preserve uploaded-file provenance | SHA-256 checksum, source file metadata and passages; optional S3-compatible private storage adapter | Partial | S3 storage is not configured in the current Vercel environment; local serverless originals remain non-durable; retention/deletion controls remain outstanding |
 | FR-015 | Source-linked evidence items | Passage entities and passage/claim relations in graph/passport | Implemented | EvidenceItem is represented via passage plus relation, not as a separate entity |
 | FR-016 | Atomic claim candidates | Extraction prompt requests atomic claims and source IDs | Partial | Compound-claim splitting lacks labelled acceptance fixtures |
 | FR-017 | Claims must be supported or marked uncertain | Generated claims remain unreviewed and link to exact source passage IDs | Partial | Executive summaries are not decomposed into individually traced claim records |
@@ -100,3 +100,8 @@ No benchmark accuracy, contradiction F1, dependency precision/recall, temporal i
 - The UI supports selecting uploaded PDFs in the research form, shows the selected count and context-budget limitations, and offers an upload panel from the empty source-picker state.
 - Added lexical ranking tests, empty-context tests, upload-to-extraction/synthesis/graph/passport integration coverage, and cross-account source selection rejection coverage.
 - Remaining: retrieval is BM25 lexical rather than dense embeddings; OCR quality on representative scans is not measured; model/provider calls are mocked in tests; benchmark, browser acceptance, durable worker and persistent original-file storage work remain outstanding.
+
+
+## Infrastructure follow-up
+
+The feature branch adds an opt-in PostgreSQL-backed worker process with leased running-state metadata, a heartbeat and stale-lease failure behavior; Vercel retains inline execution by default. Selected uploaded PDFs are passed into the model context with BM25 ranking and optional dense embedding ranking configured with separate credentials. Original PDF bytes can be stored through a private S3-compatible backend; this is only durable after the deployer configures a real bucket and credentials. No benchmark quality results are claimed.
