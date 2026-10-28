@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -80,6 +80,8 @@ class Paper(Base):
     external_id: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)
     landing_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Original uploads are bounded for serverless compatibility and persisted with the source.
+    file_content: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     monitoring_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     monitor_interval_minutes: Mapped[int] = mapped_column(Integer, default=1440, nullable=False)

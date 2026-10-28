@@ -20,10 +20,14 @@ settings = get_settings()
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     if file.content_type not in {"application/pdf", "application/octet-stream"}:
         raise HTTPException(status_code=415, detail="Upload a PDF file.")
-    max_bytes = settings.max_upload_mb * 1024 * 1024
+    configured_limit_mb = max(1, int(settings.max_upload_mb))
+    # Vercel Functions cap request bodies at 4.5 MB; leave room for multipart framing.
+    if str(getattr(settings, "environment", "development")).strip().lower() in {"production", "prod"}:
+        configured_limit_mb = min(configured_limit_mb, 3)
+    max_bytes = configured_limit_mb * 1024 * 1024
     data = await file.read(max_bytes + 1)
     if len(data) > max_bytes:
-        raise HTTPException(status_code=413, detail=f"PDF exceeds the {settings.max_upload_mb} MB upload limit.")
+        raise HTTPException(status_code=413, detail=f"PDF exceeds the {configured_limit_mb} MB upload limit for this deployment.")
     if not data.startswith(b"%PDF-"):
         raise HTTPException(status_code=415, detail="The uploaded file does not have a valid PDF signature.")
 
@@ -53,11 +57,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
 
     raw_name = Path(file.filename or "uploaded-document.pdf").name
     safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(raw_name).stem).strip(".-_")[:80] or "document"
-    upload_dir = Path(settings.upload_dir) / current_user.id
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    stored_path = upload_dir / f"{file_hash}.pdf"
-    stored_path.write_bytes(data)
-
+    # Never rely on /tmp or another ephemeral function filesystem for the original file.
     title = extracted.title or safe_stem
     author_list = [extracted.author] if extracted.author else []
     paper = Paper(
@@ -68,7 +68,8 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         source_provider="upload",
         external_id=file_hash,
         landing_url=None,
-        source_file_path=str(stored_path),
+        source_file_path=None,
+        file_content=data,
         file_sha256=file_hash,
     )
     db.add(paper)

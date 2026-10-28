@@ -25,6 +25,7 @@ class ResearchRunCreate(BaseModel):
     question: str = Field(min_length=8, max_length=2000)
     mode: ResearchMode = ResearchMode.DEEP
     max_sources: int = Field(default=10, ge=1, le=50)
+    uploaded_paper_ids: list[str] = Field(default_factory=list, max_length=10)
     execute: bool = False
 
 

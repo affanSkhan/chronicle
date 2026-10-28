@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.entities import ResearchProject, ResearchRun, User
+from app.models.entities import Paper, PaperVersion, Passage, ResearchProject, ResearchRun, User
 from app.schemas.research import ProjectCreate, ProjectRead, ProjectUpdate, ResearchRun as ResearchRunSchema, ResearchRunCreate
 from app.services.audit import record_audit_event
 from app.services.research_pipeline import execute_research_run
@@ -93,6 +93,31 @@ def create_research_run(payload: ResearchRunCreate, background_tasks: Background
             raise HTTPException(status_code=404, detail="Research project not found.")
         if project.archived_at is not None:
             raise HTTPException(status_code=409, detail="This workspace is archived. Restore it before starting a new research run.")
+    uploaded_paper_ids = list(dict.fromkeys(payload.uploaded_paper_ids))
+    if uploaded_paper_ids:
+        owned_ids = set(db.scalars(
+            select(Paper.id).where(
+                Paper.id.in_(uploaded_paper_ids),
+                Paper.owner_user_id == current_user.id,
+                Paper.source_provider == "upload",
+            )
+        ).all())
+        if owned_ids != set(uploaded_paper_ids):
+            raise HTTPException(status_code=404, detail="One or more selected PDFs were not found in your library.")
+        passage_source_ids = set(db.scalars(
+            select(Paper.id)
+            .join(PaperVersion, PaperVersion.paper_id == Paper.id)
+            .join(Passage, Passage.paper_version_id == PaperVersion.id)
+            .where(
+                Paper.id.in_(uploaded_paper_ids),
+                Paper.owner_user_id == current_user.id,
+                Paper.source_provider == "upload",
+            )
+            .distinct()
+        ).all())
+        if passage_source_ids != set(uploaded_paper_ids):
+            raise HTTPException(status_code=422, detail="Every selected PDF must contain at least one stored evidence passage.")
+
     run = ResearchRun(
         owner_user_id=current_user.id,
         project_id=payload.project_id,
@@ -101,7 +126,7 @@ def create_research_run(payload: ResearchRunCreate, background_tasks: Background
         status="queued",
         max_sources=payload.max_sources,
         demo=not payload.execute,
-        configuration={"pipeline": "scholarly-metadata-discovery" if payload.execute else "request-only-demo", "max_sources": payload.max_sources},
+        configuration={"pipeline": "scholarly-metadata-discovery" if payload.execute else "request-only-demo", "max_sources": payload.max_sources, "uploaded_paper_ids": uploaded_paper_ids},
     )
     db.add(run)
     db.flush()
@@ -119,6 +144,7 @@ def create_research_run(payload: ResearchRunCreate, background_tasks: Background
             "status": run.status,
             "max_sources": run.max_sources,
             "execute": payload.execute,
+            "uploaded_paper_ids": uploaded_paper_ids,
         },
         reason="Research run submitted.",
     )
