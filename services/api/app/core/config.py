@@ -123,10 +123,12 @@ def get_llm_config(settings: Settings | None = None) -> tuple[str, str, str]:
 def get_embedding_config(settings: Settings | None = None) -> tuple[str, str, str]:
     """Resolve optional Hugging Face dense-retrieval configuration without exposing credentials."""
     settings = settings or get_settings()
-    token_value = settings.hf_token
-    token = token_value.get_secret_value().strip() if token_value is not None else ""
-    model = str(settings.hf_embedding_model or "BAAI/bge-small-en-v1.5").strip()
-    api_base = str(settings.hf_embedding_api_base or "https://router.huggingface.co/hf-inference/models").strip()
+    token_value = getattr(settings, "hf_token", None)
+    getter = getattr(token_value, "get_secret_value", None)
+    raw_token = getter() if callable(getter) else (token_value or "")
+    token = str(raw_token).strip()
+    model = str(getattr(settings, "hf_embedding_model", "") or "BAAI/bge-small-en-v1.5").strip()
+    api_base = str(getattr(settings, "hf_embedding_api_base", "") or "https://router.huggingface.co/hf-inference/models").strip()
     return token, model, api_base
 
 
