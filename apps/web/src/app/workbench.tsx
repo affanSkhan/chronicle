@@ -15,13 +15,13 @@ import {
   importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents,
   listSourceStatusChecks, loginAccount, recordPaperStatusCheck, registerAccount,
   addPaperDependency, listDependencyCandidates,
-  cancelResearchRun, retryResearchRun,
+  cancelResearchRun, retryResearchRun, reverifySourceEventImpactedClaims,
   createResearchProject, listResearchProjects, updateResearchProject,
   reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf, deleteUploadedPdf,
   verifyClaimCitationSupport,
   type AcademicSearchResult, type AuthUser, type CitationVerificationResult, type DependencyCandidate, type EvidenceGraphResponse, type LibraryPaper,
   type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchProjectRecord, type ResearchRun,
-  type SourceEventRecord, type SourceStatusCheckRecord
+  type SourceEventRecord, type SourceEventReverificationResponse, type SourceStatusCheckRecord
 } from "@/lib/api";
 
 type View = "Overview" | "Research workspace" | "Evidence graph" | "Source timeline" | "Hypothesis lab";
@@ -198,6 +198,8 @@ export default function ChronicleWorkbench() {
   const [runs, setRuns] = useState<ResearchRun[]>([]);
   const [papers, setPapers] = useState<LibraryPaper[]>([]);
   const [sourceEvents, setSourceEvents] = useState<SourceEventRecord[]>([]);
+  const [sourceReverification, setSourceReverification] = useState<Record<string, SourceEventReverificationResponse>>({});
+  const [reverifyingSourceEventId, setReverifyingSourceEventId] = useState<string | null>(null);
   const [statusChecks, setStatusChecks] = useState<SourceStatusCheckRecord[]>([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceError, setWorkspaceError] = useState("");
@@ -784,6 +786,24 @@ export default function ChronicleWorkbench() {
 
   const [timelineError, setTimelineError] = useState("");
 
+  async function reverifyImpactedClaims(eventId: string) {
+    setReverifyingSourceEventId(eventId);
+    setTimelineError("");
+    try {
+      const result = await reverifySourceEventImpactedClaims(eventId, 5);
+      setSourceReverification((current) => ({ ...current, [eventId]: result }));
+      setSourceEvents(await listSourceEvents(50));
+      setNotice(
+        "Rechecked " + result.rechecked_count + " impacted claim(s); " +
+        result.skipped_count + " skipped or failed. All reviewed assessments remain pending human review."
+      );
+    } catch (error) {
+      setTimelineError(error instanceof Error ? error.message : "Could not re-check impacted claims.");
+    } finally {
+      setReverifyingSourceEventId(null);
+    }
+  }
+
   async function submitSourceEvent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!eventPaperId || eventDescription.trim().length < 8) {
@@ -1220,7 +1240,37 @@ export default function ChronicleWorkbench() {
               {timelineError ? <p role="alert" className="mt-3 text-sm text-rose-700">{timelineError}</p> : null}
               <div className="mt-5 flex justify-end"><button disabled={recordingEvent} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">{recordingEvent ? <LoaderCircle size={15} className="animate-spin"/> : <Check size={15}/>}Record source event</button></div>
             </form> : null}
-            {sourceEvents.length === 0 ? <EmptyState icon={History} title="No source events yet" description="When a paper is corrected, retracted, or updated, record the notice here." action={<button onClick={() => { setView("Research workspace"); setShowAdvancedSourceSearch(true); }} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Find papers first</button>}/> : <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30"><div className="divide-y divide-slate-100">{sourceEvents.map((event) => <article key={event.id} className="flex gap-3 p-4 sm:p-5"><span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Clock3 size={17}/></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold text-slate-900">{event.event_type.replaceAll("_", " ")}</span><StatusPill status={event.verification_status}>{event.verification_status.replaceAll("_", " ")}</StatusPill></div><p className="mt-1 text-xs text-slate-500">{event.paper_title} · {formatDate(event.event_date ?? event.observed_at)}</p><p className="mt-2 text-sm leading-6 text-slate-700">{event.description}</p>{event.source_url ? <a className="mt-2 inline-block break-all text-xs font-medium text-indigo-600 hover:underline" href={event.source_url} target="_blank" rel="noreferrer">Open source notice ↗</a> : null}</div></article>)}</div></section>}
+            {sourceEvents.length === 0 ? <EmptyState icon={History} title="No source events yet" description="When a paper is corrected, retracted, or updated, record the notice here." action={<button onClick={() => { setView("Research workspace"); setShowAdvancedSourceSearch(true); }} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Find papers first</button>}/> : <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30"><div className="divide-y divide-slate-100">{sourceEvents.map((event) => {
+                const reverification = sourceReverification[event.id];
+                return <article key={event.id} className="flex gap-3 p-4 sm:p-5">
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Clock3 size={17}/></span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold text-slate-900">{event.event_type.replaceAll("_", " ")}</span><StatusPill status={event.verification_status}>{event.verification_status.replaceAll("_", " ")}</StatusPill></div>
+                    <p className="mt-1 text-xs text-slate-500">{event.paper_title} · {formatDate(event.event_date ?? event.observed_at)}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">{event.description}</p>
+                    {event.source_url ? <a className="mt-2 inline-block break-all text-xs font-medium text-indigo-600 hover:underline" href={event.source_url} target="_blank" rel="noreferrer">Open source notice ↗</a> : null}
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={() => void reverifyImpactedClaims(event.id)} disabled={reverifyingSourceEventId === event.id} className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-wait disabled:opacity-50">
+                        {reverifyingSourceEventId === event.id ? <LoaderCircle size={13} className="animate-spin"/> : <ShieldCheck size={13}/>}
+                        {reverifyingSourceEventId === event.id ? "Re-checking…" : "Re-check impacted claims"}
+                      </button>
+                      {reverification ? <span role="status" className="text-[11px] text-slate-500">{reverification.rechecked_count} rechecked · {reverification.skipped_count} skipped</span> : null}
+                    </div>
+                    {reverification?.results?.length ? <details className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <summary className="cursor-pointer text-xs font-semibold text-slate-700">Inspect re-verification results</summary>
+                      <div className="mt-3 space-y-2">
+                        {reverification.results.map((item) => <div key={item.claim_id} className="rounded-lg border border-slate-200 bg-white p-3">
+                          <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-[10px] text-slate-500">Claim {item.claim_id.slice(0, 8)}</span>{item.verdict ? <StatusPill status={item.verdict}>{item.verdict.replaceAll("_", " ")}</StatusPill> : <StatusPill status="needs_review">{item.status.replaceAll("_", " ")}</StatusPill>}</div>
+                          {item.rationale ? <p className="mt-2 text-xs leading-5 text-slate-700">{item.rationale}</p> : null}
+                          {item.reason ? <p className="mt-2 text-xs leading-5 text-amber-700">{item.reason}</p> : null}
+                          {item.uncertainty_notes?.length ? <ul className="mt-2 list-disc pl-4 text-[11px] leading-5 text-slate-500">{item.uncertainty_notes.map((note, index) => <li key={index}>{note}</li>)}</ul> : null}
+                        </div>)}
+                      </div>
+                      <p className="mt-3 text-[11px] leading-5 text-amber-800">{reverification.note}</p>
+                    </details> : null}
+                  </div>
+                </article>;
+              })}</div></section>}
           </section>
           <aside className="space-y-4">
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><h3 className="text-sm font-semibold text-slate-900">Check source status</h3><p className="mt-1 text-xs leading-5 text-slate-500">Compare public metadata before recording an event.</p><label className="mt-4 block text-xs font-medium text-slate-600">Paper<select value={eventPaperId} onChange={(event) => { setEventPaperId(event.target.value); setStatusCheck(null); }} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="">Choose a paper</option>{papers.map((paper) => <option key={paper.id} value={paper.id}>{shorten(paper.title, 58)}</option>)}</select></label><button disabled={!eventPaperId || checkingStatus} onClick={() => void checkPaperStatus()} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{checkingStatus ? <LoaderCircle size={15} className="animate-spin"/> : <RefreshCw size={15}/>}Check external status</button>

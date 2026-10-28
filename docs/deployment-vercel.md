@@ -106,3 +106,11 @@ Official references:
 - https://vercel.com/docs/monorepos
 - https://vercel.com/docs/functions/limitations
 - https://vercel.com/docs/vercel-blob/server-upload
+
+## FF180 completion-branch operational guardrails
+
+- Do not promote a branch preview to production solely because its build is READY. Verify the exact commit, database readiness, API/web compatibility, and browser acceptance first.
+- On Vercel, uploaded PDFs need a configured private S3-compatible bucket (OBJECT_STORAGE variables) and a verified upload/read/delete round-trip. The API filesystem is not durable across serverless invocations. Keep the request upload cap conservative until direct-to-object-storage uploads exist.
+- Hugging Face dense retrieval is optional and disabled unless configured. BM25 remains the free, deterministic fallback; retrieval rank scores are not evidence-confidence scores.
+- Re-verification after a source event is a user-triggered, bounded model-assisted review. It must keep the human-review flag and append audit history; it must not automatically label a claim false.
+- Production deploy workflows are subject to Vercel plan/build-rate limits. A Vercel deployment status failure caused by quota is not evidence of a source-code test failure, and no plan upgrade is assumed.

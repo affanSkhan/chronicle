@@ -95,3 +95,8 @@ The `feat/ff180-completion-pass` branch wires owner-selected uploaded PDF passag
 The defensible contribution is the integrated workflow for **versioned source dependence and temporal change-impact propagation into saved claims and report versions**. Chronicle does not claim RAG, citation checking, knowledge graphs, or multi-agent orchestration alone as novel.
 
 No benchmark accuracy, contradiction F1, dependency precision/recall, temporal impact precision/recall, latency or throughput is claimed unless a labelled held-out evaluation or reproducible benchmark run is recorded. Unit-test fixtures validate code paths, not scientific accuracy.
+
+
+## Temporal source-event reassessment
+
+The completion branch exposes a researcher-triggered, owner-scoped, bounded reassessment endpoint for claims affected by a recorded source event. Results are retained in audit history and leave claims flagged for human review. This does not automatically establish scientific falsity. Durable queued reassessment, automated promotion of provider signals into source events, and empirical temporal-impact precision/recall remain incomplete.
