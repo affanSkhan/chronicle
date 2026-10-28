@@ -26,6 +26,8 @@ class ResearchRunCreate(BaseModel):
     mode: ResearchMode = ResearchMode.DEEP
     max_sources: int = Field(default=10, ge=1, le=50)
     execute: bool = False
+    # Explicitly selected, owner-scoped uploaded PDFs to include as source passages.
+    source_paper_ids: list[str] = Field(default_factory=list, max_length=4)
 
 
 class ResearchRun(BaseModel):

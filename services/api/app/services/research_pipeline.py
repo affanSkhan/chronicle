@@ -20,6 +20,7 @@ from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
 from app.services.dependency_candidates import build_dependency_clusters, suggest_dependency_candidates
 from app.services.research_planner import build_research_plan, focus_for_mode
+from app.services.research_context import select_research_context
 
 
 class ResearchRunCancelled(Exception):
@@ -422,6 +423,7 @@ async def execute_research_run(run_id: str) -> None:
             limit = run.max_sources
             mode = run.mode
             owner_user_id = run.owner_user_id
+            source_paper_ids = list((run.configuration or {}).get("source_paper_ids") or [])
             db.commit()
     if cancel_before_start:
         _finalize_cancelled_run(run_id, "Run was cancelled before the worker began.")
@@ -563,6 +565,68 @@ async def execute_research_run(run_id: str) -> None:
                     "source_provider": paper.source_provider,
                 })
             db.commit()
+
+        # Phase 1b: load explicitly selected, owner-scoped PDF passages. The page-aware
+        # passage rows persist in SQL even when the application filesystem is temporary.
+        uploaded_document_passages: list[dict] = []
+        uploaded_documents: list[dict] = []
+        if source_paper_ids:
+            with SessionLocal() as db:
+                selected_documents = db.scalars(select(Paper).where(
+                    Paper.id.in_(source_paper_ids),
+                    Paper.owner_user_id == owner_user_id,
+                    Paper.source_provider == "upload",
+                )).all()
+                for selected_document in selected_documents:
+                    versions = db.scalars(select(PaperVersion).where(
+                        PaperVersion.paper_id == selected_document.id
+                    ).order_by(PaperVersion.retrieved_at.desc(), PaperVersion.created_at.desc())).all()
+                    if not versions:
+                        continue
+                    latest_version = versions[0]
+                    passage_rows = db.scalars(select(Passage).where(
+                        Passage.paper_version_id == latest_version.id
+                    ).order_by(Passage.page_number.asc().nullsfirst(), Passage.char_start.asc().nullsfirst())).all()
+                    page_passages = [{
+                        "id": passage.id,
+                        "paper_id": selected_document.id,
+                        "paper_title": selected_document.title,
+                        "doi": selected_document.doi,
+                        "page_number": passage.page_number,
+                        "section_title": passage.section_title,
+                        "char_start": passage.char_start,
+                        "char_end": passage.char_end,
+                        "extraction_method": passage.extraction_method,
+                        "text": passage.text,
+                    } for passage in passage_rows]
+                    uploaded_document_passages.extend(page_passages)
+                    if selected_document.id not in {item["paper_id"] for item in saved_papers}:
+                        uploaded_documents.append({
+                            "paper_id": selected_document.id,
+                            "paper_version_id": latest_version.id,
+                            "passage_id": page_passages[0]["id"] if page_passages else None,
+                            "title": selected_document.title,
+                            "authors": selected_document.authors or [],
+                            "publication_year": selected_document.publication_year,
+                            "doi": selected_document.doi,
+                            "landing_url": selected_document.landing_url,
+                            "abstract": None,
+                            "source_provider": "upload",
+                            "source_kind": "uploaded_pdf",
+                            "page_count": (latest_version.metadata_snapshot or {}).get("page_count"),
+                        })
+            saved_papers.extend(uploaded_documents)
+
+        # Mix source-provider-ranked abstracts with BM25-ranked uploaded PDF passages.
+        # PDF passages receive reserved slots so they cannot silently disappear behind
+        # external metadata hits. BM25 is a heuristic, not a support verdict.
+        passages_for_extraction, context_selection = select_research_context(
+            question,
+            passages_for_extraction,
+            uploaded_document_passages,
+            max_total=8,
+            max_document_passages=4,
+        )
 
         # Phase 2: optional model-backed candidates; retrieval-only mode is valid.
         if _run_cancellation_requested(run_id):
@@ -746,6 +810,25 @@ async def execute_research_run(run_id: str) -> None:
         if _run_cancellation_requested(run_id):
             raise ResearchRunCancelled("Research run cancellation was requested.")
         generated_at = datetime.now(timezone.utc).isoformat()
+        pdf_context_lines = [
+            "", "## Selected PDF evidence context", "",
+            "The following uploaded-document passages were ranked for this question. Lexical scores are retrieval heuristics, not proof of relevance or support.", "",
+        ]
+        selected_pdf_context = [item for item in passages_for_extraction if item.get("extraction_method")]
+        if selected_pdf_context:
+            for item in selected_pdf_context:
+                location = f"page {item.get('page_number')}" if item.get("page_number") else "page unavailable"
+                section = f" · {item.get('section_title')}" if item.get("section_title") else ""
+                pdf_context_lines.extend([
+                    f"### {item.get('paper_title') or 'Uploaded PDF'} · {location}{section}", "",
+                    f"- Passage ID: {item.get('id')}",
+                    f"- Extraction method: {item.get('extraction_method') or 'unknown'}",
+                    f"- BM25 lexical score: {item.get('retrieval_score', 0)}", "",
+                    str(item.get("text") or ""), "",
+                ])
+        else:
+            pdf_context_lines.append("No selected PDF passages were available in the bounded model context.")
+        pdf_context_section = "\n".join(pdf_context_lines)
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
             if run is None:
@@ -765,7 +848,7 @@ async def execute_research_run(run_id: str) -> None:
                     execution_plan=execution_plan,
                     dependency_candidates=dependency_candidates,
                     dependency_analysis=dependency_analysis,
-                ),
+                ) + pdf_context_section,
                 evidence_snapshot={
                     "query": question,
                     "mode": mode,
@@ -774,7 +857,13 @@ async def execute_research_run(run_id: str) -> None:
                     "providers_requested": provider_result.get("providers_requested"),
                     "provider_errors": provider_result.get("provider_errors", {}),
                     "paper_ids": [paper["paper_id"] for paper in saved_papers],
-                    "passage_ids": [paper["passage_id"] for paper in saved_papers if paper["passage_id"]],
+                    "source_paper_ids": source_paper_ids,
+                    "passage_ids": list(dict.fromkeys(
+                        [paper["passage_id"] for paper in saved_papers if paper["passage_id"]]
+                        + [item["id"] for item in passages_for_extraction if item.get("id")]
+                    )),
+                    "context_selection": context_selection,
+                    "uploaded_pdf_passage_count": len(uploaded_document_passages),
                     "claim_ids": [claim["id"] for claim in persisted_claims],
                     "study_ids": [study["id"] for study in persisted_studies],
                     "generated_at": generated_at,
@@ -802,7 +891,12 @@ async def execute_research_run(run_id: str) -> None:
                 "executed_search_queries": provider_result.get("queries", []),
                 "completed_at": generated_at,
                 "paper_count": len(saved_papers),
-                "passage_count": sum(1 for paper in saved_papers if paper["passage_id"]),
+                "passage_count": len(set(
+                    [paper["passage_id"] for paper in saved_papers if paper["passage_id"]]
+                    + [item["id"] for item in passages_for_extraction if item.get("id")]
+                )),
+                "source_paper_ids": source_paper_ids,
+                "context_selection": context_selection,
                 "claim_candidate_count": len(persisted_claims),
                 "study_context_count": len(persisted_studies),
                 "dependency_candidate_count": len(dependency_candidates),

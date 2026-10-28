@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.entities import ResearchProject, ResearchRun, User
+from app.models.entities import Paper, ResearchProject, ResearchRun, User
 from app.schemas.research import ProjectCreate, ProjectRead, ProjectUpdate, ResearchRun as ResearchRunSchema, ResearchRunCreate
 from app.services.audit import record_audit_event
 from app.services.research_pipeline import execute_research_run
@@ -93,6 +93,21 @@ def create_research_run(payload: ResearchRunCreate, background_tasks: Background
             raise HTTPException(status_code=404, detail="Research project not found.")
         if project.archived_at is not None:
             raise HTTPException(status_code=409, detail="This workspace is archived. Restore it before starting a new research run.")
+    source_paper_ids = list(dict.fromkeys(payload.source_paper_ids))
+    if source_paper_ids:
+        owned_upload_ids = set(db.scalars(
+            select(Paper.id).where(
+                Paper.id.in_(source_paper_ids),
+                Paper.owner_user_id == current_user.id,
+                Paper.source_provider == "upload",
+            )
+        ).all())
+        if owned_upload_ids != set(source_paper_ids):
+            raise HTTPException(
+                status_code=422,
+                detail="Each selected PDF must be an uploaded document in your own library.",
+            )
+
     run = ResearchRun(
         owner_user_id=current_user.id,
         project_id=payload.project_id,
@@ -101,7 +116,12 @@ def create_research_run(payload: ResearchRunCreate, background_tasks: Background
         status="queued",
         max_sources=payload.max_sources,
         demo=not payload.execute,
-        configuration={"pipeline": "scholarly-metadata-discovery" if payload.execute else "request-only-demo", "max_sources": payload.max_sources},
+        configuration={
+            "pipeline": "scholarly-metadata-discovery" if payload.execute else "request-only-demo",
+            "max_sources": payload.max_sources,
+            "source_paper_ids": source_paper_ids,
+            "source_input_mode": "uploaded_pdfs_and_scholarly_metadata" if source_paper_ids else "scholarly_metadata_only",
+        },
     )
     db.add(run)
     db.flush()
@@ -118,6 +138,7 @@ def create_research_run(payload: ResearchRunCreate, background_tasks: Background
             "mode": run.mode,
             "status": run.status,
             "max_sources": run.max_sources,
+            "source_paper_count": len(source_paper_ids),
             "execute": payload.execute,
         },
         reason="Research run submitted.",
@@ -225,6 +246,8 @@ def retry_research_run(
         retry_of_run_id=original.id,
         configuration={
             "pipeline": "mode-specific-scholarly-discovery",
+            "source_paper_ids": list((original.configuration or {}).get("source_paper_ids") or []),
+            "source_input_mode": (original.configuration or {}).get("source_input_mode", "scholarly_metadata_only"),
             "retry_of_run_id": original.id,
             "retried_at": datetime.now(timezone.utc).isoformat(),
             "retry_policy": "fresh_run_with_original_question_mode_source_budget",
