@@ -122,6 +122,7 @@ async def search_papers(query: str, limit: int = 10, provider: str = "all") -> d
     timeout = httpx.Timeout(20.0, connect=8.0)
     results: list[PaperSearchResult] = []
     errors: dict[str, str] = {}
+    rank_fusion_scores: dict[str, float] = {}
 
     async with httpx.AsyncClient(headers=headers, timeout=timeout, follow_redirects=True) as client:
         tasks = {}
@@ -133,8 +134,13 @@ async def search_papers(query: str, limit: int = 10, provider: str = "all") -> d
         for name, result in zip(tasks.keys(), completed):
             if isinstance(result, Exception):
                 errors[name] = "Provider request failed or was unavailable."
-            else:
-                results.extend(result)
+                continue
+            # Preserve each provider's own relevance order. DOI identity is
+            # normalized below, and reciprocal rank fusion combines providers.
+            for rank, paper in enumerate(result, start=1):
+                key = f"doi:{paper.doi.lower().strip()}" if paper.doi else f"title:{' '.join(paper.title.lower().split())}"
+                rank_fusion_scores[key] = rank_fusion_scores.get(key, 0.0) + 1.0 / (60 + rank)
+                results.append(paper)
 
     # Prefer DOI identity for deduplication; fallback to normalized title/provider.
     unique: dict[str, PaperSearchResult] = {}
@@ -152,13 +158,34 @@ async def search_papers(query: str, limit: int = 10, provider: str = "all") -> d
                 "publication_year": prior.publication_year or paper.publication_year,
             })
             unique[key] = merged
-    output = sorted(unique.values(), key=lambda paper: (paper.publication_year or 0, bool(paper.abstract)), reverse=True)
+    # RRF combines Crossref and OpenAlex ranks without pretending their raw
+    # scores are calibrated or directly comparable. Recency is only a tie-breaker.
+    output_items = sorted(
+        unique.items(),
+        key=lambda item: (
+            rank_fusion_scores.get(item[0], 0.0),
+            item[1].publication_year or 0,
+            bool(item[1].abstract),
+            item[1].title.lower(),
+        ),
+        reverse=True,
+    )
+    output = [paper for _, paper in output_items]
     if not output and errors:
         raise httpx.HTTPError(f"All requested scholarly providers failed: {', '.join(errors.keys())}")
     return {
         "query": query,
         "providers_requested": provider,
-        "results": [paper.model_dump(mode="json") for paper in output[:limit]],
+        "results": [
+            {
+                **paper.model_dump(mode="json"),
+                "provider_rank_fusion_score": round(rank_fusion_scores.get(
+                    f"doi:{paper.doi.lower().strip()}" if paper.doi else f"title:{' '.join(paper.title.lower().split())}",
+                    0.0,
+                ), 8),
+            }
+            for paper in output[:limit]
+        ],
         "provider_errors": errors,
         "note": "Metadata search only; results have not been verified as evidence for any claim.",
     }
