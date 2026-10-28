@@ -56,7 +56,9 @@ def test_worker_recovers_only_stale_database_worker_leases(monkeypatch, client) 
     })
     inline_id = _queued_run(config={"pipeline": "inline-run"})
     with TestingSessionLocal() as db:
+        stale = db.get(ResearchRun, stale_id)
         inline = db.get(ResearchRun, inline_id)
+        stale.status = "running"
         inline.status = "running"
         db.commit()
 
