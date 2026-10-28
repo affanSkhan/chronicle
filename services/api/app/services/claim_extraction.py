@@ -45,6 +45,9 @@ async def extract_claims_from_passages(
             "id": str(p["id"]),
             "paper_title": str(p.get("paper_title") or ""),
             "doi": p.get("doi"),
+            "page_number": p.get("page_number"),
+            "section_title": p.get("section_title"),
+            "source_kind": p.get("source_kind", "metadata_abstract"),
             "text": str(p.get("text") or "")[:1800],
         }
         for p in passages[:8]
