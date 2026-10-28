@@ -136,3 +136,116 @@ def test_research_run_rejects_more_than_five_pdf_attachments(client) -> None:
         },
     )
     assert response.status_code == 422
+
+
+def test_permanent_pdf_deletion_removes_passages_and_redacts_derived_reports(monkeypatch, client) -> None:
+    from pathlib import Path
+
+    monkeypatch.setattr(research_pipeline, "SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr(
+        research_pipeline,
+        "get_settings",
+        lambda: SimpleNamespace(openai_api_key=None, openai_api_base="https://api.openai.com/v1", openai_model=""),
+    )
+
+    async def empty_metadata_search(question: str, limit: int = 10, provider: str = "all") -> dict:
+        return {
+            "query": question,
+            "providers_requested": provider,
+            "provider_errors": {},
+            "results": [],
+        }
+
+    monkeypatch.setattr(research_pipeline, "search_papers", empty_metadata_search)
+    upload = client.post(
+        "/api/v1/documents/upload",
+        files={"file": ("private-source.pdf", _make_pdf("Private phrase: cobalt river. This source supports careful evidence traceability."), "application/pdf")},
+    )
+    assert upload.status_code == 201, upload.text
+    paper_id = upload.json()["paper_id"]
+    passage_payload = client.get(f"/api/v1/documents/papers/{paper_id}/passages").json()
+    passage_id = passage_payload["passages"][0]["id"]
+
+    created = client.post(
+        "/api/v1/research/runs",
+        json={
+            "question": "How does this PDF support evidence traceability?",
+            "mode": "quick",
+            "source_paper_ids": [paper_id],
+            "execute": False,
+        },
+    )
+    assert created.status_code == 201, created.text
+    run_id = created.json()["id"]
+    asyncio.run(research_pipeline.execute_research_run(run_id))
+
+    claim_response = client.post(
+        "/api/v1/evidence/claims",
+        json={"run_id": run_id, "statement": "The private source supports evidence traceability."},
+    )
+    assert claim_response.status_code == 201, claim_response.text
+    claim_id = claim_response.json()["id"]
+    relation_response = client.post(
+        f"/api/v1/evidence/claims/{claim_id}/relations",
+        json={
+            "passage_id": passage_id,
+            "relation_type": "supports",
+            "provenance_basis": "source_documented",
+            "reviewer_status": "unreviewed",
+            "rationale": "Direct evidence passage from the uploaded source.",
+        },
+    )
+    assert relation_response.status_code == 201, relation_response.text
+
+    with TestingSessionLocal() as db:
+        from app.models.entities import Paper
+        paper = db.get(Paper, paper_id)
+        assert paper is not None
+        local_original_path = Path(paper.source_file_path)
+        assert local_original_path.exists()
+
+    deleted = client.delete(f"/api/v1/documents/papers/{paper_id}")
+    assert deleted.status_code == 200, deleted.text
+    deletion_result = deleted.json()
+    assert deletion_result["deleted"] is True
+    assert deletion_result["deleted_passage_count"] >= 1
+    assert deletion_result["deleted_claim_count"] >= 1
+    assert deletion_result["redacted_report_version_count"] >= 1
+    assert not local_original_path.exists()
+
+    assert client.get(f"/api/v1/documents/papers/{paper_id}/passages").status_code == 404
+    assert all(item["id"] != paper_id for item in client.get("/api/v1/sources/papers").json())
+    remaining_claims = client.get(f"/api/v1/evidence/runs/{run_id}/claims")
+    assert remaining_claims.status_code == 200, remaining_claims.text
+    assert all(item["id"] != claim_id for item in remaining_claims.json())
+
+    reports = client.get(f"/api/v1/evidence/runs/{run_id}/reports")
+    assert reports.status_code == 200, reports.text
+    assert all(report["evidence_snapshot"].get("redacted") is True for report in reports.json())
+    assert all("cobalt river" not in report["content_markdown"].lower() for report in reports.json())
+
+    passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json")
+    assert passport.status_code == 200, passport.text
+    assert all(item["id"] != paper_id for item in passport.json()["papers"])
+    assert all(item["id"] != claim_id for item in passport.json()["claims"])
+    assert "cobalt river" not in passport.text.lower()
+
+
+def test_permanent_pdf_deletion_is_owner_scoped(client) -> None:
+    with TestingSessionLocal() as db:
+        foreign_user = User(email="foreign-pdf-owner@example.test", password_hash="test-only-not-used")
+        db.add(foreign_user)
+        db.flush()
+        foreign_pdf = Paper(
+            owner_user_id=foreign_user.id,
+            title="Someone else's PDF",
+            source_provider="upload",
+            external_id="not-a-real-file",
+            source_file_path=None,
+        )
+        db.add(foreign_pdf)
+        db.commit()
+        foreign_id = foreign_pdf.id
+
+    response = client.delete(f"/api/v1/documents/papers/{foreign_id}")
+    assert response.status_code == 404
