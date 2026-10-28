@@ -17,7 +17,7 @@ import {
   addPaperDependency, listDependencyCandidates,
   cancelResearchRun, retryResearchRun,
   createResearchProject, listResearchProjects, updateResearchProject,
-  reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf,
+  reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf, deleteUploadedPdf,
   verifyClaimCitationSupport,
   type AcademicSearchResult, type AuthUser, type CitationVerificationResult, type DependencyCandidate, type EvidenceGraphResponse, type LibraryPaper,
   type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchProjectRecord, type ResearchRun,
@@ -241,6 +241,8 @@ export default function ChronicleWorkbench() {
   const [savedPaperKeys, setSavedPaperKeys] = useState<string[]>([]);
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
+  const [pdfPendingDelete, setPdfPendingDelete] = useState<LibraryPaper | null>(null);
+  const [deletingPdfId, setDeletingPdfId] = useState<string | null>(null);
 
   const [eventFormOpen, setEventFormOpen] = useState(false);
   const [eventPaperId, setEventPaperId] = useState("");
@@ -736,6 +738,30 @@ export default function ChronicleWorkbench() {
     }
   }
 
+  async function permanentlyDeletePdf(paper: LibraryPaper) {
+    setDeletingPdfId(paper.id);
+    setWorkspaceError("");
+    try {
+      const deletion = await deleteUploadedPdf(paper.id);
+      const refreshedPapers = await listLibraryPapers(100);
+      setPapers(refreshedPapers);
+      setSelectedPdfPaperIds((current) => current.filter((id) => id !== paper.id));
+      setEventPaperId((current) => current === paper.id ? (refreshedPapers[0]?.id ?? "") : current);
+      setSourceEvents(await listSourceEvents(50));
+      setStatusChecks(await listSourceStatusChecks(50, false));
+      if (activeRunId) {
+        setReportVersions(await listReportVersions(activeRunId));
+        setGraphRefreshKey((value) => value + 1);
+      }
+      setPdfPendingDelete(null);
+      setNotice(`Permanently deleted PDF. Removed ${deletion.deleted_passage_count} passage(s), ${deletion.deleted_claim_count} claim(s), and redacted ${deletion.redacted_report_version_count} report version(s) where needed.`);
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not permanently delete this PDF.");
+    } finally {
+      setDeletingPdfId(null);
+    }
+  }
+
   async function checkPaperStatus() {
     if (!eventPaperId) {
       setNotice("Save a paper before checking its status.");
@@ -1052,7 +1078,14 @@ export default function ChronicleWorkbench() {
             </section>
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
               <button onClick={() => setShowPdfUpload((current) => !current)} aria-expanded={showPdfUpload} className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-slate-50"><span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><Upload size={17}/></span><span><span className="block text-sm font-semibold text-slate-900">Add a PDF</span><span className="mt-0.5 block text-xs text-slate-500">Extract text passages for evidence inspection.</span></span></span><ChevronDown size={17} className={"shrink-0 text-slate-400 transition " + (showPdfUpload ? "rotate-180" : "")}/></button>
-              {showPdfUpload ? <div className="border-t border-slate-100 p-5"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-indigo-300 hover:bg-indigo-50/40"><Upload size={20} className="text-slate-500"/><span className="mt-2 text-sm font-medium text-slate-800">{uploadingPdf ? "Uploading PDF…" : "Choose a PDF (server limit applies)"}</span><span className="mt-1 text-xs text-slate-500">The server validates the file signature, size and page limits. Extracted passages are stored in the database. Original PDFs use a private object bucket when configured; filesystem fallback is temporary on serverless hosts.</span><input className="sr-only" type="file" accept=".pdf,application/pdf" disabled={uploadingPdf} onChange={(event) => void handlePdfUpload(event.target.files?.[0])}/></label>{uploadMessage ? <p role="status" className="mt-3 text-sm text-slate-600">{uploadMessage}</p> : null}</div> : null}
+              {showPdfUpload ? <div className="border-t border-slate-100 p-5"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-indigo-300 hover:bg-indigo-50/40"><Upload size={20} className="text-slate-500"/><span className="mt-2 text-sm font-medium text-slate-800">{uploadingPdf ? "Uploading PDF…" : "Choose a PDF (server limit applies)"}</span><span className="mt-1 text-xs text-slate-500">The server validates the file signature, size and page limits. Extracted passages are stored in the database. Original PDFs use a private object bucket when configured; filesystem fallback is temporary on serverless hosts.</span><input className="sr-only" type="file" accept=".pdf,application/pdf" disabled={uploadingPdf} onChange={(event) => void handlePdfUpload(event.target.files?.[0])}/></label>{uploadMessage ? <p role="status" className="mt-3 text-sm leading-5 text-slate-600">{uploadMessage}</p> : null}
+                {papers.some((paper) => paper.source_provider === "upload") ? <div className="mt-4 border-t border-slate-200 pt-4">
+                  <div className="mb-2 flex items-center justify-between gap-3"><p className="text-xs font-semibold text-slate-800">Uploaded PDF library</p><span className="text-[11px] text-slate-500">{papers.filter((paper) => paper.source_provider === "upload").length} file(s)</span></div>
+                  <div className="space-y-2">{papers.filter((paper) => paper.source_provider === "upload").map((paper) => <div key={paper.id} className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center">
+                    <div className="min-w-0"><p className="break-words text-xs font-semibold leading-5 text-slate-800">{paper.title}</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Selected passages are searchable in new research runs. Deletion also removes their derived claims and redacts affected report versions.</p></div>
+                    <button type="button" onClick={() => setPdfPendingDelete(paper)} disabled={deletingPdfId !== null} className="inline-flex shrink-0 items-center justify-center gap-1.5 self-start rounded-lg border border-rose-200 px-3 py-2 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50 sm:self-center"><X size={13}/>Delete PDF</button>
+                  </div>)}</div>
+                </div> : null}</div> : null}
             </section>
           </div>
           <aside className="space-y-5">
@@ -1227,6 +1260,16 @@ export default function ChronicleWorkbench() {
 
         {workspaceLoading ? <p role="status" className="sr-only">Refreshing workspace data.</p> : null}
       </main>
+      {pdfPendingDelete ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" onClick={(event) => { if (event.target === event.currentTarget && deletingPdfId === null) setPdfPendingDelete(null); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="delete-pdf-title" className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-950/20 sm:p-7">
+          <div className="flex items-start gap-4"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><AlertCircle size={21}/></span><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-600">Permanent deletion</p><h2 id="delete-pdf-title" className="mt-1 text-lg font-semibold tracking-tight text-slate-950">Delete this source and its derived evidence?</h2></div></div>
+          <p className="mt-4 break-words text-sm font-semibold leading-6 text-slate-900">{pdfPendingDelete.title}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Chronicle will delete the original PDF where the storage backend is available, extracted passages, claims that cite those passages, and dependent claims. Saved report versions containing this source will be redacted so the deleted text is not reproduced.</p>
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">This cannot be undone. Reports unrelated to this source remain unchanged. Re-run research with remaining sources to create a new report.</p>
+          {workspaceError ? <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-xs leading-5 text-rose-700">{workspaceError}</p> : null}
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={deletingPdfId !== null} onClick={() => setPdfPendingDelete(null)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancel</button><button type="button" disabled={deletingPdfId !== null} onClick={() => void permanentlyDeletePdf(pdfPendingDelete)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-wait disabled:opacity-60">{deletingPdfId === pdfPendingDelete.id ? <LoaderCircle size={15} className="animate-spin"/> : <X size={15}/>} {deletingPdfId === pdfPendingDelete.id ? "Deleting source…" : "Permanently delete"}</button></div>
+        </section>
+      </div> : null}
       <footer className="px-4 pb-7 pt-2 text-center text-[11px] text-slate-400 sm:px-6">Chronicle · Research records remain subject to human review.</footer>
     </div>
   </div>;
