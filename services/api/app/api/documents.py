@@ -266,14 +266,6 @@ def permanently_delete_uploaded_pdf(
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Original PDF storage could not be cleaned up; no database records were deleted.") from exc
 
-    for claim in claims_to_retain:
-        claim.assessment = "needs_review"
-        claim.review_required = True
-        caution = "A source PDF used by this claim was permanently deleted. Reassess the remaining evidence before reuse."
-        existing_note = claim.uncertainty_notes or ""
-        if caution not in existing_note:
-            claim.uncertainty_notes = (existing_note + "\n" + caution).strip()
-
     # Remove all relationship rows touching deleted passages or claims, including
     # downstream dependency edges that point at a claim being purged.
     relations_to_delete = list(db.scalars(select(EvidenceRelation).where(or_(
