@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     object_storage_region: str = "auto"
     object_storage_prefix: str = "chronicle-private"
     openalex_api_key: SecretStr | None = None
+    # Optional Hugging Face Inference Providers dense embeddings; lexical retrieval works without it.
+    hf_token: SecretStr | None = None
+    hf_embedding_model: str = "BAAI/bge-small-en-v1.5"
+    hf_embedding_api_base: str = "https://router.huggingface.co/hf-inference/models"
     # Provider-agnostic OpenAI-compatible API settings; prefer these over legacy names.
     llm_api_key: SecretStr | None = None
     llm_api_base: str = ""
@@ -114,6 +118,16 @@ def get_llm_config(settings: Settings | None = None) -> tuple[str, str, str]:
     if not model:
         model = str(getattr(settings, "openai_model", "") or "").strip()
     return "", base, model
+
+
+def get_embedding_config(settings: Settings | None = None) -> tuple[str, str, str]:
+    """Resolve optional Hugging Face dense-retrieval configuration without exposing credentials."""
+    settings = settings or get_settings()
+    token_value = settings.hf_token
+    token = token_value.get_secret_value().strip() if token_value is not None else ""
+    model = str(settings.hf_embedding_model or "BAAI/bge-small-en-v1.5").strip()
+    api_base = str(settings.hf_embedding_api_base or "https://router.huggingface.co/hf-inference/models").strip()
+    return token, model, api_base
 
 
 def get_llm_request_options(api_base: str, model: str) -> dict[str, str]:
