@@ -173,18 +173,18 @@ def _markdown_report(
     if not synthesis:
         lines.append("No model-generated synthesis was produced. " + synthesis_note)
     else:
-        lines.append("**Draft status:** This model-assisted synthesis uses retrieved abstracts, not a complete full-text review. Every listed finding below has at least one validated passage ID; the summary remains subject to human review.")
+        lines.append("**Draft status:** This model-assisted synthesis uses retrieved abstracts and selected PDF excerpts, not a complete systematic full-text review. Every listed finding below has at least one validated passage ID; the summary remains subject to human review.")
         lines.extend(["", "### Summary", "", synthesis.get("executive_summary", "No summary supplied."), ""])
         lines.extend(["### Extracted study context", ""])
         if not study_contexts:
             lines.append("No source-linked structured study-context records were extracted for this run.")
         else:
-            lines.append("The following context fields were extracted from the linked abstract passages. Model-inferred fields remain unreviewed and may omit information available only in the full paper.")
+            lines.append("The following context fields were extracted from the linked source passages. Model-inferred fields remain unreviewed and may omit information available only in the full paper.")
             lines.append("")
             for item in study_contexts:
                 source = next((paper for paper in papers if paper.get("paper_id") == item.get("paper_id")), None)
                 title = source.get("title") if source else item.get("paper_id", "Unknown paper")
-                lines.append(f"- **{title}** · study record `{item['id']}` · abstract passage `{item.get('source_passage_id') or 'unavailable'}`")
+                lines.append(f"- **{title}** · study record `{item['id']}` · source passage `{item.get('source_passage_id') or 'unavailable'}`")
                 for field, label in (("study_type", "Study type"), ("population", "Population"), ("method", "Method"), ("intervention", "Intervention")):
                     if item.get(field):
                         lines.append(f"  - {label}: {item[field]}")
@@ -300,7 +300,7 @@ def _markdown_report(
     if not extracted_claims:
         lines.append("No model-generated candidate claims were added. " + llm_note)
     else:
-        lines.append("These are model-extracted candidates linked to abstract passages. They are not independently verified conclusions.")
+        lines.append("These are model-extracted candidates linked to selected source passages (metadata abstracts or uploaded-PDF excerpts). They are not independently verified conclusions.")
         lines.append("")
         for index, claim in enumerate(extracted_claims, start=1):
             lines.append(f"{index}. **{claim['statement']}**")
@@ -316,7 +316,7 @@ def _markdown_report(
     if provider_errors:
         lines.append("- Provider limitations: " + ", ".join(f"{name}: {reason}" for name, reason in provider_errors.items()))
     lines.append("- Provider indexing is not exhaustive; absence from this result set is not evidence that a study does not exist.")
-    lines.append("- Retrieved abstracts are source text for inspection, not an automatic verdict on the research question.")
+    lines.append("- Retrieved abstracts and selected PDF excerpts are source text for inspection, not an automatic verdict on the research question.")
     lines.append("- Claims are marked model-inferred/unreviewed; a model response is not proof of truth.")
     lines.append("- Source dependency detection, context-aware contradiction adjudication, full-text citation entailment and calibrated evidence weighting require further evaluation.")
     return "\n".join(lines)
