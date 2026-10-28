@@ -75,3 +75,15 @@ Crossref/OpenAlex records are not a complete index of all research, and abstract
 pytest -q
 ```
 API tests use an isolated SQLite database and deterministic provider fixtures.
+
+
+## FF180 completion-branch regression coverage
+
+The completion branch adds tests for BM25 determinism, optional dense-embedding/RRF ranking and provider-failure fallback, cross-provider search-rank fusion, uploaded-PDF passage selection inside a real research run, cross-account attachment denial, private object-storage behavior, and owner-scoped permanent deletion/report redaction. Run the full API suite with:
+
+```bash
+cd services/api
+pytest -q
+```
+
+These tests validate code paths and data-integrity behavior. They are not scientific-accuracy results: benchmark metrics must be computed from a frozen, labelled evaluation set as described in [the evaluation protocol](../../docs/evaluation-protocol.md).
