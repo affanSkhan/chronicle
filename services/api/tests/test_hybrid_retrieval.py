@@ -48,6 +48,8 @@ def test_reranker_uses_embeddings_when_explicitly_enabled(monkeypatch):
     assert all(item["retrieval_method"] == "bm25_embedding_rrf" for item in result)
     assert all(item["semantic_rerank_enabled"] is True for item in result)
     assert all("semantic_similarity" in item for item in result)
+    # The semantic nearest neighbour p2 outranks the lexically strongest p1.
+    assert result[0]["id"] == "p2"
 
 
 def test_reranker_falls_back_to_bm25_when_provider_fails(monkeypatch):

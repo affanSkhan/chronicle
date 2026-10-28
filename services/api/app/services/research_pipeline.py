@@ -174,7 +174,8 @@ def _markdown_report(
             section = item.get("section_title") or "Section unavailable"
             score = item.get("retrieval_score", 0.0)
             lines.append(f"- **{item.get('paper_title', 'Uploaded PDF')}** · page {page if page is not None else 'unavailable'} · {section}")
-            lines.append(f"  - Passage ID: `{item.get('id')}` · BM25 score: {score}")
+            method = str(item.get("retrieval_method") or "bm25").replace("_", " ")
+            lines.append(f"  - Passage ID: `{item.get('id')}` · Retrieval method: {method} · Ranking score: {score}")
             lines.append("  - Excerpt: " + str(item.get("text") or "").replace("\n", " ")[:700])
             lines.append("")
     lines.extend(["## Evidence-bounded synthesis", ""])
