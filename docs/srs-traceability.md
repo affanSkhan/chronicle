@@ -19,13 +19,13 @@ Status definitions:
 | FR-005 | Persist run metadata and source references | SQL run/source/report IDs, configuration and timestamps | Implemented | Full execution fingerprint and per-subtask metadata remain partial |
 | FR-006 | Run state includes partial completion | Queued/running/completed/completed_with_limitations/failed/cancel_requested/cancelled; UI surfaces active/cancelled/limited states | Implemented | All statuses are persistent; task progress is not durable across server restarts |
 | FR-007 | Cancel and retry failed runs | Owner-scoped cancel/retry endpoints, cooperative cancellation during search/model calls, retry lineage/audit, lifecycle tests | Partial | Cancellation/retry are in-process; durable queue, restart-safe resume, persisted subtasks and distributed cancellation are outstanding |
-| FR-008 | Planned scholarly queries | Bounded mode-specific subqueries executed against Crossref/OpenAlex; query trail retained | Implemented | Live provider availability/rate-limit testing still needed |
+| FR-008 | Planned scholarly queries | Bounded mode-specific subqueries executed against Crossref/OpenAlex; provider and query ranks fused with RRF; query trail retained | Implemented | Live provider availability/rate-limit testing still needed |
 | FR-009 | Persist source metadata/provenance | DOI/title/authors/year/provider/landing URL/abstract passages persisted | Partial | Raw provider payload and timestamp coverage vary by provider |
 | FR-010 | Deduplicate sources | DOI/title dedupe in research pipeline and library import | Partial | Author/year fallback and cross-provider duplicate fixtures need more coverage |
-| FR-011 | Validate PDF file/type/size/page count | PyMuPDF upload validation, configurable server limits and OCR page budget | Partial | Server cap is enforced; real-world scan quality still needs sampled testing |
+| FR-011 | Validate PDF file/type/size/page count | PDF content-type and signature checks, configurable server byte/page caps, bounded OCR; Vercel upload cap must account for the 4.5 MB function payload limit | Partial | Direct-to-object upload for larger files is not implemented; real-world scan quality still needs sampled testing |
 | FR-012 | Page-aware text extraction | Stored passages include page number and text offsets | Implemented | Section segmentation varies by PDF layout |
 | FR-013 | OCR scanned documents | Bounded Tesseract fallback for low-text pages; passage methods, OCR page counts, low-text pages, coverage ratio and warnings; test_pdf_ingestion.py | Partial | OCR accuracy is not measured; unsupported languages/poor scans need quality review; Docker image installs English Tesseract |
-| FR-014 | Preserve uploaded-file provenance | SHA-256 checksum, source file metadata and passages | Partial | Retention/deletion controls and richer source-kind UI |
+| FR-014 | Preserve uploaded-file provenance | SHA-256 checksum, storage-backend metadata, page-aware passages, selected-PDF run attachment, and owner-scoped permanent-delete/redaction endpoint | Partial | Durable originals require configured private S3-compatible storage; backup/retention erasure is not implemented |
 | FR-015 | Source-linked evidence items | Passage entities and passage/claim relations in graph/passport | Implemented | EvidenceItem is represented via passage plus relation, not as a separate entity |
 | FR-016 | Atomic claim candidates | Extraction prompt requests atomic claims and source IDs | Partial | Compound-claim splitting lacks labelled acceptance fixtures |
 | FR-017 | Claims must be supported or marked uncertain | Generated claims remain unreviewed and link to exact source passage IDs | Partial | Executive summaries are not decomposed into individually traced claim records |
@@ -84,6 +84,11 @@ Status definitions:
 | AT-11 provider failures | Partial-query error path and failed-run plan persistence tests | Partial | Real provider outage and UI verification |
 | AT-12 performance | No reproducible load/latency results | Not measured | Benchmark with recorded hardware, dataset, request profile and P50/P95 |
 | Literature-review contribution | Versioned dependencies and temporal propagation into claims/report versions | Partial | Evaluate dependency detection and temporal impact against an adjudicated holdout set |
+
+
+## Current completion-branch additions
+
+The `feat/ff180-completion-pass` branch wires owner-selected uploaded PDF passages into actual research runs; performs BM25 lexical ranking and optional Hugging Face dense retrieval with reciprocal-rank fusion; exposes original-file storage durability; and supports owner-scoped permanent deletion with report/audit redaction. The additions have unit/integration tests, but remain pending branch-head CI, PR review, production deployment verification, and live browser acceptance. Dense embeddings require a configured `HF_TOKEN`; durable original bytes require all `OBJECT_STORAGE_*` variables. Neither provider accuracy nor research-task efficacy is claimed from unit tests.
 
 ## Research-integrity policy
 
