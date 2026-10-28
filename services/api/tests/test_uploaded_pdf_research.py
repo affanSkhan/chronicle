@@ -83,7 +83,8 @@ def test_selected_pdf_passages_are_used_in_a_real_research_run(monkeypatch, clie
         snapshot = report.evidence_snapshot
 
     assert snapshot["source_paper_ids"] == [paper_id]
-    assert snapshot["retrieval_method"] == "crossref_openalex_plus_bm25_local_passages"
+    assert snapshot["retrieval_method"] == "bm25_lexical"
+    assert snapshot["retrieval_metadata"]["semantic_status"] == "not_configured"
     assert snapshot["selected_context_count"] >= 1
     assert set(snapshot["selected_context_passage_ids"]).issubset(original_passage_ids)
     assert set(snapshot["passage_ids"]) & original_passage_ids
