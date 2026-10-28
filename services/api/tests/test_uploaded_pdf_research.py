@@ -125,7 +125,8 @@ def test_selected_pdf_ids_are_owner_scoped(client) -> None:
         json={"email": "another-user@example.test", "password": "another-test-password-123"},
     )
     assert other_account.status_code == 201, other_account.text
-    client.headers["Authorization"] = f"Bearer {other_account.json()[\"access_token\"]}"
+    access_token = other_account.json()["access_token"]
+    client.headers["Authorization"] = f"Bearer {access_token}"
 
     response = client.post(
         "/api/v1/research/runs",
