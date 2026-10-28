@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.entities import Paper, PaperVersion, Passage, User
 from app.services.pdf_ingestion import extract_pdf
+from app.services.document_storage import DocumentStorageError, store_uploaded_pdf
 
 router = APIRouter(prefix="/documents", tags=["documents"], dependencies=[Depends(get_current_user)])
 settings = get_settings()
@@ -53,10 +54,15 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
 
     raw_name = Path(file.filename or "uploaded-document.pdf").name
     safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(raw_name).stem).strip(".-_")[:80] or "document"
-    upload_dir = Path(settings.upload_dir) / current_user.id
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    stored_path = upload_dir / f"{file_hash}.pdf"
-    stored_path.write_bytes(data)
+    try:
+        storage = store_uploaded_pdf(
+            data,
+            owner_id=current_user.id,
+            sha256_hex=file_hash,
+            settings=settings,
+        )
+    except DocumentStorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     title = extracted.title or safe_stem
     author_list = [extracted.author] if extracted.author else []
@@ -68,7 +74,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         source_provider="upload",
         external_id=file_hash,
         landing_url=None,
-        source_file_path=str(stored_path),
+        source_file_path=storage["source_file_path"],
         file_sha256=file_hash,
     )
     db.add(paper)
@@ -80,6 +86,9 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         metadata_snapshot={
             "original_filename": raw_name,
             "sha256": file_hash,
+            "storage_backend": storage["storage_backend"],
+            "durable_storage": storage["durable_storage"],
+            "storage_key": storage["storage_key"],
             "page_count": extracted.page_count,
             "text_characters": extracted.text_characters,
             "extraction_method": extracted.extraction_method,
@@ -127,8 +136,14 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         "text_coverage_ratio": extracted.text_coverage_ratio,
         "extraction_warnings": extracted.warnings or [],
         "sha256": file_hash,
+        "storage_backend": storage["storage_backend"],
+        "durable_storage": storage["durable_storage"],
         "duplicate_upload": False,
-        "note": "Text was extracted; no claims have been verified or generated from this PDF.",
+        "note": (
+            "Original PDF stored in private object storage; extracted passages remain separately queryable."
+            if storage["durable_storage"]
+            else "Original PDF is on the configured local filesystem, which may be ephemeral in serverless deployments. Extracted passages are persisted in the database; configure S3-compatible object storage for durable originals."
+        ),
     }
 
 

@@ -212,6 +212,8 @@ export interface PDFUploadResult {
   text_characters?: number;
   passages_created?: number;
   sha256?: string;
+  storage_backend?: "local" | "s3";
+  durable_storage?: boolean;
   duplicate_upload: boolean;
   note?: string;
   message?: string;

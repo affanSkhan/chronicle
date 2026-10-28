@@ -102,3 +102,12 @@ Remaining SRS gaps that are **not** completed by this pass include durable backg
 - A retry starts a fresh run using the original question, mode, source budget and workspace; it never overwrites the previous run or its report/evidence history.
 - Added migration `0007_run_cancel_retry` to widen `research_runs.status` from VARCHAR(24) to VARCHAR(40) (required for `completed_with_limitations`) and add cancellation/retry metadata.
 - The worker still uses FastAPI background tasks. It is not restart-safe, does not persist per-subtask checkpoints, and is not coordinated across multiple API replicas. Cancellation and retry do not remove those durability limitations.
+
+
+## Follow-up infrastructure pass — worker and original-document storage
+
+- Added optional PostgreSQL-backed queue execution for non-serverless deployments. The API persists queued work, a dedicated worker claims rows under a database lock, worker heartbeats are persisted, and stale leases are failed with an explicit retry path instead of being silently resumed without checkpoints.
+- Docker Compose runs API in queue mode alongside a separate worker service, and shares the local upload volume between services.
+- Added an optional S3-compatible private object-storage adapter for original PDF bytes. Storage backend/durability are returned to the upload UI; no public ACL or public download URL is created. Local mode is explicitly reported as non-durable for serverless deployments.
+- Vercel continues using inline execution by default and its existing deployment filesystem is not made durable by this change. To get durable original PDFs in Vercel, configure a private S3-compatible bucket and credentials in the API project's environment variables.
+- Remaining: the queue worker still has no per-stage checkpoints or automatic resume; original bytes stored locally are non-durable; S3 configuration has not been verified against a real bucket in this environment; OCR and retrieval quality still need representative evaluation.

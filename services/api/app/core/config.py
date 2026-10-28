@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     pdf_ocr_min_text_chars: int = 40
     pdf_ocr_language: str = "eng"
     upload_dir: str = "uploads"
+    # "local" is convenient for development; "s3" stores original PDF bytes privately.
+    document_storage_backend: str = "local"
+    object_storage_endpoint_url: str = ""
+    object_storage_bucket: str = ""
+    object_storage_region: str = "us-east-1"
+    object_storage_access_key_id: SecretStr | None = None
+    object_storage_secret_access_key: SecretStr | None = None
     openalex_api_key: SecretStr | None = None
     # Provider-agnostic OpenAI-compatible API settings; prefer these over legacy names.
     llm_api_key: SecretStr | None = None

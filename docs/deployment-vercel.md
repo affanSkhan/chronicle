@@ -98,3 +98,16 @@ Official references:
 - https://vercel.com/docs/monorepos
 - https://vercel.com/docs/functions/limitations
 - https://vercel.com/docs/vercel-blob/server-upload
+
+
+## Durable worker and original-PDF storage
+
+### Database-backed worker (Docker or an always-on host)
+
+The default execution mode for Vercel remains inline. For a persistent deployment, configure the API with RESEARCH_EXECUTION_MODE=queue and run a separate process using the command python -m app.services.research_worker. The Docker Compose stack includes a dedicated worker service and shared PDF volume. Queue jobs remain in PostgreSQL until claimed; row-locking uses PostgreSQL FOR UPDATE SKIP LOCKED, an approach documented for queue-like consumers. The worker records heartbeats. Expired leases are marked failed for an explicit fresh retry, rather than being silently re-run from an unknown checkpoint. Per-stage checkpoints and automatic resume are still not implemented.
+
+### Durable original PDF bytes (optional S3-compatible service)
+
+For durable originals set DOCUMENT_STORAGE_BACKEND=s3, then configure OBJECT_STORAGE_BUCKET, OBJECT_STORAGE_REGION, optional OBJECT_STORAGE_ENDPOINT_URL, OBJECT_STORAGE_ACCESS_KEY_ID, and OBJECT_STORAGE_SECRET_ACCESS_KEY in the API project. Use a private bucket with public access blocked and server-side encryption enabled by the provider. The app creates owner-scoped keys and never assigns a public ACL or returns public object URLs. S3-compatible storage is opt-in; no credentials or bucket are bundled with Chronicle. DOCUMENT_STORAGE_BACKEND=local remains suitable for development but is reported as non-durable for serverless deployments.
+
+Vercel uploads must remain below the platform request-body limit configured for this project; the API should be configured to a conservative MAX_UPLOAD_MB=3 there. The object-storage adapter improves storage durability, but this API upload route still streams through the function; direct-to-object-store presigned uploads are a separate follow-up for larger PDFs.

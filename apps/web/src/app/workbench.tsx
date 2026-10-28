@@ -735,7 +735,11 @@ export default function ChronicleWorkbench() {
       const nextPapers = await listLibraryPapers(100);
       setPapers(nextPapers);
       if (uploaded.paper_id) setSelectedSourcePaperIds((current) => current.includes(uploaded.paper_id) || current.length >= 4 ? current : [...current, uploaded.paper_id]);
-      setUploadMessage(uploaded.duplicate_upload ? "This PDF is already in your library." : "PDF indexed. Choose it in the evidence source picker before starting research.");
+      setUploadMessage(uploaded.duplicate_upload
+        ? "This PDF is already in your library."
+        : uploaded.durable_storage
+          ? "PDF indexed and original securely stored in your configured object storage. It is selected for the next run."
+          : "PDF indexed and passages saved. The original is on local/temporary storage; configure private object storage for durable originals.");
     } catch (error) {
       setUploadMessage(error instanceof Error ? error.message : "PDF upload failed.");
     } finally {
@@ -1062,7 +1066,7 @@ export default function ChronicleWorkbench() {
             </section>
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
               <button onClick={() => setShowPdfUpload((current) => !current)} aria-expanded={showPdfUpload} className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-slate-50"><span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><Upload size={17}/></span><span><span className="block text-sm font-semibold text-slate-900">Add a PDF</span><span className="mt-0.5 block text-xs text-slate-500">Extract text passages for evidence inspection.</span></span></span><ChevronDown size={17} className={"shrink-0 text-slate-400 transition " + (showPdfUpload ? "rotate-180" : "")}/></button>
-              {showPdfUpload ? <div className="border-t border-slate-100 p-5"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-indigo-300 hover:bg-indigo-50/40"><Upload size={20} className="text-slate-500"/><span className="mt-2 text-sm font-medium text-slate-800">{uploadingPdf ? "Uploading PDF…" : "Choose a PDF (server limit applies)"}</span><span className="mt-1 text-xs text-slate-500">The server validates size and page limits. Original files are stored on the configured server filesystem.</span><input className="sr-only" type="file" accept=".pdf,application/pdf" disabled={uploadingPdf} onChange={(event) => void handlePdfUpload(event.target.files?.[0])}/></label>{uploadMessage ? <p role="status" className="mt-3 text-sm text-slate-600">{uploadMessage}</p> : null}</div> : null}
+              {showPdfUpload ? <div className="border-t border-slate-100 p-5"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-indigo-300 hover:bg-indigo-50/40"><Upload size={20} className="text-slate-500"/><span className="mt-2 text-sm font-medium text-slate-800">{uploadingPdf ? "Uploading PDF…" : "Choose a PDF (server limit applies)"}</span><span className="mt-1 text-xs text-slate-500">The server validates size and page limits. Configure private S3-compatible object storage for durable original files; extracted passages are stored separately.</span><input className="sr-only" type="file" accept=".pdf,application/pdf" disabled={uploadingPdf} onChange={(event) => void handlePdfUpload(event.target.files?.[0])}/></label>{uploadMessage ? <p role="status" className="mt-3 text-sm text-slate-600">{uploadMessage}</p> : null}</div> : null}
             </section>
           </div>
           <aside className="space-y-5">
