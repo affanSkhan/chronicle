@@ -22,10 +22,10 @@ Status definitions:
 | FR-008 | Planned scholarly queries | Bounded mode-specific subqueries executed against Crossref/OpenAlex; query trail retained | Implemented | Live provider availability/rate-limit testing still needed |
 | FR-009 | Persist source metadata/provenance | DOI/title/authors/year/provider/landing URL/abstract passages persisted | Partial | Raw provider payload and timestamp coverage vary by provider |
 | FR-010 | Deduplicate sources | DOI/title dedupe in research pipeline and library import | Partial | Author/year fallback and cross-provider duplicate fixtures need more coverage |
-| FR-011 | Validate PDF file/type/size/page count | PyMuPDF upload validation, configurable server limits and OCR page budget | Partial | Server cap is enforced; real-world scan quality still needs sampled testing |
+| FR-011 | Validate PDF file/type/size/page count | PyMuPDF upload validation, configurable server limits, 3 MB production cap for Vercel, and OCR page budget | Partial | Real-world scan quality still needs sampled testing; larger uploads need private object storage/direct upload |
 | FR-012 | Page-aware text extraction | Stored passages include page number and text offsets | Implemented | Section segmentation varies by PDF layout |
 | FR-013 | OCR scanned documents | Bounded Tesseract fallback for low-text pages; passage methods, OCR page counts, low-text pages, coverage ratio and warnings; test_pdf_ingestion.py | Partial | OCR accuracy is not measured; unsupported languages/poor scans need quality review; Docker image installs English Tesseract |
-| FR-014 | Preserve uploaded-file provenance | SHA-256 checksum, source file metadata and passages | Partial | Retention/deletion controls and richer source-kind UI |
+| FR-014 | Preserve uploaded-file provenance | SHA-256 checksum, metadata, passages and original bytes in nullable `papers.file_content` column via migration 0008 | Partial | Current implementation is capped at 3 MB and uses DB binary storage; object storage and retention/deletion controls remain outstanding |
 | FR-015 | Source-linked evidence items | Passage entities and passage/claim relations in graph/passport | Implemented | EvidenceItem is represented via passage plus relation, not as a separate entity |
 | FR-016 | Atomic claim candidates | Extraction prompt requests atomic claims and source IDs | Partial | Compound-claim splitting lacks labelled acceptance fixtures |
 | FR-017 | Claims must be supported or marked uncertain | Generated claims remain unreviewed and link to exact source passage IDs | Partial | Executive summaries are not decomposed into individually traced claim records |
@@ -90,3 +90,10 @@ Status definitions:
 The defensible contribution is the integrated workflow for **versioned source dependence and temporal change-impact propagation into saved claims and report versions**. Chronicle does not claim RAG, citation checking, knowledge graphs, or multi-agent orchestration alone as novel.
 
 No benchmark accuracy, contradiction F1, dependency precision/recall, temporal impact precision/recall, latency or throughput is claimed unless a labelled held-out evaluation or reproducible benchmark run is recorded. Unit-test fixtures validate code paths, not scientific accuracy.
+
+
+## FF180 feature-branch update (28 October 2026)
+
+Selected uploaded PDFs can now be attached to an executed research run. The API validates ownership and stored passage availability; the runner ranks passages using deterministic BM25 and combines bounded excerpts with remote scholarly abstracts before optional model extraction/synthesis. The UI shows PDF selection before launch, and the report includes selected PDF passage IDs, page locations and excerpts. This closes a key integration gap between PDF ingestion and actual research execution.
+
+It does not complete all FF180 objectives. Dense embeddings and hybrid BM25/vector fusion, autonomous multi-agent orchestration, durable queued jobs, automatic source-event reverification, private object storage for larger files, permanent deletion, deployed browser acceptance and all empirical metrics remain outstanding. No research-performance results are inferred from unit tests.

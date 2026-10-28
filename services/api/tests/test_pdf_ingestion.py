@@ -23,6 +23,21 @@ def make_scanned_pdf(page_count: int = 1) -> bytes:
     return data
 
 
+def test_production_upload_respects_serverless_request_body_limit(monkeypatch, client) -> None:
+    monkeypatch.setattr(
+        documents_api,
+        "settings",
+        SimpleNamespace(max_upload_mb=50, max_pdf_pages=300, environment="production"),
+    )
+    oversized = b"%PDF-" + b"x" * (3 * 1024 * 1024)
+    response = client.post(
+        "/api/v1/documents/upload",
+        files={"file": ("large.pdf", oversized, "application/pdf")},
+    )
+    assert response.status_code == 413, response.text
+    assert "3 MB" in response.json()["detail"]
+
+
 def test_scanned_pdf_uses_bounded_ocr_and_records_method(monkeypatch) -> None:
     calls = []
 

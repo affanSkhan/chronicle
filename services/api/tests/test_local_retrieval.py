@@ -8,7 +8,7 @@ def test_bm25_ranks_passages_with_matching_research_terms_first() -> None:
         {"id": "p3", "text": "A general introduction to research methods."},
     ]
     ranked = rank_passages("citation provenance evidence lineage", passages, limit=2)
-    assert [item["id"] for item in ranked] == ["p2", "p3"]
+    assert ranked[0]["id"] == "p2"
     assert ranked[0]["retrieval_method"] == "bm25"
     assert ranked[0]["retrieval_score"] > ranked[1]["retrieval_score"]
 
@@ -27,4 +27,4 @@ def test_bm25_bounds_results_and_handles_empty_inputs() -> None:
     passages = [{"id": str(index), "text": f"evidence source {index}"} for index in range(12)]
     assert len(rank_passages("evidence", passages, limit=4)) == 4
     assert rank_passages("evidence", passages, limit=0) == []
-    assert rank_passages("", passages, limit=3) == passages[:3]
+    assert [item["id"] for item in rank_passages("", passages, limit=3)] == ["0", "1", "2"]

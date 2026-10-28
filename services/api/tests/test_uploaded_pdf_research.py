@@ -110,3 +110,30 @@ def test_uploaded_pdf_is_a_real_research_input_and_its_page_passage_is_snapshott
     assert snapshot["uploaded_pdf_passage_ids"]
     assert "Selected uploaded-PDF passages" in report["content_markdown"]
     assert "Uniquebeta" in report["content_markdown"]
+
+
+def test_selected_pdf_ids_are_owner_scoped(client) -> None:
+    upload = client.post(
+        "/api/v1/documents/upload",
+        files={"file": ("private.pdf", _pdf_bytes(), "application/pdf")},
+    )
+    assert upload.status_code == 201, upload.text
+    foreign_paper_id = upload.json()["paper_id"]
+
+    other_account = client.post(
+        "/api/v1/auth/register",
+        json={"email": "another-user@example.test", "password": "another-test-password-123"},
+    )
+    assert other_account.status_code == 201, other_account.text
+    client.headers["Authorization"] = f"Bearer {other_account.json()[\"access_token\"]}"
+
+    response = client.post(
+        "/api/v1/research/runs",
+        json={
+            "question": "Can another user access this private uploaded PDF?",
+            "mode": "academic",
+            "uploaded_paper_ids": [foreign_paper_id],
+            "execute": False,
+        },
+    )
+    assert response.status_code == 404, response.text
