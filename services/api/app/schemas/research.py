@@ -44,6 +44,9 @@ class ResearchRun(BaseModel):
     cancel_requested_at: datetime | None = None
     cancelled_at: datetime | None = None
     retry_of_run_id: str | None = None
+    current_stage: str | None = None
+    stage_statuses: dict[str, str] = Field(default_factory=dict)
+    progress_percent: int = Field(default=0, ge=0, le=100)
 
 
 class ProjectCreate(BaseModel):

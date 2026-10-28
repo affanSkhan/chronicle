@@ -63,6 +63,26 @@ class ResearchRun(Base):
     claims: Mapped[list["Claim"]] = relationship(back_populates="run", cascade="all, delete-orphan")
     report_versions: Mapped[list["ReportVersion"]] = relationship(back_populates="run", cascade="all, delete-orphan")
 
+    @property
+    def current_stage(self) -> str | None:
+        value = (self.configuration or {}).get("current_stage")
+        return value if isinstance(value, str) else None
+
+    @property
+    def stage_statuses(self) -> dict[str, str]:
+        value = (self.configuration or {}).get("stage_statuses")
+        return value if isinstance(value, dict) else {}
+
+    @property
+    def progress_percent(self) -> int:
+        if self.status in {"completed", "completed_with_limitations"}:
+            return 100
+        value = (self.configuration or {}).get("progress_percent", 0)
+        try:
+            return max(0, min(100, int(value)))
+        except (TypeError, ValueError):
+            return 0
+
 
 class Paper(Base):
     __tablename__ = "papers"

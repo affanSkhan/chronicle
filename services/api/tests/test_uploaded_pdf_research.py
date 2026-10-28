@@ -115,6 +115,8 @@ def test_selected_uploaded_pdf_flows_into_claims_report_graph_and_passport(monke
     run_result = client.get(f"/api/v1/research/runs/{run_id}")
     assert run_result.status_code == 200
     assert run_result.json()["status"] == "completed"
+    assert run_result.json()["progress_percent"] == 100
+    assert run_result.json()["stage_statuses"]["report_commit"] == "completed"
 
     reports = client.get(f"/api/v1/evidence/runs/{run_id}/reports")
     assert reports.status_code == 200

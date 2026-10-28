@@ -27,6 +27,40 @@ class ResearchRunCancelled(Exception):
     """Raised internally when the owner requests cooperative run cancellation."""
 
 
+_RESEARCH_STAGE_KEYS = (
+    "planning", "scholarly_retrieval", "source_persistence", "pdf_context",
+    "claim_extraction", "evidence_synthesis", "dependency_scan", "report_commit",
+)
+_STAGE_TERMINAL = {"completed", "skipped", "limited"}
+
+
+def _stage_progress(stage_statuses: dict[str, str]) -> int:
+    done = sum(1 for key in _RESEARCH_STAGE_KEYS if stage_statuses.get(key) in _STAGE_TERMINAL)
+    return int(round(done * 100 / len(_RESEARCH_STAGE_KEYS)))
+
+
+def _set_run_stage(run_id: str, stage: str, status: str) -> None:
+    """Persist a small run-stage heartbeat for polling clients, without a separate table."""
+    if stage not in _RESEARCH_STAGE_KEYS:
+        return
+    with SessionLocal() as db:
+        run = db.get(ResearchRun, run_id)
+        if run is None:
+            return
+        config = dict(run.configuration or {})
+        current_statuses = config.get("stage_statuses")
+        stage_statuses = dict(current_statuses) if isinstance(current_statuses, dict) else {
+            key: "pending" for key in _RESEARCH_STAGE_KEYS
+        }
+        stage_statuses[stage] = status
+        config["stage_statuses"] = stage_statuses
+        config["current_stage"] = stage
+        config["progress_percent"] = _stage_progress(stage_statuses)
+        config["stage_updated_at"] = datetime.now(timezone.utc).isoformat()
+        run.configuration = config
+        db.commit()
+
+
 def _run_cancellation_requested(run_id: str) -> bool:
     with SessionLocal() as db:
         run = db.get(ResearchRun, run_id)
@@ -445,6 +479,7 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
         return
 
     try:
+        _set_run_stage(run_id, "planning", "in_progress")
         execution_plan = build_research_plan(question, mode, limit)
         # Persist the plan before network I/O so a failed or partial run remains inspectable.
         with SessionLocal() as db:
@@ -460,12 +495,16 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
             }
             db.commit()
 
+        _set_run_stage(run_id, "planning", "completed")
+        _set_run_stage(run_id, "scholarly_retrieval", "in_progress")
         provider_result, execution_plan = await _execute_planned_search(
             question, mode, limit, plan=execution_plan, run_id=run_id
         )
         if _run_cancellation_requested(run_id):
             raise ResearchRunCancelled("Research run cancellation was requested.")
         result_items = provider_result.get("results", [])
+        _set_run_stage(run_id, "scholarly_retrieval", "limited" if provider_result.get("provider_errors") else "completed")
+        _set_run_stage(run_id, "source_persistence", "in_progress")
         saved_papers: list[dict] = []
         passages_for_extraction: list[dict] = []
 
@@ -581,6 +620,8 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                 })
             db.commit()
 
+        _set_run_stage(run_id, "source_persistence", "completed")
+        _set_run_stage(run_id, "pdf_context", "in_progress")
         # Phase 1b: load explicitly selected, owner-scoped PDF passages. The page-aware
         # passage rows persist in SQL even when the application filesystem is temporary.
         uploaded_document_passages: list[dict] = []
@@ -646,6 +687,7 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
             max_total=8,
             max_document_passages=4,
         )
+        _set_run_stage(run_id, "pdf_context", "completed")
 
         # Phase 2: optional model-backed candidates; retrieval-only mode is valid.
         if _run_cancellation_requested(run_id):
@@ -662,6 +704,13 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
         extraction_error: str | None = None
         api_key, api_base, model_name = get_llm_config(settings)
         model_question = question + "\n\nRun profile: " + execution_plan["profile_label"] + ". Focus: " + focus_for_mode(mode)
+        extraction_configured = bool(api_key and model_name and passages_for_extraction)
+        if not should_extract_claims:
+            _set_run_stage(run_id, "claim_extraction", "skipped")
+        elif extraction_configured:
+            _set_run_stage(run_id, "claim_extraction", "in_progress")
+        else:
+            _set_run_stage(run_id, "claim_extraction", "limited")
         if should_extract_claims and api_key and model_name and passages_for_extraction:
             try:
                 extracted_claims = await _await_with_cancellation(extract_claims_from_passages(
@@ -675,12 +724,21 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
             except Exception as exc:
                 extraction_error = type(exc).__name__
                 llm_note = "LLM extraction failed; the bibliographic discovery report was completed without model-generated claims."
+        if should_extract_claims and extraction_configured:
+            _set_run_stage(run_id, "claim_extraction", "limited" if extraction_error else "completed")
 
         synthesis_result: dict | None = None
         synthesis_note = ("Synthesis skipped by the Quick Discovery profile to keep this run retrieval-only."
                           if not should_synthesize_evidence else
                           "Model synthesis skipped because LLM_API_KEY and LLM_MODEL are not both configured.")
         synthesis_error: str | None = None
+        synthesis_configured = bool(api_key and model_name and passages_for_extraction)
+        if not should_synthesize_evidence:
+            _set_run_stage(run_id, "evidence_synthesis", "skipped")
+        elif synthesis_configured:
+            _set_run_stage(run_id, "evidence_synthesis", "in_progress")
+        else:
+            _set_run_stage(run_id, "evidence_synthesis", "limited")
         if should_synthesize_evidence and api_key and model_name and passages_for_extraction:
             try:
                 synthesis_result = await _await_with_cancellation(synthesize_evidence(
@@ -694,8 +752,10 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
             except Exception as exc:
                 synthesis_error = type(exc).__name__
                 synthesis_note = "Model synthesis failed; the bibliographic discovery report was completed without it."
+        if should_synthesize_evidence and synthesis_configured:
+            _set_run_stage(run_id, "evidence_synthesis", "limited" if synthesis_error else "completed")
 
-        persisted_studies: list[dict] = []
+        persisted_studies: list[dict] =
         if synthesis_result and synthesis_result.get("study_characterizations"):
             source_by_passage = {str(item["id"]): item for item in passages_for_extraction}
             with SessionLocal() as db:
@@ -808,6 +868,7 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
             "interpretation": "This mode does not run the dependency-candidate scan. No independence conclusion is implied.",
         }
         if should_scan_dependencies:
+            _set_run_stage(run_id, "dependency_scan", "in_progress")
             # Forensic scanning is bounded to this run and does not persist any graph edges.
             if owner_user_id and len(saved_papers) >= 2:
                 with SessionLocal() as db:
@@ -818,6 +879,9 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                         paper_ids={paper["paper_id"] for paper in saved_papers},
                     )
             dependency_analysis = build_dependency_clusters(saved_papers, dependency_candidates)
+            _set_run_stage(run_id, "dependency_scan", "completed")
+        else:
+            _set_run_stage(run_id, "dependency_scan", "skipped")
 
         provider_errors = provider_result.get("provider_errors", {})
         llm_stage_expected = should_extract_claims or should_synthesize_evidence
@@ -828,6 +892,7 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
         # Phase 3: immutable report snapshot and final job state.
         if _run_cancellation_requested(run_id):
             raise ResearchRunCancelled("Research run cancellation was requested.")
+        _set_run_stage(run_id, "report_commit", "in_progress")
         generated_at = datetime.now(timezone.utc).isoformat()
         pdf_context_lines = [
             "", "## Selected PDF evidence context", "",
@@ -927,6 +992,15 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                 "completion_status": run.status,
                 "completed_with_limitations": has_limitations,
             }
+            final_stage_statuses = dict((run.configuration or {}).get("stage_statuses") or {})
+            final_stage_statuses["report_commit"] = "completed"
+            run.configuration = {
+                **(run.configuration or {}),
+                "stage_statuses": final_stage_statuses,
+                "current_stage": "report_commit",
+                "progress_percent": _stage_progress(final_stage_statuses),
+                "stage_updated_at": generated_at,
+            }
             db.commit()
 
     except ResearchRunCancelled:
@@ -968,6 +1042,14 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                     run.status = "failed"
                     run.demo = False
                     run.error_message = "Scholarly discovery failed. Check provider availability and server logs."
+                    failed_config = dict(run.configuration or {})
+                    failed_statuses = dict(failed_config.get("stage_statuses") or {})
+                    current_stage = failed_config.get("current_stage")
+                    if current_stage in _RESEARCH_STAGE_KEYS:
+                        failed_statuses[current_stage] = "failed"
+                        failed_config["stage_statuses"] = failed_statuses
+                        failed_config["progress_percent"] = _stage_progress(failed_statuses)
+                    run.configuration = failed_config
                     run.configuration = {
                         **(run.configuration or {}),
                         "failed_at": datetime.now(timezone.utc).isoformat(),

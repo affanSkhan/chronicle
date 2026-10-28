@@ -38,6 +38,17 @@ const NAV: { label: View; icon: LucideIcon }[] = [
   { label: "Hypothesis lab", icon: FlaskConical }
 ];
 
+const RESEARCH_STEPS = [
+  { key: "planning", label: "Plan" },
+  { key: "scholarly_retrieval", label: "Find literature" },
+  { key: "source_persistence", label: "Index sources" },
+  { key: "pdf_context", label: "Rank evidence" },
+  { key: "claim_extraction", label: "Extract claims" },
+  { key: "evidence_synthesis", label: "Synthesize" },
+  { key: "dependency_scan", label: "Check overlap" },
+  { key: "report_commit", label: "Save report" }
+] as const;
+
 const MODES: { value: ResearchMode; label: string }[] = [
   { value: "quick", label: "Quick discovery" },
   { value: "deep", label: "Deep research" },
@@ -1037,7 +1048,20 @@ export default function ChronicleWorkbench() {
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500"><span>{activeRun.mode} · up to {activeRun.max_sources} sources</span><span>{formatDate(activeRun.created_at)}</span><span className="font-mono">ID {activeRun.id.slice(0, 8)}</span></div>
               {activeRun.error_message ? <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{activeRun.error_message}</div> : null}
-              {activeRun.status === "queued" || activeRun.status === "running" ? <div role="status" aria-live="polite" className="mt-5 rounded-xl bg-indigo-50 px-4 py-3"><div className="flex items-center gap-2 text-sm font-medium text-indigo-800"><LoaderCircle size={16} className="animate-spin"/> Research is in progress</div><p className="mt-1 text-xs text-indigo-700">This panel updates automatically.</p></div> : null}
+              {activeRun.status === "queued" || activeRun.status === "running" ? <div role="status" aria-live="polite" className="mt-5 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 via-white to-cyan-50/50 p-4 sm:p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><LoaderCircle size={16} className="animate-spin text-indigo-600"/> Research in progress</div><p className="mt-1 text-xs leading-5 text-slate-600">{activeRun.status === "queued" ? "Waiting for a research worker to claim this run." : (RESEARCH_STEPS.find((step) => step.key === activeRun.current_stage)?.label ?? "Processing evidence") + " · this view refreshes automatically."}</p></div><div className="min-w-[72px] text-right"><p className="text-xl font-semibold tracking-tight text-indigo-700">{activeRun.progress_percent ?? 0}%</p><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">stages</p></div></div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-indigo-100"><div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 transition-all duration-500" style={{ width: (activeRun.progress_percent ?? 0) + "%" }} /></div>
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {RESEARCH_STEPS.map((step) => {
+                    const stageStatus = activeRun.stage_statuses?.[step.key] ?? "pending";
+                    const done = stageStatus === "completed" || stageStatus === "skipped";
+                    const live = stageStatus === "in_progress";
+                    const limited = stageStatus === "limited" || stageStatus === "failed";
+                    const surface = done ? "border-emerald-100 bg-emerald-50/70 text-emerald-800" : live ? "border-indigo-200 bg-white text-indigo-800 shadow-sm" : limited ? "border-amber-200 bg-amber-50 text-amber-900" : "border-slate-200/80 bg-white/70 text-slate-500";
+                    return <div key={step.key} className={"min-w-0 rounded-xl border px-3 py-2.5 " + surface}><div className="flex items-center gap-2"><span className={"h-1.5 w-1.5 shrink-0 rounded-full " + (done ? "bg-emerald-500" : live ? "animate-pulse bg-indigo-500" : limited ? "bg-amber-500" : "bg-slate-300")} /><span className="truncate text-[11px] font-semibold">{step.label}</span></div><p className="mt-1.5 pl-3.5 text-[10px] capitalize opacity-80">{stageStatus.replaceAll("_", " ")}</p></div>;
+                  })}
+                </div>
+              </div> : null}
               {activeRun.status === "cancel_requested" ? <div role="status" aria-live="polite" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"><p className="text-sm font-semibold text-amber-900">Cancellation requested</p><p className="mt-1 text-xs leading-5 text-amber-800">Chronicle is stopping current external work at a safe cancellation point. The original records are preserved.</p></div> : null}
               {activeRun.status === "cancelled" ? <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-sm font-semibold text-slate-800">Run cancelled</p><p className="mt-1 text-xs leading-5 text-slate-600">A new retry can be launched without changing the original run history.</p></div> : null}
               {activeRun.status === "completed" || activeRun.status === "completed_with_limitations" ? <div className="mt-5 space-y-4">

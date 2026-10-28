@@ -14,6 +14,9 @@ export interface ResearchRun {
   cancel_requested_at?: string | null;
   cancelled_at?: string | null;
   retry_of_run_id?: string | null;
+  current_stage?: string | null;
+  stage_statuses?: Record<string, string>;
+  progress_percent?: number;
 }
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
