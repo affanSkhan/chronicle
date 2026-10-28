@@ -755,7 +755,7 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
         if should_synthesize_evidence and synthesis_configured:
             _set_run_stage(run_id, "evidence_synthesis", "limited" if synthesis_error else "completed")
 
-        persisted_studies: list[dict] =
+        persisted_studies: list[dict] = []
         if synthesis_result and synthesis_result.get("study_characterizations"):
             source_by_passage = {str(item["id"]): item for item in passages_for_extraction}
             with SessionLocal() as db:
