@@ -201,7 +201,7 @@ async def rank_passages_hybrid(
             "selected_count": min(top_k, len(hybrid)),
             "note": "RRF and embedding similarities are retrieval signals, not calibrated evidence confidence.",
         }
-    except (httpx.HTTPError, ValueError, TypeError, KeyError):
+    except Exception:
         # Never allow an optional embedding provider outage to fail an otherwise
         # available lexical retrieval run. The reason is a bounded class label only.
         return lexical[:top_k], {
