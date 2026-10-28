@@ -20,6 +20,9 @@ def test_upgrade_existing_0005_database_preserves_run_data_and_adds_lifecycle_fi
             "research_question TEXT NOT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL)"
         ))
         connection.execute(text(
+            "CREATE TABLE papers (id VARCHAR(36) PRIMARY KEY, title TEXT NOT NULL)"
+        ))
+        connection.execute(text(
             "CREATE TABLE research_runs ("
             "id VARCHAR(36) PRIMARY KEY, owner_user_id VARCHAR(36), project_id VARCHAR(36), "
             "question TEXT NOT NULL, mode VARCHAR(24) NOT NULL, status VARCHAR(24) NOT NULL, "
@@ -50,10 +53,12 @@ def test_upgrade_existing_0005_database_preserves_run_data_and_adds_lifecycle_fi
     assert {"cancel_requested_at", "cancelled_at", "retry_of_run_id"} <= run_columns
     assert run_status.length == 40
     assert "ix_research_runs_retry_of_run_id" in {index["name"] for index in inspector.get_indexes("research_runs")}
+    paper_columns = {column["name"] for column in inspector.get_columns("papers")}
+    assert "file_content" in paper_columns
 
     with engine.connect() as connection:
         assert connection.execute(text("SELECT title FROM research_projects WHERE id='project-1'")).scalar_one() == "Existing workspace"
         row = connection.execute(text("SELECT question, status FROM research_runs WHERE id='run-1'")).one()
         assert row.question == "How should old run state be preserved?"
         assert row.status == "completed"
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0007_run_cancel_retry"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0008_persistent_pdf_content"

@@ -5,7 +5,7 @@ import fitz
 from PIL import Image
 
 from app.api import documents as documents_api
-from app.models.entities import PaperVersion
+from app.models.entities import Paper, PaperVersion
 from app.services import pdf_ingestion
 from conftest import TestingSessionLocal
 
@@ -139,6 +139,9 @@ def test_scanned_pdf_upload_persists_ocr_method_and_quality_metadata(monkeypatch
 
     with TestingSessionLocal() as db:
         version = db.query(PaperVersion).filter(PaperVersion.id == payload["paper_version_id"]).one()
+        paper = db.query(Paper).filter(Paper.id == payload["paper_id"]).one()
+        assert paper.file_content and paper.file_content.startswith(b"%PDF-")
+        assert paper.source_file_path is None
         metadata = version.metadata_snapshot
         assert metadata["extraction_method"] == "tesseract_ocr"
         assert metadata["ocr_pages"] == 1
