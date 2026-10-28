@@ -11,7 +11,7 @@ import re
 
 from sqlalchemy import func, select
 
-from app.core.config import get_llm_config, get_settings
+from app.core.config import get_embedding_config, get_llm_config, get_settings
 from app.core.database import SessionLocal
 from app.models.entities import Claim, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun, Study
 from app.services.academic_search import search_papers
@@ -20,7 +20,7 @@ from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
 from app.services.dependency_candidates import build_dependency_clusters, suggest_dependency_candidates
 from app.services.research_planner import build_research_plan, focus_for_mode
-from app.services.local_passage_retrieval import rank_passages_bm25
+from app.services.hybrid_passage_retrieval import rank_passages_hybrid
 
 
 class ResearchRunCancelled(Exception):
@@ -108,6 +108,7 @@ def _markdown_report(
     execution_plan: dict | None = None,
     dependency_candidates: list[dict] | None = None,
     dependency_analysis: dict | None = None,
+    retrieval_metadata: dict | None = None,
 ) -> str:
     lines = [
         "# Academic Discovery Snapshot",
@@ -115,15 +116,31 @@ def _markdown_report(
         f"**Research question:** {question}",
         f"**Mode:** {mode}",
         f"**Generated:** {created_at}",
-        "**Workflow:** Crossref/OpenAlex metadata retrieval plus BM25-style lexical ranking of selected local PDF passages; optional structured claim extraction.",
+        "**Workflow:** Crossref/OpenAlex metadata discovery plus bounded passage retrieval from selected PDF documents; optional model-assisted extraction and synthesis.",
         "",
         "## Important interpretation note",
         "",
-        "This is a research discovery snapshot, not a completed systematic review. Metadata abstracts and selected uploaded-PDF excerpts may both appear in the evidence context. BM25 is lexical ranking, not semantic retrieval; page location and extraction quality still require inspection. Any model-generated claim below is unreviewed and must be checked by a researcher.",
+        "This is a research discovery snapshot, not a completed systematic review. Metadata abstracts and selected uploaded-PDF excerpts may both appear in the evidence context. Dense retrieval is optional and falls back to lexical ranking if the embedding provider is not configured or unavailable. Ranking signals are not calibrated evidence confidence. Page location and extraction quality still require inspection. Any model-generated claim below is unreviewed and must be checked by a researcher.",
         "",
         "## Retrieved literature",
         "",
     ]
+    if retrieval_metadata:
+        lines.extend([
+            "## Passage retrieval",
+            "",
+            f"- **Method:** {retrieval_metadata.get('method', 'unknown')}",
+            f"- **Dense retrieval status:** {retrieval_metadata.get('semantic_status', 'unknown')}",
+            f"- **Candidate passages:** {retrieval_metadata.get('candidate_count', 0)}",
+            f"- **Dense shortlist:** {retrieval_metadata.get('lexical_shortlist_count', 0)}",
+            f"- **Selected context passages:** {retrieval_metadata.get('selected_count', 0)}",
+        ])
+        if retrieval_metadata.get("embedding_provider"):
+            lines.append(f"- **Embedding provider/model:** {retrieval_metadata['embedding_provider']} / {retrieval_metadata.get('embedding_model', 'configured')}")
+        if retrieval_metadata.get("note"):
+            lines.append(f"- **Interpretation:** {retrieval_metadata['note']}")
+        lines.append("")
+
     if execution_plan:
         plan_lines = [
             "",
@@ -320,6 +337,7 @@ def _markdown_report(
     lines.append("- Provider indexing is not exhaustive; absence from this result set is not evidence that a study does not exist.")
     lines.append("- Retrieved abstracts and selected PDF excerpts are source text for inspection, not an automatic verdict on the research question.")
     lines.append("- Claims are marked model-inferred/unreviewed; a model response is not proof of truth.")
+    lines.append("- Dense retrieval, when configured, reranks a bounded BM25 shortlist; it does not guarantee recall of every semantically related passage.")
     lines.append("- Source dependency detection, context-aware contradiction adjudication, full-text citation entailment and calibrated evidence weighting require further evaluation.")
     return "\n".join(lines)
 
@@ -664,7 +682,17 @@ async def execute_research_run(run_id: str) -> None:
             prepared.setdefault("retrieval_method", "metadata_abstract")
             prepared.setdefault("source_kind", "metadata_abstract")
             candidate_passages.append(prepared)
-        ranked_candidates = rank_passages_bm25(question, candidate_passages, top_k=len(candidate_passages))
+        embedding_token, embedding_model, embedding_api_base = get_embedding_config(get_settings())
+        ranked_candidates, retrieval_metadata = await rank_passages_hybrid(
+            question,
+            candidate_passages,
+            top_k=len(candidate_passages),
+            embedding_token=embedding_token or None,
+            embedding_model=embedding_model,
+            embedding_api_base=embedding_api_base,
+            lexical_shortlist=32,
+            extra_source_ids=source_paper_ids,
+        )
         first_for_each_pdf: dict[str, dict] = {}
         for item in ranked_candidates:
             paper_id = str(item.get("paper_id") or "")
@@ -891,6 +919,7 @@ async def execute_research_run(run_id: str) -> None:
                     execution_plan=execution_plan,
                     dependency_candidates=dependency_candidates,
                     dependency_analysis=dependency_analysis,
+                    retrieval_metadata=retrieval_metadata,
                 ),
                 evidence_snapshot={
                     "query": question,
@@ -911,7 +940,8 @@ async def execute_research_run(run_id: str) -> None:
                         for passage_id in (paper.get("passage_ids") or ([paper["passage_id"]] if paper.get("passage_id") else []))
                     )),
                     "source_paper_ids": source_paper_ids,
-                    "retrieval_method": "crossref_openalex_plus_bm25_local_passages",
+                    "retrieval_method": retrieval_metadata.get("method", "bm25_lexical"),
+                    "retrieval_metadata": retrieval_metadata,
                     "selected_context_passage_ids": [str(item["id"]) for item in passages_for_extraction],
                     "selected_context_count": len(passages_for_extraction),
                     "claim_ids": [claim["id"] for claim in persisted_claims],
@@ -943,7 +973,8 @@ async def execute_research_run(run_id: str) -> None:
                 "paper_count": len(saved_papers),
                 "passage_count": len(passages_for_extraction),
                 "source_paper_ids": source_paper_ids,
-                "retrieval_method": "crossref_openalex_plus_bm25_local_passages",
+                "retrieval_method": retrieval_metadata.get("method", "bm25_lexical"),
+                "retrieval_metadata": retrieval_metadata,
                 "selected_context_count": len(passages_for_extraction),
                 "claim_candidate_count": len(persisted_claims),
                 "study_context_count": len(persisted_studies),
