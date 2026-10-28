@@ -11,19 +11,26 @@ def test_hybrid_retrieval_combines_dense_and_lexical_rankings(monkeypatch) -> No
             "id": "lexical",
             "paper_id": "pdf-1",
             "paper_title": "Vehicle safety report",
-            "text": "Automobile safety crash impact and protective systems.",
+            "text": "Vehicle collision safety passenger crash and protective systems.",
             "source_kind": "uploaded_pdf",
         },
         {
             "id": "semantic",
             "paper_id": "pdf-2",
             "paper_title": "Road transport",
-            "text": "A car's collision survivability is improved by restraint design.",
+            "text": "Vehicle collision prediction can improve restraint design.",
+            "source_kind": "uploaded_pdf",
+        },
+        {
+            "id": "medium",
+            "paper_id": "pdf-3",
+            "paper_title": "Safety report",
+            "text": "A report about safety studies and measurements.",
             "source_kind": "uploaded_pdf",
         },
         {
             "id": "irrelevant",
-            "paper_id": "pdf-3",
+            "paper_id": "pdf-4",
             "paper_title": "Botany report",
             "text": "The experiment measured leaf chlorophyll in plants.",
             "source_kind": "uploaded_pdf",
@@ -33,11 +40,12 @@ def test_hybrid_retrieval_combines_dense_and_lexical_rankings(monkeypatch) -> No
     async def fake_embeddings(texts: list[str], **kwargs) -> list[list[float]]:
         # Query vector is similar to the synonym-based semantic result and not
         # the exact-keyword lexical winner.
-        assert len(texts) == 4
+        assert len(texts) == 5
         return [
             [1.0, 0.0],
             [0.1, 0.995],
             [0.99, 0.1],
+            [0.8, 0.6],
             [-0.8, 0.2],
         ]
 
@@ -53,6 +61,7 @@ def test_hybrid_retrieval_combines_dense_and_lexical_rankings(monkeypatch) -> No
     assert diagnostics["method"] == "bm25_dense_reciprocal_rank_fusion"
     assert diagnostics["semantic_status"] == "completed"
     assert {item["id"] for item in result} == {"lexical", "semantic"}
+    assert result[0]["id"] == "semantic"
     assert all(item["retrieval_method"] == "bm25_dense_rrf" for item in result)
     assert all(item["semantic_score"] is not None for item in result)
 
