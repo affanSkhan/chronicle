@@ -163,6 +163,8 @@ def _markdown_report(
                 lines.append(f"- **PDF evidence passage:** {passage_id}{location}")
         elif paper.get("passage_ids"):
             lines.append("- **Selected abstract evidence passage(s):** " + ", ".join(paper.get("passage_ids", [])))
+        if not paper.get("is_uploaded_document") and paper.get("query_rank_fusion_score") is not None:
+            lines.append(f"- **Query rank fusion (RRF; ranking signal only):** {paper['query_rank_fusion_score']}")
         abstract = (paper.get("abstract") or "").strip()
         if abstract:
             lines.extend(["", "**Abstract**", "", "> " + abstract.replace("\n", "\n> "), ""])
@@ -361,6 +363,7 @@ async def _execute_planned_search(
     provider_errors: dict[str, str] = {}
     merged: dict[str, dict] = {}
     successful_queries = 0
+    fused_query_scores: dict[str, float] = {}
     for index, (query, response) in enumerate(zip(queries, responses), start=1):
         if isinstance(response, Exception) or response is None:
             provider_errors[f"query_{index}"] = "This planned search failed or a provider was unavailable."
@@ -368,13 +371,14 @@ async def _execute_planned_search(
         successful_queries += 1
         for name, message in (response.get("provider_errors") or {}).items():
             provider_errors[f"query_{index}_{name}"] = message
-        for raw_item in response.get("results", []):
+        for result_rank, raw_item in enumerate(response.get("results", []), start=1):
             item = dict(raw_item)
             doi = _normalize_doi(item.get("doi"))
             normalized_title = " ".join(str(item.get("title") or "").lower().split())
             key = f"doi:{doi.lower()}" if doi else f"title:{normalized_title}"
             if not normalized_title:
                 continue
+            fused_query_scores[key] = fused_query_scores.get(key, 0.0) + 1.0 / (60 + result_rank)
             if key not in merged:
                 item["matched_queries"] = [query]
                 merged[key] = item
@@ -391,8 +395,14 @@ async def _execute_planned_search(
         raise RuntimeError("All planned scholarly searches failed.")
 
     result_items = list(merged.values())
+    for item in result_items:
+        doi = _normalize_doi(item.get("doi"))
+        normalized_title = " ".join(str(item.get("title") or "").lower().split())
+        key = f"doi:{doi.lower()}" if doi else f"title:{normalized_title}"
+        item["query_rank_fusion_score"] = round(fused_query_scores.get(key, 0.0), 8)
     result_items.sort(
         key=lambda item: (
+            item.get("query_rank_fusion_score") or 0.0,
             item.get("publication_year") or 0,
             bool(item.get("abstract")),
             str(item.get("title") or "").lower(),
@@ -533,6 +543,7 @@ async def execute_research_run(run_id: str) -> None:
                             "planner_version": execution_plan.get("version", "1.0"),
                             "retrieved_at": datetime.now(timezone.utc).isoformat(),
                             "content_hash": abstract_hash,
+                            "query_rank_fusion_score": item.get("query_rank_fusion_score"),
                         },
                     )
                     db.add(version)
@@ -571,6 +582,7 @@ async def execute_research_run(run_id: str) -> None:
                     "paper_version_id": version.id,
                     "passage_id": passage_id,
                     "passage_ids": [passage_id] if passage_id else [],
+                    "query_rank_fusion_score": item.get("query_rank_fusion_score"),
                     "passage_pages": {},
                     "is_uploaded_document": False,
                     "title": paper.title,
@@ -887,6 +899,11 @@ async def execute_research_run(run_id: str) -> None:
                     "executed_search_queries": provider_result.get("queries", []),
                     "providers_requested": provider_result.get("providers_requested"),
                     "provider_errors": provider_result.get("provider_errors", {}),
+                    "retrieval_fusion": {
+                        "method": "reciprocal_rank_fusion",
+                        "rank_constant": 60,
+                        "note": "RRF is a ranking signal, not a calibrated confidence or evidence-strength score.",
+                    },
                     "paper_ids": [paper["paper_id"] for paper in saved_papers],
                     "passage_ids": list(dict.fromkeys(
                         passage_id
