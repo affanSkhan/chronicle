@@ -4,6 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.entities import Paper, ResearchProject, ResearchRun, User
@@ -145,7 +146,7 @@ def create_research_run(payload: ResearchRunCreate, background_tasks: Background
     )
     db.commit()
     db.refresh(run)
-    if payload.execute:
+    if payload.execute and get_settings().research_execution_mode.strip().lower() != "queue":
         background_tasks.add_task(execute_research_run, run.id)
     return run
 
@@ -268,7 +269,8 @@ def retry_research_run(
     )
     db.commit()
     db.refresh(retry)
-    background_tasks.add_task(execute_research_run, retry.id)
+    if get_settings().research_execution_mode.strip().lower() != "queue":
+        background_tasks.add_task(execute_research_run, retry.id)
     return retry
 
 

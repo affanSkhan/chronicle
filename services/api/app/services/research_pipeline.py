@@ -401,8 +401,8 @@ async def _execute_planned_search(
     return provider_result, plan
 
 
-async def execute_research_run(run_id: str) -> None:
-    """Execute a discovery run and persist its status, source records and report."""
+async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) -> None:
+    """Execute one run. Worker mode requires a previously claimed database lease."""
     cancel_before_start = False
     with SessionLocal() as db:
         run = db.get(ResearchRun, run_id)
@@ -410,7 +410,7 @@ async def execute_research_run(run_id: str) -> None:
             return
         if run.status in {"cancel_requested", "cancelled"}:
             cancel_before_start = True
-        else:
+        elif run.status == "queued":
             run.status = "running"
             run.demo = False
             run.error_message = None
@@ -425,6 +425,21 @@ async def execute_research_run(run_id: str) -> None:
             owner_user_id = run.owner_user_id
             source_paper_ids = list((run.configuration or {}).get("source_paper_ids") or [])
             db.commit()
+        elif (
+            run.status == "running"
+            and claimed_by_worker
+            and (run.configuration or {}).get("execution_worker") == "database-worker"
+        ):
+            # The worker claimed this row and committed the lease before running any work.
+            question = run.question
+            limit = run.max_sources
+            mode = run.mode
+            owner_user_id = run.owner_user_id
+            source_paper_ids = list((run.configuration or {}).get("source_paper_ids") or [])
+        else:
+            # Prevent duplicate BackgroundTasks, duplicate HTTP retries, and stale workers
+            # from executing an already-active/terminal run.
+            return
     if cancel_before_start:
         _finalize_cancelled_run(run_id, "Run was cancelled before the worker began.")
         return
