@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.entities import Paper, PaperVersion, Passage, User
 from app.services.pdf_ingestion import extract_pdf
+from app.services.private_object_storage import store_original_pdf
 
 router = APIRouter(prefix="/documents", tags=["documents"], dependencies=[Depends(get_current_user)])
 settings = get_settings()
@@ -53,10 +54,17 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
 
     raw_name = Path(file.filename or "uploaded-document.pdf").name
     safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(raw_name).stem).strip(".-_")[:80] or "document"
-    upload_dir = Path(settings.upload_dir) / current_user.id
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    stored_path = upload_dir / f"{file_hash}.pdf"
-    stored_path.write_bytes(data)
+    try:
+        stored_original = store_original_pdf(
+            data,
+            owner_id=current_user.id,
+            sha256=file_hash,
+            settings=settings,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Private PDF storage failed. No upload record was created.") from exc
 
     title = extracted.title or safe_stem
     author_list = [extracted.author] if extracted.author else []
@@ -68,7 +76,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         source_provider="upload",
         external_id=file_hash,
         landing_url=None,
-        source_file_path=str(stored_path),
+        source_file_path=stored_original["reference"],
         file_sha256=file_hash,
     )
     db.add(paper)
@@ -80,6 +88,9 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         metadata_snapshot={
             "original_filename": raw_name,
             "sha256": file_hash,
+            "storage_backend": stored_original["backend"],
+            "original_bytes_durable": stored_original["durable"],
+            "storage_object_key": stored_original.get("object_key"),
             "page_count": extracted.page_count,
             "text_characters": extracted.text_characters,
             "extraction_method": extracted.extraction_method,
@@ -127,8 +138,14 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         "text_coverage_ratio": extracted.text_coverage_ratio,
         "extraction_warnings": extracted.warnings or [],
         "sha256": file_hash,
+        "storage_backend": stored_original["backend"],
+        "binary_storage_durable": stored_original["durable"],
         "duplicate_upload": False,
-        "note": "Text was extracted; no claims have been verified or generated from this PDF.",
+        "note": (
+            "Text passages are persisted in the database. Original PDF bytes are stored in a configured private object bucket."
+            if stored_original["durable"] else
+            "Text passages are persisted in the database, but original PDF bytes use filesystem storage and are not durable on serverless hosts. Configure private S3-compatible storage for durable originals."
+        ),
     }
 
 
