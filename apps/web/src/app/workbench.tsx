@@ -216,6 +216,7 @@ export default function ChronicleWorkbench() {
   const [question, setQuestion] = useState("");
   const [researchMode, setResearchMode] = useState<ResearchMode>("deep");
   const [maxSources, setMaxSources] = useState(10);
+  const [selectedPdfPaperIds, setSelectedPdfPaperIds] = useState<string[]>([]);
   const [creatingRun, setCreatingRun] = useState(false);
   const [runActionId, setRunActionId] = useState<string | null>(null);
   const [reportVersions, setReportVersions] = useState<ReportVersionSummary[]>([]);
@@ -572,6 +573,7 @@ export default function ChronicleWorkbench() {
         mode: researchMode,
         max_sources: maxSources,
         project_id: activeProjectId,
+        source_paper_ids: selectedPdfPaperIds,
         execute: true
       });
       setRuns((current) => [created, ...current.filter((run) => run.id !== created.id)]);
@@ -718,7 +720,13 @@ export default function ChronicleWorkbench() {
     try {
       const uploaded = await uploadPdf(file);
       setUploadMessage(uploaded.duplicate_upload ? "This PDF is already in your library." : "PDF added. " + (uploaded.passages_created ?? 0) + " passages extracted.");
-      setPapers(await listLibraryPapers(100));
+      const refreshedPapers = await listLibraryPapers(100);
+      setPapers(refreshedPapers);
+      if (uploaded.paper_id) {
+        setSelectedPdfPaperIds((current) => current.includes(uploaded.paper_id)
+          ? current
+          : current.length < 5 ? [...current, uploaded.paper_id] : current);
+      }
     } catch (error) {
       setUploadMessage(error instanceof Error ? error.message : "PDF upload failed.");
     } finally {
@@ -978,6 +986,21 @@ export default function ChronicleWorkbench() {
               <form onSubmit={submitResearch} className="space-y-4">
                 <label className="block text-sm font-medium text-slate-700">Workspace<select value={activeProjectId ?? ""} onChange={(event) => setActiveProjectId(event.target.value || null)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="">No workspace (standalone run)</option>{projects.filter((project) => !project.archived_at).map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
                 <label className="block text-sm font-medium text-slate-700">Question<textarea value={question} onChange={(event) => setQuestion(event.target.value)} required minLength={8} maxLength={2000} rows={4} placeholder="e.g. How does retrieval practice affect long-term learning outcomes?" className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-indigo-500"/></label>
+                <fieldset className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div><legend className="text-sm font-semibold text-slate-900">Attach PDF evidence</legend><p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Choose up to five PDFs from your private library. Chronicle ranks their extracted passages against your question and uses the selected excerpts in the evidence context.</p></div>
+                    <span className={"rounded-full px-2.5 py-1 text-[11px] font-semibold " + (selectedPdfPaperIds.length ? "bg-indigo-100 text-indigo-700" : "bg-white text-slate-500 border border-slate-200")}>{selectedPdfPaperIds.length}/5 attached</span>
+                  </div>
+                  {papers.filter((paper) => paper.source_provider === "upload").length ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{papers.filter((paper) => paper.source_provider === "upload").map((paper) => {
+                    const selected = selectedPdfPaperIds.includes(paper.id);
+                    const disabled = !selected && selectedPdfPaperIds.length >= 5;
+                    return <label key={paper.id} className={"flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition " + (selected ? "border-indigo-200 bg-white shadow-sm" : "border-slate-200 bg-white hover:border-slate-300") + (disabled ? " cursor-not-allowed opacity-50" : "")}>
+                      <input type="checkbox" checked={selected} disabled={disabled} onChange={(event) => setSelectedPdfPaperIds((current) => event.target.checked ? (current.length < 5 && !current.includes(paper.id) ? [...current, paper.id] : current) : current.filter((id) => id !== paper.id))} className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"/>
+                      <span className="min-w-0"><span className="block break-words text-xs font-semibold leading-5 text-slate-800">{paper.title}</span><span className="mt-1 block text-[11px] text-slate-500">{paper.monitoring_enabled ? "PDF · source monitoring enabled" : "PDF · extracted passages available"}</span></span>
+                    </label>;
+                  })}</div> : <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-white px-3.5 py-3"><p className="text-xs leading-5 text-slate-500">No uploaded PDFs yet. Add a paper to use its extracted passages alongside scholarly search results.</p><button type="button" onClick={() => setShowPdfUpload(true)} className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Add a PDF</button></div>}
+                  {selectedPdfPaperIds.length ? <p className="mt-3 flex items-start gap-2 text-[11px] leading-5 text-indigo-800"><Check size={13} className="mt-0.5 shrink-0"/>Attached PDFs are retrieved alongside Crossref/OpenAlex abstracts. Passage ranking is lexical BM25, not semantic embedding search; the report records the selected passage IDs and page anchors when available.</p> : null}
+                </fieldset>
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px]">
                   <label className="block text-sm font-medium text-slate-700">Research mode<select value={researchMode} onChange={(event) => setResearchMode(event.target.value as ResearchMode)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">{MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                   <label className="block text-sm font-medium text-slate-700">Source limit<select value={maxSources} onChange={(event) => setMaxSources(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value={5}>5 sources</option><option value={10}>10 sources</option><option value={20}>20 sources</option><option value={30}>30 sources</option></select></label>
