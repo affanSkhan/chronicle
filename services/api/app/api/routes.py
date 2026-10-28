@@ -247,7 +247,8 @@ def retry_research_run(
             "pipeline": "mode-specific-scholarly-discovery",
             "retry_of_run_id": original.id,
             "retried_at": datetime.now(timezone.utc).isoformat(),
-            "retry_policy": "fresh_run_with_original_question_mode_source_budget",
+            "source_paper_ids": list((original.configuration or {}).get("source_paper_ids") or []),
+            "retry_policy": "fresh_run_with_original_question_mode_source_budget_and_pdf_sources",
         },
     )
     db.add(retry)
