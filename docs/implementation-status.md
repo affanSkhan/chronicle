@@ -1,104 +1,56 @@
 # Chronicle implementation status
 
-Last updated: 2026-10-25
+Last reviewed: 2026-10-29  
+Repository: [affanSkhan/chronicle](https://github.com/affanSkhan/chronicle)  
+Completion branch: `feat/ff180-completion-pass`  
+Approved basis: VIIT FF180 synopsis for “Multi-Agent Research Assistant with Explainable Reasoning”.
 
-This status separates completed prototype behavior from research objectives in the VIIT SRS. It is not a claim that all specified requirements have been satisfied.
+This is an implementation audit, not a claim of full SRS compliance. The completion branch is separate from `main`; its new functionality must pass branch-head CI, be reviewed/merged, and be verified after deployment before it can be described as production functionality.
 
-## Implemented in the repository
-- **Auth and data isolation:** account registration/login using Argon2 password hashes and signed bearer tokens; authenticated API routes; user ownership checks on projects, runs, papers, PDF passages, evidence links, reports and exports.
-- **Workspace/run records:** persistent SQLAlchemy models, run status API, project APIs and owner-scoped run history.
-- **Scholarly discovery:** Crossref and OpenAlex metadata search, DOI/external-ID normalization and deduplicated library import.
-- **PDF ingestion:** file type/signature and byte-size checks, configurable 50 MB/300-page limits, PyMuPDF selectable-text extraction, page-aware passage records, SHA-256 deduplication and owner-scoped local storage paths.
-- **Execution and report:** background discovery task persists paper metadata, abstract passages, run state and an Academic Discovery Snapshot with coverage limitations.
-- **Optional model stage:** server-configured OpenAI-compatible structured claim extraction and synthesis. Returned passage references are checked against the supplied passage set. Generated claims/edges remain model-inferred/unreviewed, not independently verified.
-- **Evidence graph/review:** persisted claim-to-passage and claim-to-claim relationships, paper-dependency links, a graph API/UI and human review actions. Accepted/rejected/needs-review transitions preserve review history.
-- **Temporal review:** Crossref/OpenAlex status-check preview; manual source-event recording; dependency traversal; impacted claims/reports flagged for review; source-event history and impact summary.
-- **Audit trail:** audit events record actor, time, target, action, previous/new values, reason and resolution status for run/project creation, claims/evidence relationships, review transitions, dependency records, report versions and source-event impact. Per-run audit API/UI and Passport export are available.
-- **Version history and exports:** report-version creation/listing, selector and deterministic line-level comparison, Markdown, JSON and PDF Evidence Passport exports including source/version/passage/claim/dependency/event/report/audit snapshots. PDF rendering uses PyMuPDF and is covered by API regression tests; browser download acceptance still needs verification.
-- **Local stack and CI:** Dockerfiles, PostgreSQL/API/web Compose stack, Alembic configuration/migrations, example environment files and GitHub Actions for API tests, web lint/typecheck/build and container builds.
+## Implemented in the current repository
 
-## Important limitations / not yet implemented
-- **Not a full multi-agent system yet:** current executed flow is a bounded scholarly discovery pipeline, not the complete seven-layer planner/agent orchestration in the project proposal.
-- **Not full-text verification:** Crossref/OpenAlex returns metadata and abstracts when available. No citation-entailment benchmarked verifier, full-text acquisition/appraisal, embeddings/hybrid retrieval or calibrated evidence-weight score exists.
-- **Worker durability:** the feature branch adds owner-scoped cancellation and retry-as-a-fresh-run, with audit records and run lineage. Runs still use FastAPI in-process background tasks rather than a durable queue; a process restart can interrupt work, per-subtask checkpoints are not persisted, and restart-safe recovery/distributed cancellation are not implemented. In-process scheduled monitoring remains single-process; for sleeping/free hosts, the hourly GitHub Actions workflow requires the CHRONICLE_DATABASE_URL repository secret.
-- **Temporal coverage:** Crossref/OpenAlex checks can be scheduled for papers opted into monitoring, but these public metadata feeds are incomplete and do not equal comprehensive publisher surveillance. New signals remain review prompts; the scheduler does not automatically change paper status or create SourceEvents.
-- **Research Hypothesis Lab:** displays optional model-suggested candidate questions based on the current synthesis. It is not a graph-based novelty detector, and no prior-art recall or hypothesis-quality experiment has been performed.
-- **PDF/records:** bounded Tesseract OCR fallback for low-text pages is implemented on the feature branch, with per-passage extraction metadata and coverage warnings; OCR accuracy on real scanned papers is not measured. Private durable object storage and retention/permanent-deletion controls remain unfinished.
-- **Deployment status (25-Oct-2026):** the SRS lifecycle branch was merged as commit `5ee35f2aa2be6bf576345a0fcb64063332324433`. Vercel reports both production projects READY on that commit. The connected Neon `chronicle` database was snapshotted before migration and now reports Alembic revision `0007_run_cancel_retry`; verification confirmed the `archived_at`, cancellation/retry columns, `VARCHAR(40)` run status and retry index. The live aliases could not be fetched from this audit session because the Vercel integration denied deployment-protection access, so a signed-in browser walkthrough and live `/api/v1/ready` request remain to be performed by an authorized project user. The Render Blueprint is an alternative deployment path and is not proof that Render services exist. Vercel function filesystems are temporary, so original PDF bytes still need private durable object storage.
-- **Production readiness:** no production/SLA deployment, monitoring/alerting, rate-limit/abuse controls, regular backup/restore validation or independently reviewed secure-cookie session model has been configured. JWT secret defaults are explicitly local-only; production setting rejects the known default secret.
-- **Security testing:** API tests now include two-account isolation and private-route checks, but a comprehensive security review, prompt-injection evaluation, load test and privacy/retention audit remain outstanding.
-- **Evaluation:** a deterministic labelled-JSONL evaluation harness and protocol are included, but no reported benchmark results yet for SciFact/SciFact-Open, LitQA2, ScholarQABench, dependency precision/recall, contradiction per-class F1 or temporal impact precision/recall/false alarms.
+- **Identity and workspace security:** Argon2 password hashes, signed bearer tokens, owner-scoped workspace/run/source/evidence queries, archive/restore, and audit events for material operations.
+- **Scholarly retrieval:** Crossref and OpenAlex adapters, DOI/title normalization and deduplication, provider rank fusion, and reciprocal-rank fusion across planned subqueries. Coverage limitations and provider errors are preserved rather than hidden.
+- **Four execution modes:** Quick Discovery, Deep Research, Academic Review, and Forensic Analysis have bounded, mode-specific query plans and stage policies. The planner is deterministic; it is not the full autonomous multi-agent/LangGraph architecture in the synopsis.
+- **PDF ingestion:** PDF content-type/signature, byte and page limits, PyMuPDF extraction, bounded Tesseract OCR for low-text pages, passage/page metadata, SHA-256 duplicate detection, and per-file extraction/coverage warnings. OCR behavior is tested with mocks; real-scan accuracy is not measured.
+- **PDF-to-run evidence path (completion branch):** A run can attach up to five PDFs owned by the authenticated user. The pipeline loads saved page-aware passages and ranks them with BM25. When `HF_TOKEN` is configured, it reranks a bounded lexical shortlist using Hugging Face feature-extraction embeddings and reciprocal-rank fusion. If the token is absent or the service fails, the run falls back to BM25 and records that state. Retrieval scores are not confidence scores; dense embeddings are calculated per run and are not persistently indexed.
+- **Claim extraction and verification:** Optional configured LLM stages produce schema-validated claim/synthesis candidates with passage IDs. A separate verifier supports supported, partially supported, contradicted, insufficient-evidence, and unverifiable labels. Invalid passage pointers are discarded or downgraded; generated judgments remain review prompts, not scientific truth.
+- **Evidence graph and review:** Persisted sources, versions, passages, studies, claims, report versions, typed relations, review transitions, and audit metadata; graph output also exposes report conclusions and recommendations from saved synthesis. Human acceptance/rejection actions are available.
+- **Dependency candidates:** Recognized dataset/study-registry identifiers and high-overlap abstracts produce review-only candidate links. Confirmed relationships can affect temporal impact traversal. This is a limited heuristic detector, not generalized citation ancestry or proof of study independence.
+- **Temporal records and targeted reassessment:** Crossref/OpenAlex status checks, manually recorded source events, dependency traversal, impacted claim/report review flags, and preserved report versions. A researcher can request owner-scoped, bounded re-verification of affected claims; model verdicts are audit-logged and remain flagged for human review. Scheduled signals still do not automatically become authoritative events, and queued/background reassessment after detected updates is not implemented.
+- **Report lifecycle and exports:** Report version history, parent links, change summaries, Markdown, JSON, and PDF Evidence Passport exports with source/passage/claim/dependency/event/audit snapshots.
+- **Permanent uploaded-PDF deletion (completion branch):** Owner-scoped delete endpoint removes original bytes when the configured storage backend can do so, deletes passages and claims derived from those passages plus dependent claim records, removes source dependency/status/event/study records, and redacts impacted report versions and sensitive audit payloads. This is application-level deletion; backups and third-party retention are not purged by this endpoint.
+- **UI improvements (completion branch):** PDF picker with a five-file limit, clear lexical/dense retrieval disclosure, private storage durability warning, and an irreversible-delete dialog explaining which dependent records are removed/redacted.
+- **Testing and local deployment:** API unit/integration tests, SQLite migration tests, Next.js typecheck/lint/build, container validation/build, Docker Compose, Alembic, example environment files, GitHub Actions CI, and an evaluation metrics/protocol harness.
 
-All sample/demo content and model-assisted claims must be treated as unverified research assistance. No benchmark or scientific-accuracy result should be claimed without conducting and documenting the specified experiment.
+## Still partial or not implemented
 
+- **Production document storage requires explicit verification.** The currently visible Vercel API environment variables do not include an OBJECT_STORAGE configuration; until a private object store is configured and upload/read/delete is tested in production, uploaded originals may rely on ephemeral filesystem storage. Do not describe these originals as durable.
 
-## SRS implementation pass: planning and citation verification
+1. **Not yet a complete multi-agent system.** The executed flow is a bounded deterministic pipeline with modular model stages, not the full seven/eight-layer autonomous orchestrator described by the proposal.
+2. **Not a full-text systematic-review system.** External search returns metadata and abstracts; user-selected PDFs contribute retrieved excerpts. Publisher full-text acquisition, supplementary-material handling, document-wide critical appraisal, and exhaustive academic/web-provider coverage are not implemented.
+3. **Hybrid retrieval has limits.** Dense reranking is optional, requires `HF_TOKEN`, and considers a bounded BM25 shortlist to control inference usage. It does not guarantee semantic recall over every passage. Retrieval vectors are not stored in pgvector or persistently indexed. Without a token, BM25-only behavior is intentional.
+4. **Durable background jobs are missing.** Run processing still uses FastAPI in-process background tasks; restart-safe recovery, persisted subtask checkpoints, distributed cancellation and a durable worker queue are not implemented.
+5. **Original-file storage requires configuration.** The branch includes an S3-compatible private storage adapter, but durable originals work only when all `OBJECT_STORAGE_*` variables point to a private bucket and are verified. The fallback on Vercel is ephemeral. Direct-to-object-storage browser uploads for files larger than Vercel's 4.5 MB function request limit are not implemented; set a conservative API limit such as 3 MB on Vercel until that flow exists.
+6. **Retention is incomplete.** Permanent deletion redacts application records, but there is no policy-driven retention schedule, backup-expiry confirmation, or proof of provider-side erasure.
+7. **Temporal reassessment is human-led.** Changes flag affected claims/reports and reviewers can invoke the citation verifier. An automatic queued reverification job and comprehensive claim-by-claim before/after diff are missing.
+8. **Production operations require further work.** Rate limiting/abuse controls, comprehensive alerts/monitoring, backup/restore drills, a full route-by-route security review and a durable worker design are not complete. Live browser acceptance against production remains required.
+9. **Research evaluation remains unmeasured.** No reproducible, labelled held-out results have been recorded for SciFact/SciFact-Open, ALCE-style citation quality, relation-class F1, dependency precision/recall, temporal-impact precision/recall/false alarms, or configurations A–D. Metrics code and an evaluation protocol are not experimental results.
+10. **No efficacy claims are justified by unit tests.** Tests prove software-path behavior and regression protection; they do not establish that model judgments, dependency signals, or temporal-impact predictions are scientifically accurate.
 
-Branch: `feat/srs-research-planning-verification` (changes are staged for review; this note is not a claim of production deployment).
+## Configuration needed for the optional features
 
-- Added a deterministic Research Planner with four distinct, bounded execution profiles. It creates mode-specific scholarly subqueries, selects a documented set of workflow modules, persists the plan with the run/report snapshot, and displays the plan in the report.
-- The research runner now executes the planned Crossref/OpenAlex searches, merges duplicate DOI/title records across subqueries, retains the query trail, and uses the selected mode's focus in optional claim extraction and synthesis prompts.
-- Added a model-assisted claim-to-passage verification API. It requires a configured server-side model, checks that evidence pointers refer to supplied passage IDs, records the result in the claim and audit trail, and always marks it for human review. A missing model configuration returns a clear service-unavailable response without changing the claim.
-- Added tests for profile differentiation, query/source budgets, allowed citation-verdict labels, invalid passage-pointer downgrading, and provider response validation.
+- **Dense passage reranking:** `HF_TOKEN`, `HF_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5`, and `HF_EMBEDDING_API_BASE=https://router.huggingface.co/hf-inference/models`. Hugging Face provider/model availability and quotas apply. Without this, BM25 works without an embedding provider.
+- **Durable original PDF bytes:** `OBJECT_STORAGE_ENDPOINT_URL`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, and `OBJECT_STORAGE_SECRET_ACCESS_KEY` are all required; region and prefix may also be configured. Credentials must stay in the API's server-side environment.
+- **Model-assisted extraction/synthesis and citation verifier:** a server-side supported `LLM_API_KEY` / `LLM_MODEL` configuration (or supported legacy OpenAI setting) is required. Without it, retrieval-only workflows remain possible and reports should disclose the missing stage.
 
-Remaining SRS gaps that are **not** completed by this pass include durable background jobs/cancellation, scanned-PDF OCR, automatic study-family inference from source text, a graph-based adversarial search agent, comprehensive evaluation on SciFact/ALCE/LitQA2/ScholarQABench, load/security tests, and production storage/monitoring. Live scholarly-provider and LLM behavior still requires configured external services.
+## Deployment and release status
 
+The current FF180 completion changes are on `feat/ff180-completion-pass`, not yet merged into `main`. The branch introduces no database schema migration; the latest lifecycle migration in the repository is `0007_run_cancel_retry`. Before release, require the API, web and container checks to pass on the exact branch head, review the PR, merge, and verify both Git-integrated Vercel production deployments are READY on the merge SHA. Then run the production smoke suite described in [`docs/deployment-vercel.md`](deployment-vercel.md). Do not call dense embeddings or durable PDF storage enabled until the corresponding Vercel environment variables are verified.
 
-- The Evidence Graph now exposes the citation-support verifier on a selected claim and displays its assessment, rationale, evidence passage IDs, context notes and uncertainty while preserving the human-review warning.
+## Relevant references
 
-
-## SRS implementation pass: source-dependence candidates
-
-- Added a review-only dependency-candidate endpoint. It surfaces shared recognized dataset/study-registry identifiers and high-overlap abstracts, preserving the supporting signal and a cautious rationale.
-- Candidate discovery never writes graph edges automatically. A researcher must confirm a link before it enters the evidence graph.
-- Confirmed same_dataset and duplicate_or_overlap links are treated symmetrically during temporal impact traversal because neither paper is inherently upstream. This flags the other source for reassessment without automatically invalidating claims.
-- Remaining limitation: this is a high-specificity heuristic starter set, not general source-dependence detection. Its precision/recall must be measured against a labelled dataset before it is used as an evidence-strength metric.
-
-- The Evidence Graph now provides an opt-in dependency-candidate scan and a confirmation action. The scanner supports a small curated set of dataset/registry identifiers plus near-duplicate abstracts; its score is labelled as an uncalibrated heuristic, not a probability.
-
-
-## SRS implementation pass: evidence-linked hypothesis opportunities
-
-- Extended optional synthesis with research opportunity cards that require one or more validated passage IDs, a rationale, follow-up prior-art search queries, alternative explanations, and a falsification plan.
-- Invalid or unlinked opportunities are dropped instead of being rendered as evidence-grounded suggestions.
-- The report export and Hypothesis Lab show the candidate evidence path and a human-review warning. A button starts a forensic follow-up using a suggested prior-art query.
-- The model is instructed to treat passage contents as untrusted data, not as instructions; this is a mitigation, not a substitute for prompt-injection testing.
-
-
-## Mode execution semantics validated
-
-- The planner now chooses executable stage policies: Quick Discovery performs retrieval/reporting only; Deep Research and Academic Review enable optional claim extraction and evidence synthesis; Forensic Analysis additionally performs a bounded dependency-candidate scan over papers returned by that run.
-- Forensic suggestions are stored with the report snapshot but are not silently inserted into the evidence graph. The integration tests assert Quick Discovery never calls configured model stages and Forensic Analysis emits source-linked candidates without persisting a dependency automatically.
-
-
-## SRS implementation pass: workspace lifecycle and untrusted input
-
-- Research workspaces now support rename and soft-archive/restore, with owner-scoped queries and audit events. Archived workspaces remain readable and preserve their historical runs, but new runs cannot be submitted until restoration.
-- Claim extraction explicitly treats retrieved passages as untrusted data rather than instructions. Automated tests assert the control separation and source-pointer filtering.
-- An SRS requirement traceability matrix separates implemented, partial, outstanding, and not-measured items. Empirical benchmark metrics are not claimed without a labelled held-out evaluation.
-
-
-- The run lifecycle now distinguishes fully completed runs from completed runs with limitations. Partial provider failures, zero-source results, configured model-stage failures, and absent model credentials for a profile that expects model stages are exposed as completed_with_limitations instead of being presented as unqualified success. Quick Discovery remains intentionally retrieval-only.
-
-
-- Typed relationship validation now separates claim-to-passage labels from claim-to-claim dependencies and supports source links labelled cites/depends_on/corrects/retracts in addition to existing derived-from, same-dataset, duplicate/overlap, and cited-primary-source links. Regression coverage verifies that source-event propagation includes a linked correction notice.
-
-
-- Forensic reports now report raw retrieved source count separately from candidate-link count, clustered source count, candidate clusters, and unclustered source count. Both clustered and unclustered statuses explicitly avoid conclusions of proven dependence/independence. The source-dependence analysis is stored in the run configuration and Evidence Passport snapshot.
-
-
-## SRS implementation pass: scanned PDF OCR and extraction quality
-
-- PDF ingestion now performs optional, bounded Tesseract OCR for low-text pages (default cap: 50 OCR pages per upload, DPI clamped to 250). The API image installs Tesseract and English language data; the Python package remains configurable via environment settings.
-- Each saved passage preserves its actual extraction method (`pymupdf` or `tesseract_ocr`). Source-version metadata and upload responses now include OCR attempt/success/failure pages, low-text page numbers, page-text coverage and quality warnings.
-- OCR failures on individual pages do not discard recoverable native text from other pages. A document with no recoverable text returns a clear error rather than creating an apparently complete evidence record.
-- Automated tests use deterministic mocked OCR outputs to verify scanned, mixed-mode, OCR-unavailable and OCR-budget paths. These tests verify pipeline behavior, not OCR accuracy on real-world scans; representative image-quality testing remains required.
-
-- OCR defaults are configurable using ENABLE_PDF_OCR, PDF_OCR_MAX_PAGES, PDF_OCR_DPI, PDF_OCR_MIN_TEXT_CHARS, and PDF_OCR_LANGUAGE. The default page budget and render-DPI cap limit upload-triggered CPU and memory exposure. 
-
-## SRS implementation pass: run lifecycle and schema migration
-
-- Added explicit `cancel_requested` and `cancelled` run states, owner-scoped cancel and retry endpoints, audit records, and retry lineage. In-flight asynchronous search/model calls are cancelled cooperatively when a cancellation request arrives.
-- A retry starts a fresh run using the original question, mode, source budget and workspace; it never overwrites the previous run or its report/evidence history.
-- Added migration `0007_run_cancel_retry` to widen `research_runs.status` from VARCHAR(24) to VARCHAR(40) (required for `completed_with_limitations`) and add cancellation/retry metadata.
-- The worker still uses FastAPI background tasks. It is not restart-safe, does not persist per-subtask checkpoints, and is not coordinated across multiple API replicas. Cancellation and retry do not remove those durability limitations.
+- [SRS traceability matrix](srs-traceability.md)
+- [Evaluation protocol](evaluation-protocol.md)
+- [Vercel deployment and acceptance checklist](deployment-vercel.md)
+- [API README](../services/api/README.md)

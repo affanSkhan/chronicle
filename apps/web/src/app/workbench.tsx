@@ -15,13 +15,13 @@ import {
   importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents,
   listSourceStatusChecks, loginAccount, recordPaperStatusCheck, registerAccount,
   addPaperDependency, listDependencyCandidates,
-  cancelResearchRun, retryResearchRun,
+  cancelResearchRun, retryResearchRun, reverifySourceEventImpactedClaims,
   createResearchProject, listResearchProjects, updateResearchProject,
-  reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf,
+  reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf, deleteUploadedPdf,
   verifyClaimCitationSupport,
   type AcademicSearchResult, type AuthUser, type CitationVerificationResult, type DependencyCandidate, type EvidenceGraphResponse, type LibraryPaper,
   type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchProjectRecord, type ResearchRun,
-  type SourceEventRecord, type SourceStatusCheckRecord
+  type SourceEventRecord, type SourceEventReverificationResponse, type SourceStatusCheckRecord
 } from "@/lib/api";
 
 type View = "Overview" | "Research workspace" | "Evidence graph" | "Source timeline" | "Hypothesis lab";
@@ -198,6 +198,8 @@ export default function ChronicleWorkbench() {
   const [runs, setRuns] = useState<ResearchRun[]>([]);
   const [papers, setPapers] = useState<LibraryPaper[]>([]);
   const [sourceEvents, setSourceEvents] = useState<SourceEventRecord[]>([]);
+  const [sourceReverification, setSourceReverification] = useState<Record<string, SourceEventReverificationResponse>>({});
+  const [reverifyingSourceEventId, setReverifyingSourceEventId] = useState<string | null>(null);
   const [statusChecks, setStatusChecks] = useState<SourceStatusCheckRecord[]>([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceError, setWorkspaceError] = useState("");
@@ -216,6 +218,7 @@ export default function ChronicleWorkbench() {
   const [question, setQuestion] = useState("");
   const [researchMode, setResearchMode] = useState<ResearchMode>("deep");
   const [maxSources, setMaxSources] = useState(10);
+  const [selectedPdfPaperIds, setSelectedPdfPaperIds] = useState<string[]>([]);
   const [creatingRun, setCreatingRun] = useState(false);
   const [runActionId, setRunActionId] = useState<string | null>(null);
   const [reportVersions, setReportVersions] = useState<ReportVersionSummary[]>([]);
@@ -240,6 +243,8 @@ export default function ChronicleWorkbench() {
   const [savedPaperKeys, setSavedPaperKeys] = useState<string[]>([]);
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
+  const [pdfPendingDelete, setPdfPendingDelete] = useState<LibraryPaper | null>(null);
+  const [deletingPdfId, setDeletingPdfId] = useState<string | null>(null);
 
   const [eventFormOpen, setEventFormOpen] = useState(false);
   const [eventPaperId, setEventPaperId] = useState("");
@@ -572,6 +577,7 @@ export default function ChronicleWorkbench() {
         mode: researchMode,
         max_sources: maxSources,
         project_id: activeProjectId,
+        source_paper_ids: selectedPdfPaperIds,
         execute: true
       });
       setRuns((current) => [created, ...current.filter((run) => run.id !== created.id)]);
@@ -717,12 +723,44 @@ export default function ChronicleWorkbench() {
     setUploadMessage("");
     try {
       const uploaded = await uploadPdf(file);
-      setUploadMessage(uploaded.duplicate_upload ? "This PDF is already in your library." : "PDF added. " + (uploaded.passages_created ?? 0) + " passages extracted.");
-      setPapers(await listLibraryPapers(100));
+      setUploadMessage(uploaded.duplicate_upload
+        ? "This PDF is already in your library."
+        : "PDF added · " + (uploaded.passages_created ?? 0) + " passages extracted. " + (uploaded.note ?? ""));
+      const refreshedPapers = await listLibraryPapers(100);
+      setPapers(refreshedPapers);
+      if (uploaded.paper_id) {
+        setSelectedPdfPaperIds((current) => current.includes(uploaded.paper_id)
+          ? current
+          : current.length < 5 ? [...current, uploaded.paper_id] : current);
+      }
     } catch (error) {
       setUploadMessage(error instanceof Error ? error.message : "PDF upload failed.");
     } finally {
       setUploadingPdf(false);
+    }
+  }
+
+  async function permanentlyDeletePdf(paper: LibraryPaper) {
+    setDeletingPdfId(paper.id);
+    setWorkspaceError("");
+    try {
+      const deletion = await deleteUploadedPdf(paper.id);
+      const refreshedPapers = await listLibraryPapers(100);
+      setPapers(refreshedPapers);
+      setSelectedPdfPaperIds((current) => current.filter((id) => id !== paper.id));
+      setEventPaperId((current) => current === paper.id ? (refreshedPapers[0]?.id ?? "") : current);
+      setSourceEvents(await listSourceEvents(50));
+      setStatusChecks(await listSourceStatusChecks(50, false));
+      if (activeRunId) {
+        setReportVersions(await listReportVersions(activeRunId));
+        setGraphRefreshKey((value) => value + 1);
+      }
+      setPdfPendingDelete(null);
+      setNotice(`Permanently deleted PDF. Removed ${deletion.deleted_passage_count} passage(s), ${deletion.deleted_claim_count} claim(s), and redacted ${deletion.redacted_report_version_count} report version(s) where needed.`);
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not permanently delete this PDF.");
+    } finally {
+      setDeletingPdfId(null);
     }
   }
 
@@ -747,6 +785,24 @@ export default function ChronicleWorkbench() {
   }
 
   const [timelineError, setTimelineError] = useState("");
+
+  async function reverifyImpactedClaims(eventId: string) {
+    setReverifyingSourceEventId(eventId);
+    setTimelineError("");
+    try {
+      const result = await reverifySourceEventImpactedClaims(eventId, 5);
+      setSourceReverification((current) => ({ ...current, [eventId]: result }));
+      setSourceEvents(await listSourceEvents(50));
+      setNotice(
+        "Rechecked " + result.rechecked_count + " impacted claim(s); " +
+        result.skipped_count + " skipped or failed. All reviewed assessments remain pending human review."
+      );
+    } catch (error) {
+      setTimelineError(error instanceof Error ? error.message : "Could not re-check impacted claims.");
+    } finally {
+      setReverifyingSourceEventId(null);
+    }
+  }
 
   async function submitSourceEvent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -978,6 +1034,21 @@ export default function ChronicleWorkbench() {
               <form onSubmit={submitResearch} className="space-y-4">
                 <label className="block text-sm font-medium text-slate-700">Workspace<select value={activeProjectId ?? ""} onChange={(event) => setActiveProjectId(event.target.value || null)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="">No workspace (standalone run)</option>{projects.filter((project) => !project.archived_at).map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
                 <label className="block text-sm font-medium text-slate-700">Question<textarea value={question} onChange={(event) => setQuestion(event.target.value)} required minLength={8} maxLength={2000} rows={4} placeholder="e.g. How does retrieval practice affect long-term learning outcomes?" className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-indigo-500"/></label>
+                <fieldset className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div><legend className="text-sm font-semibold text-slate-900">Attach PDF evidence</legend><p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Choose up to five PDFs from your private library. Chronicle ranks their extracted passages against your question and uses the selected excerpts in the evidence context.</p></div>
+                    <span className={"rounded-full px-2.5 py-1 text-[11px] font-semibold " + (selectedPdfPaperIds.length ? "bg-indigo-100 text-indigo-700" : "bg-white text-slate-500 border border-slate-200")}>{selectedPdfPaperIds.length}/5 attached</span>
+                  </div>
+                  {papers.filter((paper) => paper.source_provider === "upload").length ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{papers.filter((paper) => paper.source_provider === "upload").map((paper) => {
+                    const selected = selectedPdfPaperIds.includes(paper.id);
+                    const disabled = !selected && selectedPdfPaperIds.length >= 5;
+                    return <label key={paper.id} className={"flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition " + (selected ? "border-indigo-200 bg-white shadow-sm" : "border-slate-200 bg-white hover:border-slate-300") + (disabled ? " cursor-not-allowed opacity-50" : "")}>
+                      <input type="checkbox" checked={selected} disabled={disabled} onChange={(event) => setSelectedPdfPaperIds((current) => event.target.checked ? (current.length < 5 && !current.includes(paper.id) ? [...current, paper.id] : current) : current.filter((id) => id !== paper.id))} className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"/>
+                      <span className="min-w-0"><span className="block break-words text-xs font-semibold leading-5 text-slate-800">{paper.title}</span><span className="mt-1 block text-[11px] text-slate-500">{"PDF · extracted passages available"}</span></span>
+                    </label>;
+                  })}</div> : <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-white px-3.5 py-3"><p className="text-xs leading-5 text-slate-500">No uploaded PDFs yet. Add a paper to use its extracted passages alongside scholarly search results.</p><button type="button" onClick={() => setShowPdfUpload(true)} className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Add a PDF</button></div>}
+                  {selectedPdfPaperIds.length ? <p className="mt-3 flex items-start gap-2 text-[11px] leading-5 text-indigo-800"><Check size={13} className="mt-0.5 shrink-0"/>Attached PDFs are retrieved alongside Crossref/OpenAlex abstracts. Passage ranking is lexical BM25, not semantic embedding search; the report records the selected passage IDs and page anchors when available.</p> : null}
+                </fieldset>
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px]">
                   <label className="block text-sm font-medium text-slate-700">Research mode<select value={researchMode} onChange={(event) => setResearchMode(event.target.value as ResearchMode)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">{MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                   <label className="block text-sm font-medium text-slate-700">Source limit<select value={maxSources} onChange={(event) => setMaxSources(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value={5}>5 sources</option><option value={10}>10 sources</option><option value={20}>20 sources</option><option value={30}>30 sources</option></select></label>
@@ -1027,7 +1098,14 @@ export default function ChronicleWorkbench() {
             </section>
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
               <button onClick={() => setShowPdfUpload((current) => !current)} aria-expanded={showPdfUpload} className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-slate-50"><span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><Upload size={17}/></span><span><span className="block text-sm font-semibold text-slate-900">Add a PDF</span><span className="mt-0.5 block text-xs text-slate-500">Extract text passages for evidence inspection.</span></span></span><ChevronDown size={17} className={"shrink-0 text-slate-400 transition " + (showPdfUpload ? "rotate-180" : "")}/></button>
-              {showPdfUpload ? <div className="border-t border-slate-100 p-5"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-indigo-300 hover:bg-indigo-50/40"><Upload size={20} className="text-slate-500"/><span className="mt-2 text-sm font-medium text-slate-800">{uploadingPdf ? "Uploading PDF…" : "Choose a PDF (server limit applies)"}</span><span className="mt-1 text-xs text-slate-500">The server validates size and page limits. Original files are stored on the configured server filesystem.</span><input className="sr-only" type="file" accept=".pdf,application/pdf" disabled={uploadingPdf} onChange={(event) => void handlePdfUpload(event.target.files?.[0])}/></label>{uploadMessage ? <p role="status" className="mt-3 text-sm text-slate-600">{uploadMessage}</p> : null}</div> : null}
+              {showPdfUpload ? <div className="border-t border-slate-100 p-5"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-indigo-300 hover:bg-indigo-50/40"><Upload size={20} className="text-slate-500"/><span className="mt-2 text-sm font-medium text-slate-800">{uploadingPdf ? "Uploading PDF…" : "Choose a PDF (server limit applies)"}</span><span className="mt-1 text-xs text-slate-500">The server validates the file signature, size and page limits. Extracted passages are stored in the database. Original PDFs use a private object bucket when configured; filesystem fallback is temporary on serverless hosts.</span><input className="sr-only" type="file" accept=".pdf,application/pdf" disabled={uploadingPdf} onChange={(event) => void handlePdfUpload(event.target.files?.[0])}/></label>{uploadMessage ? <p role="status" className="mt-3 text-sm leading-5 text-slate-600">{uploadMessage}</p> : null}
+                {papers.some((paper) => paper.source_provider === "upload") ? <div className="mt-4 border-t border-slate-200 pt-4">
+                  <div className="mb-2 flex items-center justify-between gap-3"><p className="text-xs font-semibold text-slate-800">Uploaded PDF library</p><span className="text-[11px] text-slate-500">{papers.filter((paper) => paper.source_provider === "upload").length} file(s)</span></div>
+                  <div className="space-y-2">{papers.filter((paper) => paper.source_provider === "upload").map((paper) => <div key={paper.id} className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center">
+                    <div className="min-w-0"><p className="break-words text-xs font-semibold leading-5 text-slate-800">{paper.title}</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Selected passages are searchable in new research runs. Deletion also removes their derived claims and redacts affected report versions.</p></div>
+                    <button type="button" onClick={() => setPdfPendingDelete(paper)} disabled={deletingPdfId !== null} className="inline-flex shrink-0 items-center justify-center gap-1.5 self-start rounded-lg border border-rose-200 px-3 py-2 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50 sm:self-center"><X size={13}/>Delete PDF</button>
+                  </div>)}</div>
+                </div> : null}</div> : null}
             </section>
           </div>
           <aside className="space-y-5">
@@ -1162,7 +1240,37 @@ export default function ChronicleWorkbench() {
               {timelineError ? <p role="alert" className="mt-3 text-sm text-rose-700">{timelineError}</p> : null}
               <div className="mt-5 flex justify-end"><button disabled={recordingEvent} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">{recordingEvent ? <LoaderCircle size={15} className="animate-spin"/> : <Check size={15}/>}Record source event</button></div>
             </form> : null}
-            {sourceEvents.length === 0 ? <EmptyState icon={History} title="No source events yet" description="When a paper is corrected, retracted, or updated, record the notice here." action={<button onClick={() => { setView("Research workspace"); setShowAdvancedSourceSearch(true); }} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Find papers first</button>}/> : <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30"><div className="divide-y divide-slate-100">{sourceEvents.map((event) => <article key={event.id} className="flex gap-3 p-4 sm:p-5"><span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Clock3 size={17}/></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold text-slate-900">{event.event_type.replaceAll("_", " ")}</span><StatusPill status={event.verification_status}>{event.verification_status.replaceAll("_", " ")}</StatusPill></div><p className="mt-1 text-xs text-slate-500">{event.paper_title} · {formatDate(event.event_date ?? event.observed_at)}</p><p className="mt-2 text-sm leading-6 text-slate-700">{event.description}</p>{event.source_url ? <a className="mt-2 inline-block break-all text-xs font-medium text-indigo-600 hover:underline" href={event.source_url} target="_blank" rel="noreferrer">Open source notice ↗</a> : null}</div></article>)}</div></section>}
+            {sourceEvents.length === 0 ? <EmptyState icon={History} title="No source events yet" description="When a paper is corrected, retracted, or updated, record the notice here." action={<button onClick={() => { setView("Research workspace"); setShowAdvancedSourceSearch(true); }} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Find papers first</button>}/> : <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30"><div className="divide-y divide-slate-100">{sourceEvents.map((event) => {
+                const reverification = sourceReverification[event.id];
+                return <article key={event.id} className="flex gap-3 p-4 sm:p-5">
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Clock3 size={17}/></span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold text-slate-900">{event.event_type.replaceAll("_", " ")}</span><StatusPill status={event.verification_status}>{event.verification_status.replaceAll("_", " ")}</StatusPill></div>
+                    <p className="mt-1 text-xs text-slate-500">{event.paper_title} · {formatDate(event.event_date ?? event.observed_at)}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">{event.description}</p>
+                    {event.source_url ? <a className="mt-2 inline-block break-all text-xs font-medium text-indigo-600 hover:underline" href={event.source_url} target="_blank" rel="noreferrer">Open source notice ↗</a> : null}
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={() => void reverifyImpactedClaims(event.id)} disabled={reverifyingSourceEventId === event.id} className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-wait disabled:opacity-50">
+                        {reverifyingSourceEventId === event.id ? <LoaderCircle size={13} className="animate-spin"/> : <ShieldCheck size={13}/>}
+                        {reverifyingSourceEventId === event.id ? "Re-checking…" : "Re-check impacted claims"}
+                      </button>
+                      {reverification ? <span role="status" className="text-[11px] text-slate-500">{reverification.rechecked_count} rechecked · {reverification.skipped_count} skipped</span> : null}
+                    </div>
+                    {reverification?.results?.length ? <details className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <summary className="cursor-pointer text-xs font-semibold text-slate-700">Inspect re-verification results</summary>
+                      <div className="mt-3 space-y-2">
+                        {reverification.results.map((item) => <div key={item.claim_id} className="rounded-lg border border-slate-200 bg-white p-3">
+                          <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-[10px] text-slate-500">Claim {item.claim_id.slice(0, 8)}</span>{item.verdict ? <StatusPill status={item.verdict}>{item.verdict.replaceAll("_", " ")}</StatusPill> : <StatusPill status="needs_review">{item.status.replaceAll("_", " ")}</StatusPill>}</div>
+                          {item.rationale ? <p className="mt-2 text-xs leading-5 text-slate-700">{item.rationale}</p> : null}
+                          {item.reason ? <p className="mt-2 text-xs leading-5 text-amber-700">{item.reason}</p> : null}
+                          {item.uncertainty_notes?.length ? <ul className="mt-2 list-disc pl-4 text-[11px] leading-5 text-slate-500">{item.uncertainty_notes.map((note, index) => <li key={index}>{note}</li>)}</ul> : null}
+                        </div>)}
+                      </div>
+                      <p className="mt-3 text-[11px] leading-5 text-amber-800">{reverification.note}</p>
+                    </details> : null}
+                  </div>
+                </article>;
+              })}</div></section>}
           </section>
           <aside className="space-y-4">
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><h3 className="text-sm font-semibold text-slate-900">Check source status</h3><p className="mt-1 text-xs leading-5 text-slate-500">Compare public metadata before recording an event.</p><label className="mt-4 block text-xs font-medium text-slate-600">Paper<select value={eventPaperId} onChange={(event) => { setEventPaperId(event.target.value); setStatusCheck(null); }} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="">Choose a paper</option>{papers.map((paper) => <option key={paper.id} value={paper.id}>{shorten(paper.title, 58)}</option>)}</select></label><button disabled={!eventPaperId || checkingStatus} onClick={() => void checkPaperStatus()} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{checkingStatus ? <LoaderCircle size={15} className="animate-spin"/> : <RefreshCw size={15}/>}Check external status</button>
@@ -1202,6 +1310,16 @@ export default function ChronicleWorkbench() {
 
         {workspaceLoading ? <p role="status" className="sr-only">Refreshing workspace data.</p> : null}
       </main>
+      {pdfPendingDelete ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" onClick={(event) => { if (event.target === event.currentTarget && deletingPdfId === null) setPdfPendingDelete(null); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="delete-pdf-title" className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-950/20 sm:p-7">
+          <div className="flex items-start gap-4"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><AlertCircle size={21}/></span><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-600">Permanent deletion</p><h2 id="delete-pdf-title" className="mt-1 text-lg font-semibold tracking-tight text-slate-950">Delete this source and its derived evidence?</h2></div></div>
+          <p className="mt-4 break-words text-sm font-semibold leading-6 text-slate-900">{pdfPendingDelete.title}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Chronicle will delete the original PDF where the storage backend is available, extracted passages, claims that cite those passages, and dependent claims. Saved report versions containing this source will be redacted so the deleted text is not reproduced.</p>
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">This cannot be undone. Reports unrelated to this source remain unchanged. Re-run research with remaining sources to create a new report.</p>
+          {workspaceError ? <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-xs leading-5 text-rose-700">{workspaceError}</p> : null}
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={deletingPdfId !== null} onClick={() => setPdfPendingDelete(null)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancel</button><button type="button" disabled={deletingPdfId !== null} onClick={() => void permanentlyDeletePdf(pdfPendingDelete)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-wait disabled:opacity-60">{deletingPdfId === pdfPendingDelete.id ? <LoaderCircle size={15} className="animate-spin"/> : <X size={15}/>} {deletingPdfId === pdfPendingDelete.id ? "Deleting source…" : "Permanently delete"}</button></div>
+        </section>
+      </div> : null}
       <footer className="px-4 pb-7 pt-2 text-center text-[11px] text-slate-400 sm:px-6">Chronicle · Research records remain subject to human review.</footer>
     </div>
   </div>;

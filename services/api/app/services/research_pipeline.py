@@ -11,7 +11,7 @@ import re
 
 from sqlalchemy import func, select
 
-from app.core.config import get_llm_config, get_settings
+from app.core.config import get_embedding_config, get_llm_config, get_settings
 from app.core.database import SessionLocal
 from app.models.entities import Claim, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun, Study
 from app.services.academic_search import search_papers
@@ -20,6 +20,7 @@ from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
 from app.services.dependency_candidates import build_dependency_clusters, suggest_dependency_candidates
 from app.services.research_planner import build_research_plan, focus_for_mode
+from app.services.hybrid_passage_retrieval import rank_passages_hybrid
 
 
 class ResearchRunCancelled(Exception):
@@ -107,6 +108,7 @@ def _markdown_report(
     execution_plan: dict | None = None,
     dependency_candidates: list[dict] | None = None,
     dependency_analysis: dict | None = None,
+    retrieval_metadata: dict | None = None,
 ) -> str:
     lines = [
         "# Academic Discovery Snapshot",
@@ -114,15 +116,31 @@ def _markdown_report(
         f"**Research question:** {question}",
         f"**Mode:** {mode}",
         f"**Generated:** {created_at}",
-        "**Workflow:** Crossref/OpenAlex metadata retrieval, abstract passage persistence, and optional structured claim extraction.",
+        "**Workflow:** Crossref/OpenAlex metadata discovery plus bounded passage retrieval from selected PDF documents; optional model-assisted extraction and synthesis.",
         "",
         "## Important interpretation note",
         "",
-        "This is a bibliographic discovery snapshot, not a completed systematic review. Abstracts and metadata are retrieved, but they do not replace full-text appraisal. Any model-generated claim below is unreviewed and must be checked by a researcher.",
+        "This is a research discovery snapshot, not a completed systematic review. Metadata abstracts and selected uploaded-PDF excerpts may both appear in the evidence context. Dense retrieval is optional and falls back to lexical ranking if the embedding provider is not configured or unavailable. Ranking signals are not calibrated evidence confidence. Page location and extraction quality still require inspection. Any model-generated claim below is unreviewed and must be checked by a researcher.",
         "",
         "## Retrieved literature",
         "",
     ]
+    if retrieval_metadata:
+        lines.extend([
+            "## Passage retrieval",
+            "",
+            f"- **Method:** {retrieval_metadata.get('method', 'unknown')}",
+            f"- **Dense retrieval status:** {retrieval_metadata.get('semantic_status', 'unknown')}",
+            f"- **Candidate passages:** {retrieval_metadata.get('candidate_count', 0)}",
+            f"- **Dense shortlist:** {retrieval_metadata.get('lexical_shortlist_count', 0)}",
+            f"- **Selected context passages:** {retrieval_metadata.get('selected_count', 0)}",
+        ])
+        if retrieval_metadata.get("embedding_provider"):
+            lines.append(f"- **Embedding provider/model:** {retrieval_metadata['embedding_provider']} / {retrieval_metadata.get('embedding_model', 'configured')}")
+        if retrieval_metadata.get("note"):
+            lines.append(f"- **Interpretation:** {retrieval_metadata['note']}")
+        lines.append("")
+
     if execution_plan:
         plan_lines = [
             "",
@@ -153,30 +171,39 @@ def _markdown_report(
             lines.append(f"- **DOI:** [{doi}](https://doi.org/{doi})")
         elif url:
             lines.append(f"- **Source:** {url}")
-        if paper.get("passage_id"):
-            lines.append(f"- **Abstract passage ID:** {paper['passage_id']}")
+        if paper.get("is_uploaded_document"):
+            lines.append("- **Source kind:** User-uploaded PDF")
+            lines.append(f"- **Selected evidence passages:** {paper.get('selected_passage_count', 0)}")
+            for passage_id in paper.get("passage_ids", []):
+                page_number = (paper.get("passage_pages") or {}).get(passage_id)
+                location = f" · page {page_number}" if page_number else ""
+                lines.append(f"- **PDF evidence passage:** {passage_id}{location}")
+        elif paper.get("passage_ids"):
+            lines.append("- **Selected abstract evidence passage(s):** " + ", ".join(paper.get("passage_ids", [])))
+        if not paper.get("is_uploaded_document") and paper.get("query_rank_fusion_score") is not None:
+            lines.append(f"- **Query rank fusion (RRF; ranking signal only):** {paper['query_rank_fusion_score']}")
         abstract = (paper.get("abstract") or "").strip()
         if abstract:
             lines.extend(["", "**Abstract**", "", "> " + abstract.replace("\n", "\n> "), ""])
-        else:
+        elif not paper.get("is_uploaded_document"):
             lines.extend(["", "_No abstract was available from the metadata provider._", ""])
 
     lines.extend(["## Evidence-bounded synthesis", ""])
     if not synthesis:
         lines.append("No model-generated synthesis was produced. " + synthesis_note)
     else:
-        lines.append("**Draft status:** This model-assisted synthesis uses retrieved abstracts, not a complete full-text review. Every listed finding below has at least one validated passage ID; the summary remains subject to human review.")
+        lines.append("**Draft status:** This model-assisted synthesis uses retrieved abstracts and selected PDF excerpts, not a complete systematic full-text review. Every listed finding below has at least one validated passage ID; the summary remains subject to human review.")
         lines.extend(["", "### Summary", "", synthesis.get("executive_summary", "No summary supplied."), ""])
         lines.extend(["### Extracted study context", ""])
         if not study_contexts:
             lines.append("No source-linked structured study-context records were extracted for this run.")
         else:
-            lines.append("The following context fields were extracted from the linked abstract passages. Model-inferred fields remain unreviewed and may omit information available only in the full paper.")
+            lines.append("The following context fields were extracted from the linked source passages. Model-inferred fields remain unreviewed and may omit information available only in the full paper.")
             lines.append("")
             for item in study_contexts:
                 source = next((paper for paper in papers if paper.get("paper_id") == item.get("paper_id")), None)
                 title = source.get("title") if source else item.get("paper_id", "Unknown paper")
-                lines.append(f"- **{title}** · study record `{item['id']}` · abstract passage `{item.get('source_passage_id') or 'unavailable'}`")
+                lines.append(f"- **{title}** · study record `{item['id']}` · source passage `{item.get('source_passage_id') or 'unavailable'}`")
                 for field, label in (("study_type", "Study type"), ("population", "Population"), ("method", "Method"), ("intervention", "Intervention")):
                     if item.get(field):
                         lines.append(f"  - {label}: {item[field]}")
@@ -196,13 +223,17 @@ def _markdown_report(
             if finding.get("context_note"):
                 lines.append(f"   - Context: {finding['context_note']}")
             for passage_id in finding.get("evidence_passage_ids", []):
-                paper = next((item for item in papers if item.get("passage_id") == passage_id), None)
+                paper = next((item for item in papers if passage_id in (item.get("passage_ids") or [item.get("passage_id")])), None)
                 if paper:
                     doi = _normalize_doi(paper.get("doi"))
                     source_url = f"https://doi.org/{doi}" if doi else (paper.get("landing_url") or "")
                     title = paper.get("title") or "Source paper"
                     source_label = f"[{title}]({source_url})" if source_url else title
-                    lines.append(f"   - Evidence trace: {source_label} · abstract passage ID {passage_id}")
+                    is_pdf = bool(paper.get("is_uploaded_document"))
+                    page_number = (paper.get("passage_pages") or {}).get(passage_id)
+                    location = f" · page {page_number}" if page_number else ""
+                    kind = "PDF passage" if is_pdf else "abstract passage"
+                    lines.append(f"   - Evidence trace: {source_label} · {kind} ID {passage_id}{location}")
                 else:
                     lines.append(f"   - Evidence trace: abstract passage ID {passage_id}")
             lines.append("")
@@ -288,7 +319,7 @@ def _markdown_report(
     if not extracted_claims:
         lines.append("No model-generated candidate claims were added. " + llm_note)
     else:
-        lines.append("These are model-extracted candidates linked to abstract passages. They are not independently verified conclusions.")
+        lines.append("These are model-extracted candidates linked to selected source passages (metadata abstracts or uploaded-PDF excerpts). They are not independently verified conclusions.")
         lines.append("")
         for index, claim in enumerate(extracted_claims, start=1):
             lines.append(f"{index}. **{claim['statement']}**")
@@ -304,8 +335,9 @@ def _markdown_report(
     if provider_errors:
         lines.append("- Provider limitations: " + ", ".join(f"{name}: {reason}" for name, reason in provider_errors.items()))
     lines.append("- Provider indexing is not exhaustive; absence from this result set is not evidence that a study does not exist.")
-    lines.append("- Retrieved abstracts are source text for inspection, not an automatic verdict on the research question.")
+    lines.append("- Retrieved abstracts and selected PDF excerpts are source text for inspection, not an automatic verdict on the research question.")
     lines.append("- Claims are marked model-inferred/unreviewed; a model response is not proof of truth.")
+    lines.append("- Dense retrieval, when configured, reranks a bounded BM25 shortlist; it does not guarantee recall of every semantically related passage.")
     lines.append("- Source dependency detection, context-aware contradiction adjudication, full-text citation entailment and calibrated evidence weighting require further evaluation.")
     return "\n".join(lines)
 
@@ -349,6 +381,7 @@ async def _execute_planned_search(
     provider_errors: dict[str, str] = {}
     merged: dict[str, dict] = {}
     successful_queries = 0
+    fused_query_scores: dict[str, float] = {}
     for index, (query, response) in enumerate(zip(queries, responses), start=1):
         if isinstance(response, Exception) or response is None:
             provider_errors[f"query_{index}"] = "This planned search failed or a provider was unavailable."
@@ -356,13 +389,14 @@ async def _execute_planned_search(
         successful_queries += 1
         for name, message in (response.get("provider_errors") or {}).items():
             provider_errors[f"query_{index}_{name}"] = message
-        for raw_item in response.get("results", []):
+        for result_rank, raw_item in enumerate(response.get("results", []), start=1):
             item = dict(raw_item)
             doi = _normalize_doi(item.get("doi"))
             normalized_title = " ".join(str(item.get("title") or "").lower().split())
             key = f"doi:{doi.lower()}" if doi else f"title:{normalized_title}"
             if not normalized_title:
                 continue
+            fused_query_scores[key] = fused_query_scores.get(key, 0.0) + 1.0 / (60 + result_rank)
             if key not in merged:
                 item["matched_queries"] = [query]
                 merged[key] = item
@@ -379,8 +413,14 @@ async def _execute_planned_search(
         raise RuntimeError("All planned scholarly searches failed.")
 
     result_items = list(merged.values())
+    for item in result_items:
+        doi = _normalize_doi(item.get("doi"))
+        normalized_title = " ".join(str(item.get("title") or "").lower().split())
+        key = f"doi:{doi.lower()}" if doi else f"title:{normalized_title}"
+        item["query_rank_fusion_score"] = round(fused_query_scores.get(key, 0.0), 8)
     result_items.sort(
         key=lambda item: (
+            item.get("query_rank_fusion_score") or 0.0,
             item.get("publication_year") or 0,
             bool(item.get("abstract")),
             str(item.get("title") or "").lower(),
@@ -422,6 +462,10 @@ async def execute_research_run(run_id: str) -> None:
             limit = run.max_sources
             mode = run.mode
             owner_user_id = run.owner_user_id
+            source_paper_ids = list(dict.fromkeys(
+                item for item in ((run.configuration or {}).get("source_paper_ids") or [])
+                if isinstance(item, str) and item
+            ))[:5]
             db.commit()
     if cancel_before_start:
         _finalize_cancelled_run(run_id, "Run was cancelled before the worker began.")
@@ -517,6 +561,7 @@ async def execute_research_run(run_id: str) -> None:
                             "planner_version": execution_plan.get("version", "1.0"),
                             "retrieved_at": datetime.now(timezone.utc).isoformat(),
                             "content_hash": abstract_hash,
+                            "query_rank_fusion_score": item.get("query_rank_fusion_score"),
                         },
                     )
                     db.add(version)
@@ -554,6 +599,10 @@ async def execute_research_run(run_id: str) -> None:
                     "paper_id": paper.id,
                     "paper_version_id": version.id,
                     "passage_id": passage_id,
+                    "passage_ids": [passage_id] if passage_id else [],
+                    "query_rank_fusion_score": item.get("query_rank_fusion_score"),
+                    "passage_pages": {},
+                    "is_uploaded_document": False,
                     "title": paper.title,
                     "authors": paper.authors or [],
                     "publication_year": paper.publication_year,
@@ -563,6 +612,111 @@ async def execute_research_run(run_id: str) -> None:
                     "source_provider": paper.source_provider,
                 })
             db.commit()
+
+        # Attach user-selected PDFs to the actual research run, not just the library.
+        # Their extracted passages are already persisted in PostgreSQL; original file bytes
+        # are not reopened from the ephemeral function filesystem here.
+        selected_pdf_passages: list[dict] = []
+        if source_paper_ids:
+            with SessionLocal() as db:
+                selected_papers = list(db.scalars(select(Paper).where(
+                    Paper.id.in_(source_paper_ids),
+                    Paper.owner_user_id == owner_user_id,
+                    Paper.source_provider == "upload",
+                )).all()) if owner_user_id else []
+                paper_ids_already_saved = {item["paper_id"] for item in saved_papers}
+                for document in selected_papers:
+                    latest_version = db.scalar(
+                        select(PaperVersion)
+                        .where(PaperVersion.paper_id == document.id)
+                        .order_by(PaperVersion.retrieved_at.desc())
+                        .limit(1)
+                    )
+                    document_passages = list(db.scalars(
+                        select(Passage)
+                        .where(Passage.paper_version_id == latest_version.id)
+                        .order_by(Passage.page_number.asc().nullsfirst(), Passage.char_start.asc().nullsfirst())
+                        .limit(250)
+                    ).all()) if latest_version else []
+                    for passage in document_passages:
+                        selected_pdf_passages.append({
+                            "id": passage.id,
+                            "paper_id": document.id,
+                            "paper_title": document.title,
+                            "doi": document.doi,
+                            "page_number": passage.page_number,
+                            "section_title": passage.section_title,
+                            "text": passage.text,
+                            "retrieval_method": "bm25_lexical",
+                            "source_kind": "uploaded_pdf",
+                        })
+                    if document.id not in paper_ids_already_saved:
+                        saved_papers.append({
+                            "paper_id": document.id,
+                            "paper_version_id": latest_version.id if latest_version else None,
+                            "passage_id": None,
+                            "passage_ids": [],
+                            "passage_pages": {},
+                            "title": document.title,
+                            "authors": document.authors or [],
+                            "publication_year": document.publication_year,
+                            "doi": document.doi,
+                            "landing_url": document.landing_url,
+                            "abstract": None,
+                            "source_provider": "upload",
+                            "is_uploaded_document": True,
+                            "sha256": document.file_sha256,
+                        })
+
+        # Rank metadata abstracts and uploaded-PDF excerpts together with BM25-style
+        # lexical retrieval. Reserve one highest-ranked passage per attached PDF, then
+        # fill the remaining context budget by global lexical rank.
+        candidate_passages = []
+        seen_candidate_ids: set[str] = set()
+        for candidate in passages_for_extraction + selected_pdf_passages:
+            candidate_id = str(candidate.get("id") or "")
+            if not candidate_id or candidate_id in seen_candidate_ids:
+                continue
+            seen_candidate_ids.add(candidate_id)
+            prepared = dict(candidate)
+            prepared.setdefault("retrieval_method", "metadata_abstract")
+            prepared.setdefault("source_kind", "metadata_abstract")
+            candidate_passages.append(prepared)
+        embedding_token, embedding_model, embedding_api_base = get_embedding_config(get_settings())
+        ranked_candidates, retrieval_metadata = await rank_passages_hybrid(
+            question,
+            candidate_passages,
+            top_k=len(candidate_passages),
+            embedding_token=embedding_token or None,
+            embedding_model=embedding_model,
+            embedding_api_base=embedding_api_base,
+            lexical_shortlist=32,
+            extra_source_ids=source_paper_ids,
+        )
+        first_for_each_pdf: dict[str, dict] = {}
+        for item in ranked_candidates:
+            paper_id = str(item.get("paper_id") or "")
+            if paper_id in source_paper_ids and item.get("source_kind") == "uploaded_pdf":
+                first_for_each_pdf.setdefault(paper_id, item)
+        selected_context = list(first_for_each_pdf.values())
+        selected_context_ids = {str(item["id"]) for item in selected_context}
+        for item in ranked_candidates:
+            if len(selected_context) >= 8:
+                break
+            if str(item["id"]) not in selected_context_ids:
+                selected_context.append(item)
+                selected_context_ids.add(str(item["id"]))
+        passages_for_extraction = selected_context[:8]
+        ranked_passage_by_id = {str(item["id"]): item for item in ranked_candidates}
+        for paper in saved_papers:
+            paper_id = str(paper["paper_id"])
+            source_passages = [
+                item for item in passages_for_extraction if str(item.get("paper_id") or "") == paper_id
+            ]
+            paper["passage_ids"] = [str(item["id"]) for item in source_passages]
+            paper["passage_id"] = paper["passage_ids"][0] if paper["passage_ids"] else None
+            paper["passage_pages"] = {str(item["id"]): item.get("page_number") for item in source_passages}
+            paper["selected_passage_count"] = len(source_passages)
 
         # Phase 2: optional model-backed candidates; retrieval-only mode is valid.
         if _run_cancellation_requested(run_id):
@@ -765,6 +919,7 @@ async def execute_research_run(run_id: str) -> None:
                     execution_plan=execution_plan,
                     dependency_candidates=dependency_candidates,
                     dependency_analysis=dependency_analysis,
+                    retrieval_metadata=retrieval_metadata,
                 ),
                 evidence_snapshot={
                     "query": question,
@@ -773,8 +928,22 @@ async def execute_research_run(run_id: str) -> None:
                     "executed_search_queries": provider_result.get("queries", []),
                     "providers_requested": provider_result.get("providers_requested"),
                     "provider_errors": provider_result.get("provider_errors", {}),
+                    "retrieval_fusion": {
+                        "method": "reciprocal_rank_fusion",
+                        "rank_constant": 60,
+                        "note": "RRF is a ranking signal, not a calibrated confidence or evidence-strength score.",
+                    },
                     "paper_ids": [paper["paper_id"] for paper in saved_papers],
-                    "passage_ids": [paper["passage_id"] for paper in saved_papers if paper["passage_id"]],
+                    "passage_ids": list(dict.fromkeys(
+                        passage_id
+                        for paper in saved_papers
+                        for passage_id in (paper.get("passage_ids") or ([paper["passage_id"]] if paper.get("passage_id") else []))
+                    )),
+                    "source_paper_ids": source_paper_ids,
+                    "retrieval_method": retrieval_metadata.get("method", "bm25_lexical"),
+                    "retrieval_metadata": retrieval_metadata,
+                    "selected_context_passage_ids": [str(item["id"]) for item in passages_for_extraction],
+                    "selected_context_count": len(passages_for_extraction),
                     "claim_ids": [claim["id"] for claim in persisted_claims],
                     "study_ids": [study["id"] for study in persisted_studies],
                     "generated_at": generated_at,
@@ -802,7 +971,11 @@ async def execute_research_run(run_id: str) -> None:
                 "executed_search_queries": provider_result.get("queries", []),
                 "completed_at": generated_at,
                 "paper_count": len(saved_papers),
-                "passage_count": sum(1 for paper in saved_papers if paper["passage_id"]),
+                "passage_count": len(passages_for_extraction),
+                "source_paper_ids": source_paper_ids,
+                "retrieval_method": retrieval_metadata.get("method", "bm25_lexical"),
+                "retrieval_metadata": retrieval_metadata,
+                "selected_context_count": len(passages_for_extraction),
                 "claim_candidate_count": len(persisted_claims),
                 "study_context_count": len(persisted_studies),
                 "dependency_candidate_count": len(dependency_candidates),

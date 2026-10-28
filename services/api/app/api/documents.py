@@ -1,16 +1,19 @@
+from datetime import datetime, timezone
 from pathlib import Path
 import hashlib
 import re
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.entities import Paper, PaperVersion, Passage, User
+from app.models.entities import AuditEvent, Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage, ReportVersion, SourceEvent, SourceStatusCheck, Study, User
 from app.services.pdf_ingestion import extract_pdf
+from app.services.private_object_storage import delete_original_pdf, store_original_pdf
+from app.services.audit import record_audit_event
 
 router = APIRouter(prefix="/documents", tags=["documents"], dependencies=[Depends(get_current_user)])
 settings = get_settings()
@@ -53,10 +56,17 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
 
     raw_name = Path(file.filename or "uploaded-document.pdf").name
     safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(raw_name).stem).strip(".-_")[:80] or "document"
-    upload_dir = Path(settings.upload_dir) / current_user.id
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    stored_path = upload_dir / f"{file_hash}.pdf"
-    stored_path.write_bytes(data)
+    try:
+        stored_original = store_original_pdf(
+            data,
+            owner_id=current_user.id,
+            sha256=file_hash,
+            settings=settings,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Private PDF storage failed. No upload record was created.") from exc
 
     title = extracted.title or safe_stem
     author_list = [extracted.author] if extracted.author else []
@@ -68,7 +78,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         source_provider="upload",
         external_id=file_hash,
         landing_url=None,
-        source_file_path=str(stored_path),
+        source_file_path=stored_original["reference"],
         file_sha256=file_hash,
     )
     db.add(paper)
@@ -80,6 +90,9 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         metadata_snapshot={
             "original_filename": raw_name,
             "sha256": file_hash,
+            "storage_backend": stored_original["backend"],
+            "original_bytes_durable": stored_original["durable"],
+            "storage_object_key": stored_original.get("object_key"),
             "page_count": extracted.page_count,
             "text_characters": extracted.text_characters,
             "extraction_method": extracted.extraction_method,
@@ -127,8 +140,14 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         "text_coverage_ratio": extracted.text_coverage_ratio,
         "extraction_warnings": extracted.warnings or [],
         "sha256": file_hash,
+        "storage_backend": stored_original["backend"],
+        "binary_storage_durable": stored_original["durable"],
         "duplicate_upload": False,
-        "note": "Text was extracted; no claims have been verified or generated from this PDF.",
+        "note": (
+            "Text passages are persisted in the database. Original PDF bytes are stored in a configured private object bucket."
+            if stored_original["durable"] else
+            "Text passages are persisted in the database, but original PDF bytes use filesystem storage and are not durable on serverless hosts. Configure private S3-compatible storage for durable originals."
+        ),
     }
 
 
@@ -164,4 +183,179 @@ def list_passages(
             "text_hash": row.text_hash,
             "extraction_method": row.extraction_method,
         } for row in results],
+    }
+
+
+@router.delete("/papers/{paper_id}")
+def permanently_delete_uploaded_pdf(
+    paper_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Permanently remove an uploaded PDF, its passage data, and derived report text.
+
+    Older report versions in impacted runs are retained as records but redacted so
+    they cannot keep reproducing deleted PDF-derived material. Claims with no
+    surviving passage evidence are deleted; claims with other evidence are marked
+    for review rather than silently retaining a confident assessment.
+    """
+    paper = db.scalar(select(Paper).where(
+        Paper.id == paper_id,
+        Paper.owner_user_id == current_user.id,
+        Paper.source_provider == "upload",
+    ))
+    if paper is None:
+        raise HTTPException(status_code=404, detail="Uploaded PDF not found in your library.")
+
+    version_ids = set(db.scalars(
+        select(PaperVersion.id).where(PaperVersion.paper_id == paper.id)
+    ).all())
+    passage_ids = set(db.scalars(
+        select(Passage.id).where(Passage.paper_version_id.in_(version_ids))
+    ).all()) if version_ids else set()
+
+    linked_relations = list(db.scalars(
+        select(EvidenceRelation).where(EvidenceRelation.passage_id.in_(passage_ids))
+    ).all()) if passage_ids else []
+    linked_claim_ids = {relation.claim_id for relation in linked_relations}
+    linked_claims = list(db.scalars(
+        select(Claim).where(Claim.id.in_(linked_claim_ids))
+    ).all()) if linked_claim_ids else []
+    all_claim_relations = list(db.scalars(
+        select(EvidenceRelation).where(EvidenceRelation.claim_id.in_(linked_claim_ids))
+    ).all()) if linked_claim_ids else []
+    surviving_passages_by_claim: dict[str, set[str]] = {}
+    for relation in all_claim_relations:
+        if relation.passage_id and relation.passage_id not in passage_ids and relation.reviewer_status != "rejected":
+            surviving_passages_by_claim.setdefault(relation.claim_id, set()).add(relation.passage_id)
+    # Permanently remove every claim that referenced the PDF, plus claims that
+    # explicitly depend on those claims. A surviving second citation is not enough
+    # to prove the text itself contains no information from the deleted document.
+    claims_to_delete = set(linked_claim_ids)
+    changed = True
+    while changed:
+        dependent_ids = set(db.scalars(select(EvidenceRelation.claim_id).where(
+            EvidenceRelation.related_claim_id.in_(claims_to_delete),
+            EvidenceRelation.relation_type == "depends_on",
+        )).all()) if claims_to_delete else set()
+        before = len(claims_to_delete)
+        claims_to_delete.update(dependent_ids)
+        changed = len(claims_to_delete) != before
+    impacted_run_ids = {claim.run_id for claim in linked_claims}
+    if claims_to_delete:
+        impacted_run_ids.update(db.scalars(select(Claim.run_id).where(Claim.id.in_(claims_to_delete))).all())
+
+    reports = list(db.scalars(select(ReportVersion)).all())
+    for report in reports:
+        snapshot = report.evidence_snapshot if isinstance(report.evidence_snapshot, dict) else {}
+        snapshot_papers = set(snapshot.get("paper_ids", [])) if isinstance(snapshot.get("paper_ids"), list) else set()
+        snapshot_passages = set(snapshot.get("passage_ids", [])) if isinstance(snapshot.get("passage_ids"), list) else set()
+        if paper.id in snapshot_papers or bool(passage_ids & snapshot_passages):
+            impacted_run_ids.add(report.run_id)
+
+    # Delete the original binary before committing the record purge. A missing local
+    # file is accepted because serverless /tmp storage may already have expired.
+    try:
+        storage_result = delete_original_pdf(
+            paper.source_file_path,
+            owner_id=current_user.id,
+            settings=settings,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Original PDF storage could not be cleaned up; no database records were deleted.") from exc
+
+    # Remove all relationship rows touching deleted passages or claims, including
+    # downstream dependency edges that point at a claim being purged.
+    relations_to_delete = list(db.scalars(select(EvidenceRelation).where(or_(
+        EvidenceRelation.passage_id.in_(passage_ids) if passage_ids else False,
+        EvidenceRelation.claim_id.in_(claims_to_delete) if claims_to_delete else False,
+        EvidenceRelation.related_claim_id.in_(claims_to_delete) if claims_to_delete else False,
+    ))).all())
+    sensitive_target_ids = {paper.id, *version_ids, *passage_ids, *claims_to_delete}
+    sensitive_target_ids.update(relation.id for relation in relations_to_delete)
+    for relation in relations_to_delete:
+        db.delete(relation)
+    claims_to_delete_rows = list(db.scalars(select(Claim).where(Claim.id.in_(claims_to_delete))).all()) if claims_to_delete else []
+    for claim in claims_to_delete_rows:
+        db.delete(claim)
+
+    report_redaction_count = 0
+    redacted_at = datetime.now(timezone.utc).isoformat()
+    for report in reports:
+        if report.run_id not in impacted_run_ids:
+            continue
+        report.content_markdown = (
+            "# Report redacted after source deletion\n\n"
+            "This saved report version contained a source or passage derived from a user-uploaded PDF "
+            "that was permanently deleted by the owner. Its original text has been removed. "
+            "Re-run the research workflow using the remaining authorized sources to create a fresh report."
+        )
+        report.evidence_snapshot = {
+            "redacted": True,
+            "redaction_reason": "owner_requested_uploaded_pdf_deletion",
+            "redacted_at": redacted_at,
+            "run_id": report.run_id,
+        }
+        report.change_summary = "Report content redacted after an owner-requested source deletion."
+        report.review_required = True
+        report_redaction_count += 1
+
+    for dependency in db.scalars(select(PaperDependency).where(or_(
+        PaperDependency.dependent_paper_id == paper.id,
+        PaperDependency.depends_on_paper_id == paper.id,
+    ))).all():
+        sensitive_target_ids.add(dependency.id)
+        db.delete(dependency)
+    for event in db.scalars(select(SourceEvent).where(SourceEvent.paper_id == paper.id)).all():
+        sensitive_target_ids.add(event.id)
+        db.delete(event)
+    for check in db.scalars(select(SourceStatusCheck).where(SourceStatusCheck.paper_id == paper.id)).all():
+        sensitive_target_ids.add(check.id)
+        db.delete(check)
+    for study in db.scalars(select(Study).where(Study.paper_id == paper.id)).all():
+        sensitive_target_ids.add(study.id)
+        db.delete(study)
+
+    # Historical audit entries remain as records, but payloads/reasons that could
+    # contain source or generated claim text are redacted across impacted runs.
+    audit_query = select(AuditEvent).where(or_(
+        AuditEvent.target_entity_id.in_(sensitive_target_ids),
+        AuditEvent.run_id.in_(impacted_run_ids) if impacted_run_ids else False,
+    ))
+    for event in db.scalars(audit_query).all():
+        event.previous_value = None
+        event.new_value = {"redacted": True, "reason": "owner_requested_source_deletion"}
+        event.reason = "Details redacted after owner-requested source deletion."
+
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=None,
+        target_entity_type="uploaded_pdf",
+        target_entity_id=paper.id,
+        action="uploaded_pdf.permanently_deleted",
+        previous_value=None,
+        new_value={
+            "deleted_passage_count": len(passage_ids),
+            "deleted_claim_count": len(claims_to_delete),
+            "claims_flagged_for_review": 0,
+            "redacted_report_version_count": report_redaction_count,
+            "storage_backend": storage_result.get("backend"),
+        },
+        reason="The owner permanently deleted an uploaded PDF and its derived report text.",
+        resolution_status="completed",
+    )
+    db.delete(paper)
+    db.commit()
+    return {
+        "deleted": True,
+        "paper_id": paper_id,
+        "deleted_passage_count": len(passage_ids),
+        "deleted_claim_count": len(claims_to_delete),
+        "claims_flagged_for_review": 0,
+        "redacted_report_version_count": report_redaction_count,
+        "original_storage_backend": storage_result.get("backend"),
+        "note": "The uploaded PDF and extracted passages were removed. Impacted report versions were redacted; claims with other evidence remain flagged for review.",
     }

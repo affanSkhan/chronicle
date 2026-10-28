@@ -90,6 +90,7 @@ export async function createResearchRun(input: {
   mode: ResearchMode;
   max_sources?: number;
   project_id?: string | null;
+  source_paper_ids?: string[];
   execute?: boolean;
 }): Promise<ResearchRun> {
   const response = await apiFetch(`${API_BASE}/api/v1/research/runs`, {
@@ -211,6 +212,8 @@ export interface PDFUploadResult {
   text_characters?: number;
   passages_created?: number;
   sha256?: string;
+  storage_backend?: "s3" | "filesystem" | string;
+  binary_storage_durable?: boolean;
   duplicate_upload: boolean;
   note?: string;
   message?: string;
@@ -225,6 +228,25 @@ export async function uploadPdf(file: File): Promise<PDFUploadResult> {
   });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<PDFUploadResult>;
+}
+
+export interface PDFDeletionResult {
+  deleted: boolean;
+  paper_id: string;
+  deleted_passage_count: number;
+  deleted_claim_count: number;
+  redacted_report_version_count: number;
+  original_storage_backend: string;
+  note: string;
+}
+
+export async function deleteUploadedPdf(paperId: string): Promise<PDFDeletionResult> {
+  const response = await apiFetch(`${API_BASE}/api/v1/documents/papers/${encodeURIComponent(paperId)}`, {
+    method: "DELETE",
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<PDFDeletionResult>;
 }
 
 
@@ -330,6 +352,40 @@ export interface SourceEventRecord {
   description: string;
   verification_status: string;
   metadata_snapshot: Record<string, unknown>;
+}
+
+export interface SourceEventReverificationResult {
+  claim_id: string;
+  status: "reverified" | "skipped" | "failed";
+  verdict?: string;
+  rationale?: string;
+  evidence_passage_ids?: string[];
+  uncertainty_notes?: string[];
+  review_required?: boolean;
+  reason?: string;
+}
+
+export interface SourceEventReverificationResponse {
+  event_id: string;
+  event_type: string;
+  source_verification_status: string;
+  rechecked_count: number;
+  skipped_count: number;
+  results: SourceEventReverificationResult[];
+  note: string;
+}
+
+export async function reverifySourceEventImpactedClaims(
+  eventId: string,
+  limit = 5
+): Promise<SourceEventReverificationResponse> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  const response = await apiFetch(
+    `${API_BASE}/api/v1/sources/events/${encodeURIComponent(eventId)}/reverify-impacted-claims?${params.toString()}`,
+    { method: "POST", cache: "no-store" }
+  );
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<SourceEventReverificationResponse>;
 }
 
 export async function listLibraryPapers(limit = 100): Promise<LibraryPaper[]> {

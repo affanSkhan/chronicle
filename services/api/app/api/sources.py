@@ -9,12 +9,13 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.core.config import get_llm_config, get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.entities import Paper, PaperDependency, PaperVersion, Passage, SourceEvent, SourceStatusCheck, User
+from app.models.entities import Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage, ResearchRun, SourceEvent, SourceStatusCheck, User
 from app.schemas.evidence import PaperImport, PaperMonitoringUpdate, PaperRead, PaperSearchResult, SourceEventCreate, SourceEventRead
 from app.services.academic_search import search_papers
+from app.services.citation_verification import verify_claim_with_llm
 from app.services.source_status import fetch_paper_status_signals, stable_signal_fingerprint
 from app.services.audit import record_audit_event
 from app.services.temporal_impact import affected_report_runs, impacted_claims, impacted_papers, mark_review_required
@@ -629,3 +630,174 @@ def list_source_events(paper_id: str, db: Session = Depends(get_db), current_use
     if db.scalar(select(Paper.id).where(Paper.id == paper_id, Paper.owner_user_id == current_user.id)) is None:
         raise HTTPException(status_code=404, detail="Paper not found.")
     return list(db.scalars(select(SourceEvent).where(SourceEvent.paper_id == paper_id).order_by(SourceEvent.observed_at.desc())).all())
+
+
+
+@router.post("/sources/events/{event_id}/reverify-impacted-claims")
+async def reverify_impacted_claims_for_source_event(
+    event_id: str,
+    limit: int = Query(default=5, ge=1, le=10),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Manually re-check claims affected by a recorded source event.
+
+    This action is explicitly triggered by a researcher. It does not convert an
+    unverified source signal into proof, automatically invalidate any claim, or
+    clear the human-review flag.
+    """
+    event_row = db.execute(
+        select(SourceEvent, Paper.title)
+        .join(Paper, Paper.id == SourceEvent.paper_id)
+        .where(SourceEvent.id == event_id, Paper.owner_user_id == current_user.id)
+    ).first()
+    if event_row is None:
+        raise HTTPException(status_code=404, detail="Source event not found.")
+    source_event, source_title = event_row
+    metadata = source_event.metadata_snapshot if isinstance(source_event.metadata_snapshot, dict) else {}
+    raw_claim_ids = metadata.get("affected_claim_ids", [])
+    affected_ids = list(dict.fromkeys(
+        value for value in raw_claim_ids if isinstance(value, str)
+    )) if isinstance(raw_claim_ids, list) else []
+
+    claims = list(db.scalars(
+        select(Claim)
+        .join(ResearchRun, Claim.run_id == ResearchRun.id)
+        .where(Claim.id.in_(affected_ids), ResearchRun.owner_user_id == current_user.id)
+        .order_by(Claim.created_at.asc())
+        .limit(limit)
+    ).all()) if affected_ids else []
+
+    if not claims:
+        return {
+            "event_id": source_event.id,
+            "event_type": source_event.event_type,
+            "source_verification_status": source_event.verification_status,
+            "rechecked_count": 0,
+            "skipped_count": 0,
+            "results": [],
+            "note": "This event has no saved affected claims accessible in your account. No claim was changed.",
+        }
+
+    api_key, api_base, model = get_llm_config(get_settings())
+    if not api_key or not model:
+        raise HTTPException(
+            status_code=503,
+            detail="Targeted source-event re-verification requires LLM_API_KEY and LLM_MODEL (or legacy OPENAI_API_KEY and OPENAI_MODEL). No claim was changed.",
+        )
+
+    results: list[dict] = []
+    rechecked_count = 0
+    skipped_count = 0
+    for claim in claims:
+        relations = db.scalars(
+            select(EvidenceRelation).where(
+                EvidenceRelation.claim_id == claim.id,
+                EvidenceRelation.passage_id.is_not(None),
+                EvidenceRelation.reviewer_status != "rejected",
+            )
+        ).all()
+        passage_ids = {edge.passage_id for edge in relations if edge.passage_id}
+        rows = db.execute(
+            select(Passage, Paper.title, Paper.doi)
+            .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+            .join(Paper, PaperVersion.paper_id == Paper.id)
+            .where(Passage.id.in_(passage_ids), Paper.owner_user_id == current_user.id)
+            .order_by(Passage.page_number.asc().nullsfirst(), Passage.char_start.asc().nullsfirst())
+        ).all() if passage_ids else []
+        passages = [
+            {
+                "id": passage.id,
+                "paper_title": title,
+                "doi": doi,
+                "page_number": passage.page_number,
+                "section_title": passage.section_title,
+                "text": passage.text[:8000],
+            }
+            for passage, title, doi in rows[:6]
+        ]
+        if not passages:
+            skipped_count += 1
+            results.append({
+                "claim_id": claim.id,
+                "status": "skipped",
+                "reason": "No accessible, non-rejected evidence passages were linked to this claim.",
+            })
+            continue
+
+        previous = {"assessment": claim.assessment, "review_required": claim.review_required}
+        change_context = {
+            "source_event_id": source_event.id,
+            "source_title": source_title,
+            "event_type": source_event.event_type,
+            "description": source_event.description,
+            "source_url": source_event.source_url,
+            "event_date": source_event.event_date.isoformat() if source_event.event_date else None,
+            "observed_at": source_event.observed_at.isoformat(),
+            "verification_status": source_event.verification_status,
+            "interpretation": "Review context only; not proof that any dependent claim is false.",
+        }
+        try:
+            verdict = await verify_claim_with_llm(
+                claim_statement=claim.statement,
+                claim_scope=claim.scope or {},
+                passages=passages,
+                api_key=api_key,
+                api_base=api_base,
+                model=model,
+                source_change_context=change_context,
+            )
+        except Exception:
+            skipped_count += 1
+            results.append({
+                "claim_id": claim.id,
+                "status": "failed",
+                "reason": "The verifier could not complete this claim. Its prior assessment was preserved.",
+            })
+            continue
+
+        claim.assessment = verdict["verdict"]
+        claim.review_required = True
+        record_audit_event(
+            db,
+            actor_user_id=current_user.id,
+            run_id=claim.run_id,
+            target_entity_type="claim",
+            target_entity_id=claim.id,
+            action="claim.reverified_after_source_event",
+            previous_value=previous,
+            new_value={
+                "assessment": claim.assessment,
+                "review_required": True,
+                "source_event_id": source_event.id,
+                "source_verification_status": source_event.verification_status,
+                "evidence_passage_ids": verdict["evidence_passage_ids"],
+                "rationale": verdict["rationale"],
+                "uncertainty_notes": verdict["uncertainty_notes"],
+                "model": model,
+                "provenance_basis": "model_inferred",
+            },
+            reason="Researcher-requested targeted re-verification after a source event; human confirmation is still required.",
+            resolution_status="needs_review",
+        )
+        rechecked_count += 1
+        results.append({
+            "claim_id": claim.id,
+            "status": "reverified",
+            "verdict": verdict["verdict"],
+            "rationale": verdict["rationale"],
+            "evidence_passage_ids": verdict["evidence_passage_ids"],
+            "uncertainty_notes": verdict["uncertainty_notes"],
+            "review_required": True,
+        })
+
+    db.commit()
+    return {
+        "event_id": source_event.id,
+        "event_type": source_event.event_type,
+        "source_verification_status": source_event.verification_status,
+        "rechecked_count": rechecked_count,
+        "skipped_count": skipped_count,
+        "results": results,
+        "note": "These are model-assisted reassessments, not proof of scientific truth. Claims remain flagged for human review. Unverified source events are not treated as confirmed corrections or retractions.",
+    }

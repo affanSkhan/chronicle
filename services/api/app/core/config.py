@@ -18,7 +18,19 @@ class Settings(BaseSettings):
     pdf_ocr_min_text_chars: int = 40
     pdf_ocr_language: str = "eng"
     upload_dir: str = "uploads"
+    # Optional S3-compatible private object storage for original uploaded PDF bytes.
+    # When unset, local filesystem fallback works for development only.
+    object_storage_endpoint_url: str = ""
+    object_storage_bucket: str = ""
+    object_storage_access_key_id: SecretStr | None = None
+    object_storage_secret_access_key: SecretStr | None = None
+    object_storage_region: str = "auto"
+    object_storage_prefix: str = "chronicle-private"
     openalex_api_key: SecretStr | None = None
+    # Optional Hugging Face Inference Providers dense embeddings; lexical retrieval works without it.
+    hf_token: SecretStr | None = None
+    hf_embedding_model: str = "BAAI/bge-small-en-v1.5"
+    hf_embedding_api_base: str = "https://router.huggingface.co/hf-inference/models"
     # Provider-agnostic OpenAI-compatible API settings; prefer these over legacy names.
     llm_api_key: SecretStr | None = None
     llm_api_base: str = ""
@@ -106,6 +118,18 @@ def get_llm_config(settings: Settings | None = None) -> tuple[str, str, str]:
     if not model:
         model = str(getattr(settings, "openai_model", "") or "").strip()
     return "", base, model
+
+
+def get_embedding_config(settings: Settings | None = None) -> tuple[str, str, str]:
+    """Resolve optional Hugging Face dense-retrieval configuration without exposing credentials."""
+    settings = settings or get_settings()
+    token_value = getattr(settings, "hf_token", None)
+    getter = getattr(token_value, "get_secret_value", None)
+    raw_token = getter() if callable(getter) else (token_value or "")
+    token = str(raw_token).strip()
+    model = str(getattr(settings, "hf_embedding_model", "") or "BAAI/bge-small-en-v1.5").strip()
+    api_base = str(getattr(settings, "hf_embedding_api_base", "") or "https://router.huggingface.co/hf-inference/models").strip()
+    return token, model, api_base
 
 
 def get_llm_request_options(api_base: str, model: str) -> dict[str, str]:
