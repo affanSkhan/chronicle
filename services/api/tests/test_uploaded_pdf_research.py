@@ -102,7 +102,7 @@ def test_selected_uploaded_pdf_flows_into_claims_report_graph_and_passport(monke
             "question": "How do source corrections affect evidence from study cohorts?",
             "mode": "academic",
             "max_sources": 5,
-            "execute": True,
+            "execute": False,
             "source_paper_ids": [paper_id],
         },
     )

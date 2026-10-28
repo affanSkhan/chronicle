@@ -90,3 +90,13 @@ Status definitions:
 The defensible contribution is the integrated workflow for **versioned source dependence and temporal change-impact propagation into saved claims and report versions**. Chronicle does not claim RAG, citation checking, knowledge graphs, or multi-agent orchestration alone as novel.
 
 No benchmark accuracy, contradiction F1, dependency precision/recall, temporal impact precision/recall, latency or throughput is claimed unless a labelled held-out evaluation or reproducible benchmark run is recorded. Unit-test fixtures validate code paths, not scientific accuracy.
+
+
+## Follow-up implementation pass — uploaded PDF to research-run context
+
+- Research runs accept up to four selected, owner-scoped uploaded PDF records. The API rejects non-uploaded sources and sources owned by another account.
+- Retries preserve the selected PDF source list. The pipeline loads the latest persisted passage version for each selected document, ranks chunks using a dependency-free BM25 lexical ranker, reserves context slots for selected PDFs, and fills the remaining budget with scholarly abstract passages.
+- Selected passage IDs, the retrieval strategy and candidate/selected counts are stored in report snapshots and run configuration. Page number, section, extraction method, exact passage text and the lexical score are included in a clearly labelled report section.
+- The UI supports selecting uploaded PDFs in the research form, shows the selected count and context-budget limitations, and offers an upload panel from the empty source-picker state.
+- Added lexical ranking tests, empty-context tests, upload-to-extraction/synthesis/graph/passport integration coverage, and cross-account source selection rejection coverage.
+- Remaining: retrieval is BM25 lexical rather than dense embeddings; OCR quality on representative scans is not measured; model/provider calls are mocked in tests; benchmark, browser acceptance, durable worker and persistent original-file storage work remain outstanding.

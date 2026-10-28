@@ -74,3 +74,8 @@ Save the input file hash, repository commit SHA, model/provider ID, prompt revis
 A research result should state the dataset and version, sampling strategy, annotation agreement/adjudication approach, split sizes, label distribution, exclusions, missing data, provider failures, model/prompt version, confidence intervals where justified, and limitations. Evaluate important strata separately, including update type (retraction/correction/expression of concern), dependency depth, and source/claim relationship class.
 
 No results are claimed by this repository until a labelled, documented, held-out evaluation has actually been run. Synthetic unit-test inputs validate the metric implementation only; they are not scientific benchmark evidence.
+
+
+## Uploaded-PDF retrieval acceptance note
+
+Research runs can now select up to four PDFs already in the signed-in user's library. The run loads persisted passage rows for each selected PDF, ranks them lexically with BM25, reserves a bounded number of context slots for document passages, and records passage IDs plus the retrieval strategy in the report snapshot. This verifies the upload-to-run wiring; it is not dense embedding retrieval and does not measure claim correctness.
