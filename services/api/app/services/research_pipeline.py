@@ -11,7 +11,7 @@ import re
 
 from sqlalchemy import func, select
 
-from app.core.config import get_llm_config, get_settings
+from app.core.config import get_embedding_config, get_llm_config, get_settings
 from app.core.database import SessionLocal
 from app.models.entities import Claim, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun, Study
 from app.services.academic_search import search_papers
@@ -20,7 +20,7 @@ from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
 from app.services.dependency_candidates import build_dependency_clusters, suggest_dependency_candidates
 from app.services.research_planner import build_research_plan, focus_for_mode
-from app.services.research_context import select_research_context
+from app.services.research_context import select_research_context_hybrid
 
 
 class ResearchRunCancelled(Exception):
@@ -620,10 +620,14 @@ async def execute_research_run(run_id: str) -> None:
         # Mix source-provider-ranked abstracts with BM25-ranked uploaded PDF passages.
         # PDF passages receive reserved slots so they cannot silently disappear behind
         # external metadata hits. BM25 is a heuristic, not a support verdict.
-        passages_for_extraction, context_selection = select_research_context(
+        embedding_key, embedding_base, embedding_model = get_embedding_config(get_settings())
+        passages_for_extraction, context_selection = await select_research_context_hybrid(
             question,
             passages_for_extraction,
             uploaded_document_passages,
+            embedding_api_key=embedding_key,
+            embedding_api_base=embedding_base,
+            embedding_model=embedding_model,
             max_total=8,
             max_document_passages=4,
         )
@@ -812,7 +816,7 @@ async def execute_research_run(run_id: str) -> None:
         generated_at = datetime.now(timezone.utc).isoformat()
         pdf_context_lines = [
             "", "## Selected PDF evidence context", "",
-            "The following uploaded-document passages were ranked for this question. Lexical scores are retrieval heuristics, not proof of relevance or support.", "",
+            "The following uploaded-document passages were ranked for this question. Retrieval scores are heuristics, not proof of relevance or support.", "",
         ]
         selected_pdf_context = [item for item in passages_for_extraction if item.get("extraction_method")]
         if selected_pdf_context:
@@ -823,7 +827,8 @@ async def execute_research_run(run_id: str) -> None:
                     f"### {item.get('paper_title') or 'Uploaded PDF'} · {location}{section}", "",
                     f"- Passage ID: {item.get('id')}",
                     f"- Extraction method: {item.get('extraction_method') or 'unknown'}",
-                    f"- BM25 lexical score: {item.get('retrieval_score', 0)}", "",
+                    f"- Retrieval method: {item.get('retrieval_method', 'bm25_lexical')}",
+                    f"- Retrieval score (heuristic): {item.get('retrieval_score', 0)}", "",
                     str(item.get("text") or ""), "",
                 ])
         else:

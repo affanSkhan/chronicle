@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr | None = None
     llm_api_base: str = ""
     llm_model: str = ""
+    # Optional, separately credentialed OpenAI-compatible embedding provider.
+    # These are never inferred from or paired with the generation credentials.
+    embedding_api_key: SecretStr | None = None
+    embedding_api_base: str = ""
+    embedding_model: str = ""
     # Backward-compatible names for existing deployments.
     openai_api_key: SecretStr | None = None
     openai_api_base: str = "https://api.openai.com/v1"
@@ -120,3 +125,19 @@ def get_llm_request_options(api_base: str, model: str) -> dict[str, str]:
     if "api.groq.com" in endpoint and model_id in {"openai/gpt-oss-20b", "openai/gpt-oss-120b"}:
         return {"reasoning_effort": "low"}
     return {}
+
+
+
+def get_embedding_config(settings: Settings | None = None) -> tuple[str, str, str]:
+    """Return separate embedding-provider credentials/configuration.
+
+    Chronicle never sends a generation-provider key to an embedding endpoint.
+    Dense retrieval is opt-in; absence of this configuration uses BM25 only.
+    """
+    settings = settings or get_settings()
+    value = getattr(settings, "embedding_api_key", None)
+    getter = getattr(value, "get_secret_value", None)
+    key = str(getter() if callable(getter) else value or "").strip()
+    base = str(getattr(settings, "embedding_api_base", "") or "").strip()
+    model = str(getattr(settings, "embedding_model", "") or "").strip()
+    return key, base, model
