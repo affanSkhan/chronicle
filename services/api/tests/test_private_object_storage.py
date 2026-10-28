@@ -98,3 +98,23 @@ def test_partial_s3_configuration_fails_closed() -> None:
         assert "partially configured" in str(exc)
     else:
         raise AssertionError("Partially configured private object storage should fail closed.")
+
+
+def test_serverless_env_overrides_development_default_durability(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("VERCEL", "1")
+    settings = SimpleNamespace(
+        object_storage_endpoint_url="",
+        object_storage_bucket="",
+        object_storage_access_key_id=None,
+        object_storage_secret_access_key=None,
+        upload_dir=str(tmp_path),
+        environment="development",
+    )
+    result = store_original_pdf(
+        b"%PDF-test",
+        owner_id="user-id",
+        sha256="e" * 64,
+        settings=settings,
+    )
+    assert result["backend"] == "filesystem"
+    assert result["durable"] is False
