@@ -91,7 +91,9 @@ def store_original_pdf(
                 raise
     else:
         os.chmod(destination, 0o600)
-    durable = str(getattr(settings, "environment", "development")).strip().lower() not in {"production", "prod"}
+    environment = str(getattr(settings, "environment", "development")).strip().lower()
+    serverless_runtime = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    durable = environment in {"development", "dev", "local", "test"} and not serverless_runtime
     return {
         "reference": str(destination),
         "backend": "filesystem",
