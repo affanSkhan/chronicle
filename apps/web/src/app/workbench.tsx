@@ -17,7 +17,7 @@ import {
   addPaperDependency, listDependencyCandidates,
   cancelResearchRun, retryResearchRun, reverifySourceEventImpactedClaims,
   createResearchProject, listResearchProjects, updateResearchProject,
-  reviewEvidenceRelation, saveAccessToken, searchAcademicSources, uploadPdf, deleteUploadedPdf,
+  reviewEvidenceRelation, reviewConclusion as reviewConclusionRecord, saveAccessToken, searchAcademicSources, uploadPdf, deleteUploadedPdf,
   verifyClaimCitationSupport,
   type AcademicSearchResult, type AuthUser, type CitationVerificationResult, type DependencyCandidate, type EvidenceGraphResponse, type LibraryPaper,
   type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchProjectRecord, type ResearchRun,
@@ -260,6 +260,7 @@ export default function ChronicleWorkbench() {
   const [showAdvancedSourceSearch, setShowAdvancedSourceSearch] = useState(false);
   const [showPdfUpload, setShowPdfUpload] = useState(false);
   const [reviewingRelationId, setReviewingRelationId] = useState<string | null>(null);
+  const [reviewingConclusionId, setReviewingConclusionId] = useState<string | null>(null);
   const [verifyingClaimId, setVerifyingClaimId] = useState<string | null>(null);
   const [verificationByClaim, setVerificationByClaim] = useState<Record<string, CitationVerificationResult>>({});
   const [dependencyCandidates, setDependencyCandidates] = useState<DependencyCandidate[]>([]);
@@ -613,6 +614,37 @@ export default function ChronicleWorkbench() {
       setGraphError(error instanceof Error ? error.message : "Could not save this review.");
     } finally {
       setReviewingRelationId(null);
+    }
+  }
+
+  async function reviewConclusionNode(nodeId: string, reviewerStatus: "accepted" | "rejected" | "needs_review") {
+    const conclusionId = nodeId.startsWith("conclusion:") ? nodeId.slice("conclusion:".length) : nodeId;
+    setReviewingConclusionId(nodeId);
+    setGraphError("");
+    try {
+      await reviewConclusionRecord(
+        conclusionId,
+        reviewerStatus,
+        reviewerStatus === "accepted"
+          ? "Reviewed by researcher in Chronicle."
+          : reviewerStatus === "rejected"
+            ? "Rejected by researcher in Chronicle."
+            : "Researcher requested further review."
+      );
+      const graph = activeRunId ? await getEvidenceGraph(activeRunId) : null;
+      if (graph) setGraphData(graph);
+      setSelectedGraphNodeId(nodeId);
+      setNotice(
+        reviewerStatus === "accepted"
+          ? "Conclusion accepted and human review recorded."
+          : reviewerStatus === "rejected"
+            ? "Conclusion rejected and review history recorded."
+            : "Conclusion returned to the review queue."
+      );
+    } catch (error) {
+      setGraphError(error instanceof Error ? error.message : "Could not save the conclusion review.");
+    } finally {
+      setReviewingConclusionId(null);
     }
   }
 
@@ -1188,6 +1220,15 @@ export default function ChronicleWorkbench() {
                     {verificationByClaim[selectedGraphNode.id].evidence_passage_ids.length ? <p className="mt-2 break-words text-[11px] leading-5 text-slate-500">Evidence passage IDs: {verificationByClaim[selectedGraphNode.id].evidence_passage_ids.join(", ")}</p> : null}
                     {verificationByClaim[selectedGraphNode.id].uncertainty_notes.length ? <div className="mt-2"><p className="text-[11px] font-semibold text-slate-600">Uncertainty notes</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{verificationByClaim[selectedGraphNode.id].uncertainty_notes.map((item, index) => <li key={index}>{item}</li>)}</ul></div> : null}
                     <p className="mt-3 text-[11px] leading-5 text-amber-800">{verificationByClaim[selectedGraphNode.id].notice}</p>
+                  </div> : null}
+                  {selectedGraphNode.type === "conclusion" ? <div className="mt-5 space-y-3 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
+                    <div><p className="text-xs font-semibold text-slate-900">Human review</p><p className="mt-1 text-xs leading-5 text-slate-600">Check the linked passages and claim lineage before recording a decision. Acceptance records your review; it does not certify scientific truth.</p></div>
+                    <StatusPill status={selectedGraphNode.reviewer_status ?? (selectedGraphNode.review_required ? "needs_review" : "accepted")} />
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" disabled={reviewingConclusionId === selectedGraphNode.id} onClick={() => void reviewConclusionNode(selectedGraphNode.id, "accepted")} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{reviewingConclusionId === selectedGraphNode.id ? "Saving…" : "Accept conclusion"}</button>
+                      <button type="button" disabled={reviewingConclusionId === selectedGraphNode.id} onClick={() => void reviewConclusionNode(selectedGraphNode.id, "rejected")} className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50">Reject conclusion</button>
+                      <button type="button" disabled={reviewingConclusionId === selectedGraphNode.id} onClick={() => void reviewConclusionNode(selectedGraphNode.id, "needs_review")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Needs review</button>
+                    </div>
                   </div> : null}
                   {visibleGraphEdges.filter((edge) => edge.id && (edge.source === selectedGraphNode.id || edge.target === selectedGraphNode.id) && edge.reviewer_status === "unreviewed").map((edge) => <div key={edge.id} className="rounded-xl border border-slate-100 p-3"><p className="text-xs font-medium text-slate-800">{edge.type.replaceAll("_", " ")}</p><p className="mt-1 text-[11px] text-slate-500">{shorten(graphSource.nodes.find((node) => node.id === (edge.source === selectedGraphNode.id ? edge.target : edge.source))?.label ?? "", 90)}</p><div className="mt-3 flex gap-2"><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "accepted")} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{reviewingRelationId === edge.id ? "Saving…" : "Accept"}</button><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "needs_review")} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Needs review</button></div></div>)}
                 </div> : null}
