@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from pathlib import Path
 import hashlib
+import os
 import re
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.entities import AuditEvent, Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage, ReportVersion, SourceEvent, SourceStatusCheck, Study, User
+from app.models.entities import AuditEvent, Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage, ReportVersion, SourceEvent, SourceStatusCheck, Study, UploadedPdfBlob, User
 from app.services.pdf_ingestion import extract_pdf
 from app.services.private_object_storage import delete_original_pdf, store_original_pdf
 from app.services.audit import record_audit_event
@@ -23,10 +24,26 @@ settings = get_settings()
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     if file.content_type not in {"application/pdf", "application/octet-stream"}:
         raise HTTPException(status_code=415, detail="Upload a PDF file.")
-    max_bytes = settings.max_upload_mb * 1024 * 1024
+    serverless_runtime = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    environment = str(getattr(settings, "environment", "development")).strip().lower()
+    def _has_secret(value: object) -> bool:
+        getter = getattr(value, "get_secret_value", None)
+        raw = getter() if callable(getter) else value
+        return bool(str(raw or "").strip())
+    private_storage_configured = all([
+        str(getattr(settings, "object_storage_endpoint_url", "") or "").strip(),
+        str(getattr(settings, "object_storage_bucket", "") or "").strip(),
+        _has_secret(getattr(settings, "object_storage_access_key_id", None)),
+        _has_secret(getattr(settings, "object_storage_secret_access_key", None)),
+    ])
+    database_fallback = not private_storage_configured and (
+        serverless_runtime or environment in {"production", "prod"}
+    )
+    upload_limit_mb = min(max(1, int(settings.max_upload_mb)), 3) if (serverless_runtime or database_fallback) else int(settings.max_upload_mb)
+    max_bytes = upload_limit_mb * 1024 * 1024
     data = await file.read(max_bytes + 1)
     if len(data) > max_bytes:
-        raise HTTPException(status_code=413, detail=f"PDF exceeds the {settings.max_upload_mb} MB upload limit.")
+        raise HTTPException(status_code=413, detail=f"PDF exceeds the {upload_limit_mb} MB upload limit for this deployment.")
     if not data.startswith(b"%PDF-"):
         raise HTTPException(status_code=415, detail="The uploaded file does not have a valid PDF signature.")
 
@@ -106,6 +123,8 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     )
     db.add(version)
     db.flush()
+    if stored_original["backend"] == "database":
+        db.add(UploadedPdfBlob(paper_version_id=version.id, sha256=file_hash, data=data))
 
     passages = [
         Passage(
@@ -144,9 +163,11 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         "binary_storage_durable": stored_original["durable"],
         "duplicate_upload": False,
         "note": (
-            "Text passages are persisted in the database. Original PDF bytes are stored in a configured private object bucket."
-            if stored_original["durable"] else
-            "Text passages are persisted in the database, but original PDF bytes use filesystem storage and are not durable on serverless hosts. Configure private S3-compatible storage for durable originals."
+            "Text passages and original PDF bytes are stored in a separate private database table."
+            if stored_original["backend"] == "database" else
+            "Text passages are persisted in PostgreSQL and original PDF bytes are stored in a private S3-compatible object bucket."
+            if stored_original["backend"] == "s3" else
+            "Text passages and original PDF bytes use local filesystem storage for development only."
         ),
     }
 
@@ -347,6 +368,12 @@ def permanently_delete_uploaded_pdf(
         reason="The owner permanently deleted an uploaded PDF and its derived report text.",
         resolution_status="completed",
     )
+    if version_ids:
+        for blob in db.scalars(
+            select(UploadedPdfBlob).where(UploadedPdfBlob.paper_version_id.in_(version_ids))
+        ).all():
+            db.delete(blob)
+
     db.delete(paper)
     db.commit()
     return {

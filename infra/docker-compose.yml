@@ -35,6 +35,15 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-50}
       MAX_PDF_PAGES: ${MAX_PDF_PAGES:-300}
+      ENABLE_PDF_OCR: ${ENABLE_PDF_OCR:-true}
+      PDF_OCR_MAX_PAGES: ${PDF_OCR_MAX_PAGES:-50}
+      PDF_OCR_DPI: ${PDF_OCR_DPI:-150}
+      PDF_OCR_MIN_TEXT_CHARS: ${PDF_OCR_MIN_TEXT_CHARS:-40}
+      PDF_OCR_LANGUAGE: ${PDF_OCR_LANGUAGE:-eng}
+      RESEARCH_EXECUTION_MODE: ${RESEARCH_EXECUTION_MODE:-inline}
+      RESEARCH_WORKER_POLL_SECONDS: ${RESEARCH_WORKER_POLL_SECONDS:-3}
+      RESEARCH_WORKER_HEARTBEAT_SECONDS: ${RESEARCH_WORKER_HEARTBEAT_SECONDS:-15}
+      RESEARCH_WORKER_STALE_AFTER_SECONDS: ${RESEARCH_WORKER_STALE_AFTER_SECONDS:-180}
       ENABLE_SCHEDULED_MONITORING: ${ENABLE_SCHEDULED_MONITORING:-true}
       SOURCE_MONITOR_POLL_SECONDS: ${SOURCE_MONITOR_POLL_SECONDS:-60}
       SOURCE_MONITOR_BATCH_SIZE: ${SOURCE_MONITOR_BATCH_SIZE:-20}
@@ -43,6 +52,16 @@ services:
       LLM_API_BASE: ${LLM_API_BASE:-https://api.groq.com/openai/v1}
       LLM_MODEL: ${LLM_MODEL:-openai/gpt-oss-20b}
       OPENALEX_API_KEY: ${OPENALEX_API_KEY:-}
+      SEMANTIC_SCHOLAR_API_KEY: ${SEMANTIC_SCHOLAR_API_KEY:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_EMBEDDING_MODEL: ${HF_EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      HF_EMBEDDING_API_BASE: ${HF_EMBEDDING_API_BASE:-https://router.huggingface.co/hf-inference/models}
+      OBJECT_STORAGE_ENDPOINT_URL: ${OBJECT_STORAGE_ENDPOINT_URL:-}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-}
+      OBJECT_STORAGE_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY_ID:-}
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-auto}
+      OBJECT_STORAGE_PREFIX: ${OBJECT_STORAGE_PREFIX:-chronicle-private}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
@@ -59,6 +78,57 @@ services:
       timeout: 4s
       retries: 10
       start_period: 20s
+
+  worker:
+    profiles: ["worker"]
+    build:
+      context: ../services/api
+      dockerfile: Dockerfile
+    container_name: chronicle-research-worker
+    restart: unless-stopped
+    command: ["python", "-m", "app.services.research_worker"]
+    environment:
+      APP_NAME: Chronicle API Worker
+      APP_VERSION: 0.1.0
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      API_PREFIX: /api/v1
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-development-only-change-this-secret-key}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-480}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://chronicle:${POSTGRES_PASSWORD:-chronicle-local-only}@postgres:5432/chronicle}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-50}
+      MAX_PDF_PAGES: ${MAX_PDF_PAGES:-300}
+      ENABLE_PDF_OCR: ${ENABLE_PDF_OCR:-true}
+      PDF_OCR_MAX_PAGES: ${PDF_OCR_MAX_PAGES:-50}
+      PDF_OCR_DPI: ${PDF_OCR_DPI:-150}
+      PDF_OCR_MIN_TEXT_CHARS: ${PDF_OCR_MIN_TEXT_CHARS:-40}
+      PDF_OCR_LANGUAGE: ${PDF_OCR_LANGUAGE:-eng}
+      UPLOAD_DIR: /app/uploads
+      RESEARCH_EXECUTION_MODE: queue
+      RESEARCH_WORKER_POLL_SECONDS: ${RESEARCH_WORKER_POLL_SECONDS:-3}
+      RESEARCH_WORKER_HEARTBEAT_SECONDS: ${RESEARCH_WORKER_HEARTBEAT_SECONDS:-15}
+      RESEARCH_WORKER_STALE_AFTER_SECONDS: ${RESEARCH_WORKER_STALE_AFTER_SECONDS:-180}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_API_BASE: ${LLM_API_BASE:-https://api.groq.com/openai/v1}
+      LLM_MODEL: ${LLM_MODEL:-openai/gpt-oss-20b}
+      OPENALEX_API_KEY: ${OPENALEX_API_KEY:-}
+      SEMANTIC_SCHOLAR_API_KEY: ${SEMANTIC_SCHOLAR_API_KEY:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_EMBEDDING_MODEL: ${HF_EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      HF_EMBEDDING_API_BASE: ${HF_EMBEDDING_API_BASE:-https://router.huggingface.co/hf-inference/models}
+      OBJECT_STORAGE_ENDPOINT_URL: ${OBJECT_STORAGE_ENDPOINT_URL:-}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-}
+      OBJECT_STORAGE_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY_ID:-}
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-auto}
+      OBJECT_STORAGE_PREFIX: ${OBJECT_STORAGE_PREFIX:-chronicle-private}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - chronicle_uploads:/app/uploads
 
   web:
     build:

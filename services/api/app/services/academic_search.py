@@ -6,11 +6,13 @@ abstract is full-text evidence or that a retrieved paper supports a claim.
 import asyncio
 import html
 import re
+from html.parser import HTMLParser
 from typing import Any
+from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
 
-from app.core.config import openalex_auth_headers
+from app.core.config import openalex_auth_headers, semantic_scholar_auth_headers
 from app.schemas.evidence import PaperSearchResult
 
 USER_AGENT = "Chronicle/0.1.0 (https://github.com/affanSkhan/chronicle)"
@@ -117,6 +119,164 @@ async def search_openalex(client: httpx.AsyncClient, query: str, limit: int) -> 
     return [paper for item in items if (paper := _openalex_item(item)) is not None]
 
 
+
+
+SEMANTIC_SCHOLAR_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
+DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/"
+
+
+def _semantic_scholar_item(item: dict[str, Any]) -> PaperSearchResult | None:
+    title = str(item.get("title") or "").strip()
+    if not title:
+        return None
+    external_ids = item.get("externalIds") or {}
+    if not isinstance(external_ids, dict):
+        external_ids = {}
+    doi = external_ids.get("DOI")
+    authors = [
+        str(author.get("name") or "").strip()
+        for author in (item.get("authors") or [])
+        if isinstance(author, dict) and str(author.get("name") or "").strip()
+    ]
+    url = str(item.get("url") or "").strip() or None
+    if not url and doi:
+        url = "https://doi.org/" + str(doi).strip()
+    return PaperSearchResult(
+        provider="semantic_scholar",
+        external_id=str(item.get("paperId") or "") or None,
+        doi=str(doi).strip() if doi else None,
+        title=title,
+        authors=authors,
+        abstract=_clean_markup(item.get("abstract")),
+        publication_year=item.get("year") if isinstance(item.get("year"), int) else None,
+        publisher=str(item.get("venue") or "").strip() or None,
+        landing_url=url,
+    )
+
+
+async def search_semantic_scholar(
+    client: httpx.AsyncClient, query: str, limit: int
+) -> list[PaperSearchResult]:
+    # The API documents lower recall for hyphenated terms; normalize only this
+    # provider's query while preserving Chronicle's original saved query.
+    normalized_query = re.sub(r"[-–—]+", " ", query).strip()
+    response = await client.get(
+        SEMANTIC_SCHOLAR_URL,
+        params={
+            "query": normalized_query,
+            "limit": max(1, min(int(limit), 100)),
+            "fields": "title,abstract,authors,year,externalIds,venue,url",
+        },
+        headers=semantic_scholar_auth_headers() or None,
+    )
+    response.raise_for_status()
+    items = response.json().get("data", [])
+    return [
+        paper for item in items
+        if isinstance(item, dict) and (paper := _semantic_scholar_item(item)) is not None
+    ]
+
+
+class _DuckDuckGoResultsParser(HTMLParser):
+    """Extract web-result titles/snippets without executing or rendering page HTML."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.results: list[dict[str, str]] = []
+        self._title_active = False
+        self._title_text: list[str] = []
+        self._title_href = ""
+        self._snippet_active = False
+        self._snippet_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        classes = set((attributes.get("class") or "").split())
+        if tag == "a" and "result__a" in classes:
+            self._title_active = True
+            self._title_text = []
+            self._title_href = str(attributes.get("href") or "")
+        elif "result__snippet" in classes and self.results:
+            self._snippet_active = True
+            self._snippet_depth = 1
+        elif self._snippet_active:
+            self._snippet_depth += 1
+
+    def handle_data(self, data: str) -> None:
+        if self._title_active:
+            self._title_text.append(data)
+        elif self._snippet_active and self.results:
+            self.results[-1]["snippet"] += data
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "a" and self._title_active:
+            title = re.sub(r"\s+", " ", " ".join(self._title_text)).strip()
+            if title and self._title_href:
+                self.results.append({"title": title, "href": self._title_href, "snippet": ""})
+            self._title_active = False
+            self._title_text = []
+            self._title_href = ""
+        elif self._snippet_active:
+            self._snippet_depth -= 1
+            if self._snippet_depth <= 0:
+                self._snippet_active = False
+                self._snippet_depth = 0
+
+
+def _public_web_result_url(value: str) -> str | None:
+    """Unwrap DuckDuckGo redirects and accept only HTTP(S) destinations."""
+    href = (value or "").strip()
+    if href.startswith("//"):
+        href = "https:" + href
+    parsed = urlparse(href)
+    if parsed.scheme not in {"http", "https"}:
+        return None
+    host = (parsed.hostname or "").lower()
+    if host.endswith("duckduckgo.com"):
+        candidate = parse_qs(parsed.query).get("uddg", [])
+        if not candidate:
+            return None
+        href = unquote(candidate[0])
+        parsed = urlparse(href)
+        if parsed.scheme not in {"http", "https"}:
+            return None
+    if not parsed.hostname or parsed.username or parsed.password:
+        return None
+    return href
+
+
+async def search_web(client: httpx.AsyncClient, query: str, limit: int) -> list[PaperSearchResult]:
+    """Search public web snippets. Snippets are discovery leads, not verified full text."""
+    response = await client.get(DUCKDUCKGO_HTML_URL, params={"q": query})
+    response.raise_for_status()
+    parser = _DuckDuckGoResultsParser()
+    parser.feed(response.text)
+    results: list[PaperSearchResult] = []
+    seen_urls: set[str] = set()
+    for item in parser.results:
+        url = _public_web_result_url(item.get("href", ""))
+        title = re.sub(r"\s+", " ", item.get("title", "")).strip()
+        snippet = re.sub(r"\s+", " ", item.get("snippet", "")).strip() or None
+        if not url or not title or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        host = (urlparse(url).hostname or "").lower()
+        results.append(PaperSearchResult(
+            provider="web",
+            external_id=url,
+            doi=None,
+            title=title[:1000],
+            authors=[],
+            abstract=snippet[:4000] if snippet else None,
+            publication_year=None,
+            publisher=host or None,
+            landing_url=url,
+        ))
+        if len(results) >= max(1, min(int(limit), 25)):
+            break
+    return results
+
+
 async def search_papers(query: str, limit: int = 10, provider: str = "all") -> dict[str, Any]:
     headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
     timeout = httpx.Timeout(20.0, connect=8.0)
@@ -130,6 +290,10 @@ async def search_papers(query: str, limit: int = 10, provider: str = "all") -> d
             tasks["crossref"] = search_crossref(client, query, limit)
         if provider in {"all", "openalex"}:
             tasks["openalex"] = search_openalex(client, query, limit)
+        if provider in {"all", "semantic_scholar"}:
+            tasks["semantic_scholar"] = search_semantic_scholar(client, query, limit)
+        if provider in {"all", "web"}:
+            tasks["web"] = search_web(client, query, limit)
         completed = await asyncio.gather(*tasks.values(), return_exceptions=True)
         for name, result in zip(tasks.keys(), completed):
             if isinstance(result, Exception):

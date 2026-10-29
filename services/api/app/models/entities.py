@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -107,6 +107,18 @@ class PaperVersion(Base):
 
     paper: Mapped[Paper] = relationship(back_populates="versions")
     passages: Mapped[list["Passage"]] = relationship(back_populates="paper_version", cascade="all, delete-orphan")
+
+
+class UploadedPdfBlob(Base):
+    """Private original bytes kept separately so ordinary PaperVersion reads stay small."""
+    __tablename__ = "uploaded_pdf_blobs"
+
+    paper_version_id: Mapped[str] = mapped_column(
+        ForeignKey("paper_versions.id", ondelete="CASCADE"), primary_key=True
+    )
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
 class Study(Base):

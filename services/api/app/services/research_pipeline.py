@@ -19,7 +19,8 @@ from app.services.audit import record_audit_event
 from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
 from app.services.dependency_candidates import build_dependency_clusters, suggest_dependency_candidates
-from app.services.research_planner import build_research_plan, focus_for_mode
+from app.services.research_planner import focus_for_mode
+from app.services.research_orchestrator import build_agentic_research_plan
 from app.services.hybrid_passage_retrieval import rank_passages_hybrid
 
 
@@ -178,7 +179,11 @@ def _markdown_report(
                 page_number = (paper.get("passage_pages") or {}).get(passage_id)
                 location = f" · page {page_number}" if page_number else ""
                 lines.append(f"- **PDF evidence passage:** {passage_id}{location}")
+        elif paper.get("passage_ids") and paper.get("source_provider") == "web":
+            lines.append("- **Source kind:** Public web search snippet (discovery lead, not verified full text)")
+            lines.append("- **Selected web-snippet passage(s):** " + ", ".join(paper.get("passage_ids", [])))
         elif paper.get("passage_ids"):
+            lines.append("- **Source kind:** Scholarly metadata abstract")
             lines.append("- **Selected abstract evidence passage(s):** " + ", ".join(paper.get("passage_ids", [])))
         if not paper.get("is_uploaded_document") and paper.get("query_rank_fusion_score") is not None:
             lines.append(f"- **Query rank fusion (RRF; ranking signal only):** {paper['query_rank_fusion_score']}")
@@ -440,7 +445,7 @@ async def _execute_planned_search(
     return provider_result, plan
 
 
-async def execute_research_run(run_id: str) -> None:
+async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) -> None:
     """Execute a discovery run and persist its status, source records and report."""
     cancel_before_start = False
     with SessionLocal() as db:
@@ -449,8 +454,12 @@ async def execute_research_run(run_id: str) -> None:
             return
         if run.status in {"cancel_requested", "cancelled"}:
             cancel_before_start = True
+        elif run.status == "running" and not claimed_by_worker:
+            # Prevent a duplicate inline invocation from racing a claimed durable worker.
+            return
         else:
-            run.status = "running"
+            if run.status != "running":
+                run.status = "running"
             run.demo = False
             run.error_message = None
             run.configuration = {
@@ -472,7 +481,7 @@ async def execute_research_run(run_id: str) -> None:
         return
 
     try:
-        execution_plan = build_research_plan(question, mode, limit)
+        execution_plan = await build_agentic_research_plan(question, mode, limit)
         # Persist the plan before network I/O so a failed or partial run remains inspectable.
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
@@ -593,6 +602,8 @@ async def execute_research_run(run_id: str) -> None:
                         "paper_title": paper.title,
                         "doi": paper.doi,
                         "text": abstract,
+                        "source_kind": "web_search_snippet" if paper.source_provider == "web" else "metadata_abstract",
+                        "retrieval_method": "web_search_snippet" if paper.source_provider == "web" else "metadata_abstract",
                     })
 
                 saved_papers.append({

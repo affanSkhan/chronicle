@@ -2,8 +2,8 @@
 
 Passage text is stored in Chronicle's relational database. Original PDF bytes can be
 stored in a private S3-compatible bucket (AWS S3, Cloudflare R2, or compatible service).
-A local filesystem fallback is retained for development and explicitly reported as
-non-durable on serverless hosts.
+A local filesystem fallback is retained for development. Production/serverless deployments
+without a configured private object store use a nullable database binary column instead.
 """
 from __future__ import annotations
 
@@ -72,9 +72,20 @@ def store_original_pdf(
             "object_key": key,
         }
 
-    # Local-only fallback for developer environments. Vercel's function filesystem
-    # is ephemeral, so the API response tells callers that the original bytes are
-    # not durably retained unless S3-compatible storage is configured.
+    # Do not put production uploads on an ephemeral serverless filesystem. When a
+    # private object bucket is not configured, persist the bytes on PaperVersion in
+    # PostgreSQL; the upload handler applies a conservative 3 MB cap to this path.
+    environment = str(getattr(settings, "environment", "development")).strip().lower()
+    serverless_runtime = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    if environment in {"production", "prod"} or serverless_runtime:
+        return {
+            "reference": f"dbpdf://{owner_id}/{sha256}",
+            "backend": "database",
+            "durable": True,
+            "object_key": None,
+        }
+
+    # Local-only fallback for developer environments.
     upload_dir = Path(str(getattr(settings, "upload_dir", "uploads"))) / owner_id
     upload_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     destination = upload_dir / f"{sha256}.pdf"
@@ -91,8 +102,6 @@ def store_original_pdf(
                 raise
     else:
         os.chmod(destination, 0o600)
-    environment = str(getattr(settings, "environment", "development")).strip().lower()
-    serverless_runtime = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
     durable = environment in {"development", "dev", "local", "test"} and not serverless_runtime
     return {
         "reference": str(destination),
@@ -106,6 +115,14 @@ def delete_original_pdf(reference: str | None, *, owner_id: str, settings: Any) 
     """Delete an owner's original PDF, rejecting references outside their storage namespace."""
     if not reference:
         return {"deleted": False, "backend": "none"}
+
+    if reference.startswith("dbpdf://"):
+        # The owning PaperVersion row holds the bytes; its cascading row delete
+        # removes the binary when the database transaction commits.
+        expected = f"dbpdf://{owner_id}/"
+        if not reference.startswith(expected) or not reference[len(expected):].isalnum():
+            raise ValueError("The stored PDF reference is outside this account's database namespace.")
+        return {"deleted": True, "backend": "database"}
 
     if reference.startswith("s3://"):
         from urllib.parse import urlparse

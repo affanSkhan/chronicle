@@ -1,0 +1,110 @@
+{
+  "protocol": "VIIT FF180 — A–D baseline comparison",
+  "protocol_version": "1.0",
+  "status": "defined_not_run",
+  "warning": "This manifest defines the planned controlled comparison. It contains no model predictions, labels, or benchmark scores.",
+  "shared_controls": {
+    "model_provider": "same configured provider for all arms",
+    "model_id": "same exact model identifier for all arms",
+    "temperature": 0,
+    "source_budget": 10,
+    "output_token_budget": "same cap across arms; record the resolved provider cap",
+    "dataset_split": "freeze one held-out split before comparison",
+    "prompt_revision": "record per arm; do not tune against the held-out split",
+    "random_seed": "record when supported",
+    "execution_commit": "record the commit SHA for each arm"
+  },
+  "datasets": [
+    {
+      "name": "SciFact",
+      "purpose": "claim-to-evidence support/refute",
+      "status": "not_run"
+    },
+    {
+      "name": "SciFact-Open",
+      "purpose": "open-domain evidence retrieval and claim verification",
+      "status": "not_run"
+    },
+    {
+      "name": "ALCE-style",
+      "purpose": "citation support/quality plus manual review",
+      "status": "not_run"
+    },
+    {
+      "name": "Chronicle temporal-update holdout",
+      "purpose": "multi-hop impact precision/recall, false alarms and missed high-impact entities",
+      "status": "labelled_dataset_required"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "A",
+      "name": "Standard RAG",
+      "definition": "Single-pass retrieval and answer generation without agent-led research planning.",
+      "closest_existing_recipe": {
+        "mode": "quick",
+        "max_sources": 10
+      },
+      "implementation_status": "approximation_only",
+      "strict_runtime_toggle_available": false
+    },
+    {
+      "id": "B",
+      "name": "Iterative research agent",
+      "definition": "Bounded query planning/research iteration and synthesis; no persisted claim/provenance graph or temporal propagation.",
+      "closest_existing_recipe": {
+        "mode": "deep",
+        "max_sources": 10
+      },
+      "implementation_status": "planner_exists_but_iteration_loop_missing",
+      "strict_runtime_toggle_available": false
+    },
+    {
+      "id": "C",
+      "name": "Claim and provenance graph without temporal propagation",
+      "definition": "Source-linked claims and typed graph relations; temporal source-event propagation is excluded from the measured arm.",
+      "closest_existing_recipe": {
+        "mode": "academic",
+        "max_sources": 10
+      },
+      "implementation_status": "manual_workflow_approximation",
+      "strict_runtime_toggle_available": false
+    },
+    {
+      "id": "D",
+      "name": "Full lifecycle prototype",
+      "definition": "Claim/provenance graph plus source-event impact propagation, targeted reassessment, report version history and audit.",
+      "closest_existing_recipe": {
+        "mode": "forensic",
+        "max_sources": 10
+      },
+      "implementation_status": "manual_temporal_workflow_available",
+      "strict_runtime_toggle_available": false
+    }
+  ],
+  "metrics": [
+    "claim_support_precision",
+    "claim_support_recall",
+    "citation_quality_alce_style",
+    "exact_passage_grounding_rate",
+    "relation_macro_f1",
+    "dependency_precision",
+    "dependency_recall",
+    "false_dependency_rate",
+    "temporal_impact_precision",
+    "temporal_impact_recall",
+    "temporal_impact_f1",
+    "false_alarms_per_source_event",
+    "missed_high_severity_impacts",
+    "mrr",
+    "precision_at_k",
+    "recall_at_k",
+    "ndcg_at_k"
+  ],
+  "outputs": {
+    "inputs": "One labelled JSONL prediction file per arm, each with identical unique record_id sets.",
+    "command": "python services/api/scripts/evaluate_ablation_matrix.py --dataset-name <name> --config A=<A.jsonl> --config B=<B.jsonl> --config C=<C.jsonl> --config D=<D.jsonl>",
+    "result_file": "JSON metrics by arm and D-minus-A deltas",
+    "no_synthetic_scores": true
+  }
+}

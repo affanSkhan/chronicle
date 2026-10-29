@@ -19,7 +19,7 @@ Status definitions:
 | FR-005 | Persist run metadata and source references | SQL run/source/report IDs, configuration and timestamps | Implemented | Full execution fingerprint and per-subtask metadata remain partial |
 | FR-006 | Run state includes partial completion | Queued/running/completed/completed_with_limitations/failed/cancel_requested/cancelled; UI surfaces active/cancelled/limited states | Implemented | All statuses are persistent; task progress is not durable across server restarts |
 | FR-007 | Cancel and retry failed runs | Owner-scoped cancel/retry endpoints, cooperative cancellation during search/model calls, retry lineage/audit, lifecycle tests | Partial | Cancellation/retry are in-process; durable queue, restart-safe resume, persisted subtasks and distributed cancellation are outstanding |
-| FR-008 | Planned scholarly queries | Bounded mode-specific subqueries executed against Crossref/OpenAlex; provider and query ranks fused with RRF; query trail retained | Implemented | Live provider availability/rate-limit testing still needed |
+| FR-008 | Planned scholarly queries | Bounded mode-specific subqueries executed against Crossref/OpenAlex/Semantic Scholar and public-web snippet adapters; provider and query ranks fused with RRF; query trail retained | Implemented | Live provider availability/rate-limit testing still needed |
 | FR-009 | Persist source metadata/provenance | DOI/title/authors/year/provider/landing URL/abstract passages persisted | Partial | Raw provider payload and timestamp coverage vary by provider |
 | FR-010 | Deduplicate sources | DOI/title dedupe in research pipeline and library import | Partial | Author/year fallback and cross-provider duplicate fixtures need more coverage |
 | FR-011 | Validate PDF file/type/size/page count | PDF content-type and signature checks, configurable server byte/page caps, bounded OCR; Vercel upload cap must account for the 4.5 MB function payload limit | Partial | Direct-to-object upload for larger files is not implemented; real-world scan quality still needs sampled testing |
@@ -86,9 +86,9 @@ Status definitions:
 | Literature-review contribution | Versioned dependencies and temporal propagation into claims/report versions | Partial | Evaluate dependency detection and temporal impact against an adjudicated holdout set |
 
 
-## Current completion-branch additions
+## Current hardening-branch additions
 
-The `feat/ff180-completion-pass` branch wires owner-selected uploaded PDF passages into actual research runs; performs BM25 lexical ranking and optional Hugging Face dense retrieval with reciprocal-rank fusion; exposes original-file storage durability; and supports owner-scoped permanent deletion with report/audit redaction. The additions have unit/integration tests, but remain pending branch-head CI, PR review, production deployment verification, and live browser acceptance. Dense embeddings require a configured `HF_TOKEN`; durable original bytes require all `OBJECT_STORAGE_*` variables. Neither provider accuracy nor research-task efficacy is claimed from unit tests.
+The `feat/ff180-final-hardening` branch adds Semantic Scholar and public-web snippet retrieval, a bounded LangGraph query-planner/critic graph with deterministic fallback, a separate PostgreSQL `uploaded_pdf_blobs` storage table and migration 0008, an opt-in PostgreSQL research queue/worker profile, and ranked passage retrieval metrics plus an A–D evaluation harness. The provider, storage and planning paths have automated regression tests on preceding branch commits; rerun CI on the final PR head. Production migration and live acceptance remain outstanding. Dense embeddings require `HF_TOKEN`; private S3-compatible storage is optional after migration 0008 but preferred for larger uploads.
 
 ## Research-integrity policy
 
