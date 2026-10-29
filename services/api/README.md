@@ -98,3 +98,23 @@ docker compose -f infra/docker-compose.yml --profile worker up --build
 ```
 
 The API persists queued runs; the worker claims them transactionally, writes audit events and heartbeats, and marks stale worker leases failed for explicit retry instead of silently rerunning partially completed work. This does not provide checkpoint-level resume, and it is not a hosted worker deployment by itself. Keep queue mode disabled unless a worker is actually running.
+
+
+## Controlled evaluation and A–D baselines
+
+The approved comparison protocol defines A (standard RAG), B (iterative research agent), C (claim/provenance graph without temporal propagation), and D (full lifecycle prototype). See `evaluation/ablation-configurations.json` for shared controls and `docs/evaluation-protocol.md` for labelled-split requirements.
+
+After running each arm, save prediction JSONL files with the same unique `record_id` values and compare them with:
+
+```bash
+cd services/api
+python scripts/evaluate_ablation_matrix.py \
+  --dataset-name your-dataset-version-and-split \
+  --config A=../../evaluation/runs/your-split/A.jsonl \
+  --config B=../../evaluation/runs/your-split/B.jsonl \
+  --config C=../../evaluation/runs/your-split/C.jsonl \
+  --config D=../../evaluation/runs/your-split/D.jsonl \
+  --output ../../evaluation/results/your-comparison.json
+```
+
+The harness never invents predictions or labels. Strict runtime switches for all four arms are not yet implemented; do not report results until each baseline is run with matched model, budgets and held-out data. Synthetic tests are not benchmark scores.

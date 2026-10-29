@@ -163,7 +163,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         "binary_storage_durable": stored_original["durable"],
         "duplicate_upload": False,
         "note": (
-            "Text passages and original PDF bytes are stored in a private database column."
+            "Text passages and original PDF bytes are stored in a separate private database table."
             if stored_original["backend"] == "database" else
             "Text passages are persisted in PostgreSQL and original PDF bytes are stored in a private S3-compatible object bucket."
             if stored_original["backend"] == "s3" else

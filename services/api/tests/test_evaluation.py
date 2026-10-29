@@ -53,3 +53,31 @@ def test_evaluation_rejects_misaligned_or_empty_classification_data() -> None:
         classification_metrics([], [])
     with pytest.raises(ValueError):
         evaluate_records([])
+
+
+def test_ranked_passage_metrics_compute_mrr_precision_recall_and_ndcg() -> None:
+    from app.services.evaluation import ranked_passage_retrieval_metrics
+
+    metrics = ranked_passage_retrieval_metrics(
+        expected_ids=["p1", "p3"],
+        ranked_ids=["p2", "p3", "p1", "p3"],
+        ks=(1, 3),
+    )
+    assert metrics["ranked_count"] == 3
+    assert metrics["mrr"] == pytest.approx(0.5)
+    assert metrics["precision_at_1"] == 0
+    assert metrics["recall_at_1"] == 0
+    assert metrics["precision_at_3"] == pytest.approx(2 / 3)
+    assert metrics["recall_at_3"] == 1
+    assert 0 < metrics["ndcg_at_3"] <= 1
+
+
+def test_evaluate_records_aggregates_ranked_passage_metrics_per_query() -> None:
+    metrics = evaluate_records([
+        {"record_id": "q1", "expected_passage_ids": ["p1"], "predicted_ranked_passage_ids": ["p1", "p2"]},
+        {"record_id": "q2", "expected_passage_ids": ["p3"], "predicted_ranked_passage_ids": ["p4", "p3"]},
+    ], dataset_name="retrieval-pilot-v1")
+    ranking = metrics["ranked_passage_retrieval"]
+    assert ranking["sample_count"] == 2
+    assert ranking["macro_mean"]["mrr"] == pytest.approx(0.75)
+    assert ranking["macro_mean"]["recall_at_3"] == 1

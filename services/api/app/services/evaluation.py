@@ -3,7 +3,7 @@
 This module calculates metrics only. It does not create benchmark labels or
 claim performance. Use a curated, held-out dataset and record its provenance.
 """
-from collections import Counter
+from math import log2
 from typing import Any
 
 
@@ -92,6 +92,39 @@ def set_retrieval_metrics(expected_ids: list[str], predicted_ids: list[str]) -> 
     }
 
 
+
+def ranked_passage_retrieval_metrics(
+    expected_ids: list[str],
+    ranked_ids: list[str],
+    ks: tuple[int, ...] = (1, 3, 5, 10),
+) -> dict[str, Any]:
+    """Compute query-level ranking metrics; duplicate retrieved IDs count once."""
+    if not expected_ids or any(not isinstance(x, str) or not x for x in expected_ids):
+        raise ValueError("At least one expected relevant passage ID is required.")
+    if any(not isinstance(x, str) or not x for x in ranked_ids):
+        raise ValueError("Ranked passage IDs must be non-empty strings.")
+    if not ks or any(not isinstance(k, int) or k < 1 for k in ks):
+        raise ValueError("Ranking cutoffs must be positive integers.")
+    relevant = set(expected_ids)
+    unique_ranked = list(dict.fromkeys(ranked_ids))
+    first_rank = next((i for i, item in enumerate(unique_ranked, start=1) if item in relevant), None)
+    output: dict[str, Any] = {
+        "relevant_count": len(relevant),
+        "ranked_count": len(unique_ranked),
+        "mrr": (1 / first_rank) if first_rank else 0.0,
+    }
+    for k in ks:
+        top = unique_ranked[:k]
+        hits = len(set(top) & relevant)
+        dcg = sum(1 / log2(rank + 1) for rank, item in enumerate(top, start=1) if item in relevant)
+        ideal_hits = min(len(relevant), k)
+        ideal_dcg = sum(1 / log2(rank + 1) for rank in range(1, ideal_hits + 1))
+        output[f"precision_at_{k}"] = hits / k
+        output[f"recall_at_{k}"] = hits / len(relevant)
+        output[f"ndcg_at_{k}"] = dcg / ideal_dcg if ideal_dcg else 0.0
+    return output
+
+
 def evaluate_records(records: list[dict[str, Any]], dataset_name: str = "unspecified") -> dict[str, Any]:
     if not records:
         raise ValueError("The labelled dataset contains no records.")
@@ -102,10 +135,22 @@ def evaluate_records(records: list[dict[str, Any]], dataset_name: str = "unspeci
     predicted_impact: list[str] = []
     expected_dependencies: list[str] = []
     predicted_dependencies: list[str] = []
+    ranked_passage_rows: list[dict[str, Any]] = []
 
     for index, record in enumerate(records, start=1):
         if not isinstance(record, dict):
             raise ValueError(f"Record {index} must be a JSON object.")
+        expected_passages = record.get("expected_passage_ids")
+        ranked_passages = record.get("predicted_ranked_passage_ids")
+        if (expected_passages is None) != (ranked_passages is None):
+            raise ValueError(
+                f"Record {index} must provide both expected_passage_ids and predicted_ranked_passage_ids."
+            )
+        if expected_passages is not None:
+            if not isinstance(expected_passages, list) or not isinstance(ranked_passages, list):
+                raise ValueError(f"Record {index}: passage ranking fields must be arrays.")
+            ranked_passage_rows.append(ranked_passage_retrieval_metrics(expected_passages, ranked_passages))
+
         has_expected_relation = record.get("expected_relation") is not None
         has_predicted_relation = record.get("predicted_relation") is not None
         if has_expected_relation != has_predicted_relation:
@@ -131,6 +176,7 @@ def evaluate_records(records: list[dict[str, Any]], dataset_name: str = "unspeci
         "relation_classification": None,
         "temporal_impact": None,
         "dependency_retrieval": None,
+        "ranked_passage_retrieval": None,
         "limitations": [
             "Metrics are meaningful only when labels are curated independently and the evaluation set is held out from prompt/model tuning.",
             "Aggregation treats identifiers as globally unique; reuse of IDs across examples would distort set-based impact metrics.",
@@ -143,4 +189,17 @@ def evaluate_records(records: list[dict[str, Any]], dataset_name: str = "unspeci
         output["temporal_impact"] = set_retrieval_metrics(expected_impact, predicted_impact)
     if expected_dependencies or predicted_dependencies:
         output["dependency_retrieval"] = set_retrieval_metrics(expected_dependencies, predicted_dependencies)
+    if ranked_passage_rows:
+        metric_names = [
+            key for key, value in ranked_passage_rows[0].items()
+            if key not in {"relevant_count", "ranked_count"} and isinstance(value, (int, float))
+        ]
+        output["ranked_passage_retrieval"] = {
+            "sample_count": len(ranked_passage_rows),
+            "macro_mean": {
+                key: sum(float(row[key]) for row in ranked_passage_rows) / len(ranked_passage_rows)
+                for key in metric_names
+            },
+            "cutoffs": [1, 3, 5, 10],
+        }
     return output

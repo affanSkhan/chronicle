@@ -74,3 +74,19 @@ Save the input file hash, repository commit SHA, model/provider ID, prompt revis
 A research result should state the dataset and version, sampling strategy, annotation agreement/adjudication approach, split sizes, label distribution, exclusions, missing data, provider failures, model/prompt version, confidence intervals where justified, and limitations. Evaluate important strata separately, including update type (retraction/correction/expression of concern), dependency depth, and source/claim relationship class.
 
 No results are claimed by this repository until a labelled, documented, held-out evaluation has actually been run. Synthetic unit-test inputs validate the metric implementation only; they are not scientific benchmark evidence.
+
+
+## Approved FF180 A–D comparison
+
+The approved synopsis defines four configurations under the same model and budgets:
+
+- **A — Standard RAG:** single-pass retrieval and answer generation without agent-led research planning.
+- **B — Iterative research agent:** bounded query planning/research iterations and synthesis, but no persisted claim/provenance graph or temporal propagation.
+- **C — Claim and provenance graph:** source-linked claims and relations without temporal source-event propagation.
+- **D — Full lifecycle prototype:** the graph plus source-event impact propagation, targeted reassessment, report versioning and audit.
+
+The machine-readable definitions live in `evaluation/ablation-configurations.json`. `scripts/evaluate_ablation_matrix.py` compares prediction JSONL files for all four arms and requires the same unique `record_id` set in each file. It emits metrics and D-minus-A deltas without creating predictions or ground-truth labels.
+
+**Important:** the current app does not yet expose strict A/B/C/D runtime feature flags for every arm. The recipes in the manifest are operational definitions for a controlled evaluation; the evaluator is ready for saved outputs, but no A–D benchmark result is claimed until the arms are run with matching model ID, source/token budgets, datasets, split and prompts. The two-node query-planning graph is not a full iterative agent by itself.
+
+The metrics harness also reports MRR, Precision@K, Recall@K and NDCG@K for ranked passage retrieval when the input provides `expected_passage_ids` and `predicted_ranked_passage_ids`. These are ranking metrics, not scientific accuracy.

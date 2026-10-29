@@ -153,7 +153,7 @@ def _query_critic(state: PlanningState) -> dict[str, Any]:
         # The user's question may be shorter than the query-validation floor; it is
         # nevertheless mandatory and never silently dropped.
         if candidate == question:
-            query = question[:500]
+            query = question
         if not query:
             continue
         key = query.casefold()
@@ -164,7 +164,7 @@ def _query_critic(state: PlanningState) -> dict[str, Any]:
             break
 
     if not final_queries or final_queries[0].casefold() != question.casefold():
-        final_queries = [question[:500], *(q for q in base_plan.get("queries", []) if q.casefold() != question.casefold())]
+        final_queries = [question, *(q for q in base_plan.get("queries", []) if q.casefold() != question.casefold())]
     final_queries = final_queries[:max_queries]
     base_plan["queries"] = final_queries
     base_plan["query_budget"] = len(final_queries)

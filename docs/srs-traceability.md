@@ -86,9 +86,9 @@ Status definitions:
 | Literature-review contribution | Versioned dependencies and temporal propagation into claims/report versions | Partial | Evaluate dependency detection and temporal impact against an adjudicated holdout set |
 
 
-## Current completion-branch additions
+## Current hardening-branch additions
 
-The `feat/ff180-completion-pass` branch wires owner-selected uploaded PDF passages into actual research runs; performs BM25 lexical ranking and optional Hugging Face dense retrieval with reciprocal-rank fusion; exposes original-file storage durability; and supports owner-scoped permanent deletion with report/audit redaction. The additions have unit/integration tests, but remain pending branch-head CI, PR review, production deployment verification, and live browser acceptance. Dense embeddings require a configured `HF_TOKEN`; durable original bytes require all `OBJECT_STORAGE_*` variables. Neither provider accuracy nor research-task efficacy is claimed from unit tests.
+The `feat/ff180-final-hardening` branch adds Semantic Scholar and public-web snippet retrieval, a bounded LangGraph query-planner/critic graph with deterministic fallback, a separate PostgreSQL `uploaded_pdf_blobs` storage table and migration 0008, an opt-in PostgreSQL research queue/worker profile, and ranked passage retrieval metrics plus an A–D evaluation harness. The provider, storage and planning paths have automated regression tests on preceding branch commits; rerun CI on the final PR head. Production migration and live acceptance remain outstanding. Dense embeddings require `HF_TOKEN`; private S3-compatible storage is optional after migration 0008 but preferred for larger uploads.
 
 ## Research-integrity policy
 

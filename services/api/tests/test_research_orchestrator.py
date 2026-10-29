@@ -53,3 +53,21 @@ def test_planner_graph_accepts_bounded_suggestions_and_rejects_urls(monkeypatch)
     assert len(plan["queries"]) <= 3
     assert all("://" not in query for query in plan["queries"])
     assert len({query.casefold() for query in plan["queries"]}) == len(plan["queries"])
+
+
+def test_query_critic_preserves_long_original_question():
+    long_question = "How does retrieval practice affect long-term learning outcomes? " + (
+        "with careful replication across populations " * 12
+    )
+    state = {
+        "question": long_question,
+        "mode": "deep",
+        "max_sources": 3,
+        "base_plan": research_orchestrator.build_research_plan(long_question, "deep", 3),
+        "proposed_queries": ["retrieval practice study outcomes"],
+        "planner_backend": "langgraph_llm_planner",
+        "fallback_reason": "",
+    }
+    result = research_orchestrator._query_critic(state)
+    assert result["final_plan"]["queries"][0] == long_question
+    assert len(result["final_plan"]["queries"]) <= 3
