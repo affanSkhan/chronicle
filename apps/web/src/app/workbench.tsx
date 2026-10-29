@@ -218,6 +218,7 @@ export default function ChronicleWorkbench() {
   const [question, setQuestion] = useState("");
   const [researchMode, setResearchMode] = useState<ResearchMode>("deep");
   const [maxSources, setMaxSources] = useState(10);
+  const [evaluationArm, setEvaluationArm] = useState<"default" | "A" | "B" | "C" | "D">("default");
   const [selectedPdfPaperIds, setSelectedPdfPaperIds] = useState<string[]>([]);
   const [creatingRun, setCreatingRun] = useState(false);
   const [runActionId, setRunActionId] = useState<string | null>(null);
@@ -579,6 +580,7 @@ export default function ChronicleWorkbench() {
         max_sources: maxSources,
         project_id: activeProjectId,
         source_paper_ids: selectedPdfPaperIds,
+        ...(evaluationArm === "default" ? {} : { evaluation_arm: evaluationArm }),
         execute: true
       });
       setRuns((current) => [created, ...current.filter((run) => run.id !== created.id)]);
@@ -1085,6 +1087,16 @@ export default function ChronicleWorkbench() {
                   <label className="block text-sm font-medium text-slate-700">Research mode<select value={researchMode} onChange={(event) => setResearchMode(event.target.value as ResearchMode)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">{MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                   <label className="block text-sm font-medium text-slate-700">Source limit<select value={maxSources} onChange={(event) => setMaxSources(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value={5}>5 sources</option><option value={10}>10 sources</option><option value={20}>20 sources</option><option value={30}>30 sources</option></select></label>
                 </div>
+                <label className="block text-sm font-medium text-slate-700">FF180 evaluation arm (optional)
+                  <select value={evaluationArm} onChange={(event) => setEvaluationArm(event.target.value as "default" | "A" | "B" | "C" | "D")} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                    <option value="default">Normal research mode (recommended)</option>
+                    <option value="A">A — Standard RAG baseline</option>
+                    <option value="B">B — Iterative research agent</option>
+                    <option value="C">C — Claim/provenance graph</option>
+                    <option value="D">D — Full lifecycle with temporal impact</option>
+                  </select>
+                  <span className="mt-2 block text-xs leading-5 text-slate-500">For controlled comparisons, keep the question, source limit, selected PDFs, model/provider and evaluation dataset constant across A–D. A uses one query; B–D permit up to two bounded follow-up searches. Arm C disables temporal propagation; D enables it. These arms support experiments but do not themselves constitute benchmark results.</span>
+                </label>
                 <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900">Provider disclosure: Chronicle sends the research query to scholarly metadata providers. When model-backed extraction or verification is run, selected source passages may be sent to the model provider configured by the server. Do not upload or process confidential or restricted material unless authorized.</p>
                 <div className="flex flex-col-reverse justify-between gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center"><p className="text-xs leading-5 text-slate-500">Results remain reviewable; missing evidence is not proof of absence.</p><button disabled={creatingRun} className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60">{creatingRun ? <LoaderCircle size={16} className="animate-spin"/> : <Sparkles size={16}/>} {creatingRun ? "Starting…" : "Start research"}</button></div>
               </form>
