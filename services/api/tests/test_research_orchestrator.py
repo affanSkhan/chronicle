@@ -69,5 +69,5 @@ def test_query_critic_preserves_long_original_question():
         "fallback_reason": "",
     }
     result = research_orchestrator._query_critic(state)
-    assert result["final_plan"]["queries"][0] == long_question
+    assert result["final_plan"]["queries"][0] == long_question.strip()
     assert len(result["final_plan"]["queries"]) <= 3
