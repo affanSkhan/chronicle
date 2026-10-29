@@ -5,7 +5,7 @@ Repository: [affanSkhan/chronicle](https://github.com/affanSkhan/chronicle)
 Hardening branch: `feat/ff180-final-hardening`  
 Approved basis: VIIT FF180 synopsis for “Multi-Agent Research Assistant with Explainable Reasoning”.
 
-This is an implementation audit, not a claim of full SRS compliance. The core FF180 completion work was merged into `main` at `5223600e722fe53e8b6a950879a7720b484911b7`. The final hardening branch adds provider, storage, LangGraph planning, queue and evaluation infrastructure. It is not production functionality until reviewed, merged, migrated and verified against the deployed commit.
+This is an implementation audit, not a claim of full SRS compliance. The prior FF180 hardening was merged into `main` at `a15240278ba326d1380a60bc7c968bc2f8e30288` and both API/web production deployments are registered as READY. This branch (`feat/ff180-objective-completion`) adds executable A–D feature policies, bounded evidence-gap follow-up retrieval and regression coverage. Those new changes require CI, merge, deployment and end-to-end acceptance.
 
 ## Implemented in the current repository
 
@@ -25,17 +25,17 @@ This is an implementation audit, not a claim of full SRS compliance. The core FF
 
 ## Still partial or not implemented
 
-- **Production document storage requires migration 0008 and live verification.** The hardening branch adds a separate PostgreSQL `uploaded_pdf_blobs` table for original-PDF bytes when private object storage is not configured; serverless uploads are capped at 3 MB. Read-only inspection of the connected Neon database on 2026-10-29 showed the new table was absent. Apply migration 0008 through the reviewed migration workflow, then test upload/read/delete against the exact deployed commit.
+- **Production document-storage schema is in place; lifecycle acceptance remains open.** On 2026-10-29 the additive migration created `uploaded_pdf_blobs` and the table/index/foreign-key checks passed in Neon. The Alembic marker was aligned to `0008_persistent_pdf_content` after verifying the complete schema. Serverless uploads are capped at 3 MB. Upload/read/delete against the exact production application version still needs browser/API acceptance.
 
 1. **Multi-agent orchestration remains partial.** A two-node LangGraph query-planner/critic graph is implemented with deterministic fallback, but specialized agents for discovery, study appraisal, claim verification, synthesis and temporal monitoring are not independently orchestrated, and the retrieval loop does not yet iterate from evidence gaps.
 2. **Not a full-text systematic-review system.** External search returns metadata and abstracts; user-selected PDFs contribute retrieved excerpts. Publisher full-text acquisition, supplementary-material handling, document-wide critical appraisal, and exhaustive academic/web-provider coverage are not implemented.
 3. **Hybrid retrieval has limits.** Dense reranking is optional, requires `HF_TOKEN`, and considers a bounded BM25 shortlist to control inference usage. It does not guarantee semantic recall over every passage. Retrieval vectors are not stored in pgvector or persistently indexed. Without a token, BM25-only behavior is intentional.
 4. **Durable background execution is opt-in, not deployed.** The API can persist a PostgreSQL-backed queue and a separate Docker worker can claim runs with heartbeats/stale-lease handling. Vercel is still in inline mode because no separate always-on worker is deployed. Checkpoint-level resume, distributed cancellation and subtask-level progress remain incomplete.
-5. **Original-file storage supports two durable backends.** A configured private S3-compatible bucket is preferred; after migration 0008, production/serverless can fall back to the separate PostgreSQL blob table. The serverless request limit is conservatively capped at 3 MB until direct-to-object-storage uploads are implemented. Live DB migration and upload/read/delete acceptance are still required.
+5. **Original-file storage supports two durable backends.** A configured private S3-compatible bucket is preferred; serverless deployments can fall back to the private PostgreSQL blob table after migration 0008. The serverless request limit is capped at 3 MB until direct-to-object-storage uploads are implemented. Schema migration is verified; live upload/read/delete acceptance remains required.
 6. **Retention is incomplete.** Permanent deletion redacts application records, but there is no policy-driven retention schedule, backup-expiry confirmation, or proof of provider-side erasure.
 7. **Temporal reassessment is human-led.** Changes flag affected claims/reports and reviewers can invoke the citation verifier. An automatic queued reverification job and comprehensive claim-by-claim before/after diff are missing.
 8. **Production operations require further work.** Rate limiting/abuse controls, comprehensive alerts/monitoring, backup/restore drills, a full route-by-route security review and a durable worker design are not complete. Live browser acceptance against production remains required.
-9. **Research evaluation remains unmeasured.** No reproducible, labelled held-out results have been recorded for SciFact/SciFact-Open, ALCE-style citation quality, relation-class F1, dependency precision/recall, temporal-impact precision/recall/false alarms, or configurations A–D. Metrics code and an evaluation protocol are not experimental results.
+9. **Research evaluation remains unmeasured.** This branch implements request-level A/B/C/D feature policies and bounded iterative retrieval, and the repository contains metric functions and an evaluator. No reproducible labelled held-out results have yet been recorded for SciFact/SciFact-Open, ALCE-style citation quality, relation-class F1, dependency precision/recall, temporal-impact precision/recall/false alarms, or the four arms. Metrics code and synthetic unit tests are not experimental results.
 10. **No efficacy claims are justified by unit tests.** Tests prove software-path behavior and regression protection; they do not establish that model judgments, dependency signals, or temporal-impact predictions are scientifically accurate.
 
 ## Configuration needed for the optional features
@@ -46,7 +46,7 @@ This is an implementation audit, not a claim of full SRS compliance. The core FF
 
 ## Deployment and release status
 
-The hardening work is on `feat/ff180-final-hardening` and is pending integration. API and Container CI passed on commit `8a9e98d1a465746de28a230e09792f2726c87212`; subsequent changes must be re-tested on the final PR head. Migration 0008 is required for the PostgreSQL PDF fallback and is not yet applied to the connected production database. The previously inspected Vercel production deployments lag the merged main commit; Vercel returned build-rate-limit failures and denied direct production deployment requests. No production rollout or browser acceptance is claimed. Before release, merge the reviewed PR, apply migration 0008 through the repository workflow, resolve Vercel deployment authorization/quota, and verify API/web smoke tests plus upload/read/delete.
+The prior hardening PR is merged to `main` and both Vercel production deployments are registered as READY at commit `a15240278ba326d1380a60bc7c968bc2f8e30288`. Neon contains the `uploaded_pdf_blobs` schema and Alembic reports `0008_persistent_pdf_content`. This feature branch adds runtime A–D arms and bounded evidence-gap searches; it must pass API/web/container CI, be merged and redeployed before those changes reach production. Live browser acceptance for authentication, all modes, source-event impact, report exports and PDF upload/read/delete remains required.
 
 ## Relevant references
 
