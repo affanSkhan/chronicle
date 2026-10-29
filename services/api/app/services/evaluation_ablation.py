@@ -11,8 +11,14 @@ from app.services.evaluation import evaluate_records
 ARM_IDS = ("A", "B", "C", "D")
 DELTA_METRICS = {
     "relation_classification": ("accuracy", "macro_f1", "micro_f1"),
+    "claim_support_retrieval": ("precision", "recall", "f1"),
+    "citation_quality": ("citation_support_precision", "claim_citation_coverage", "grounded_claim_rate"),
+    "passage_grounding": ("grounded_claim_rate",),
     "temporal_impact": ("precision", "recall", "f1"),
-    "dependency_retrieval": ("precision", "recall", "f1"),
+    "temporal_impact_per_event": ("precision", "recall", "f1", "false_alarms_per_source_event"),
+    "high_severity_temporal_impact": ("recall",),
+    "detection_latency": ("mean_seconds", "p95_seconds"),
+    "dependency_retrieval": ("precision", "recall", "f1", "false_dependency_rate"),
     "ranked_passage_retrieval": (
         "mrr",
         "precision_at_1", "precision_at_3", "precision_at_5", "precision_at_10",
@@ -45,12 +51,16 @@ def _float_metric(result: dict[str, Any], family: str, metric: str) -> float | N
     value = result.get(family)
     if not isinstance(value, dict):
         return None
-    if family == "ranked_passage_retrieval":
-        value = value.get("macro_mean")
-        if not isinstance(value, dict):
-            return None
-    output = value.get(metric)
-    return float(output) if isinstance(output, (int, float)) else None
+    candidates = [value]
+    for key in ("macro_mean", "pooled"):
+        nested = value.get(key)
+        if isinstance(nested, dict):
+            candidates.append(nested)
+    for candidate in candidates:
+        output = candidate.get(metric)
+        if isinstance(output, (int, float)):
+            return float(output)
+    return None
 
 
 def evaluate_ablation_matrix(paths_by_arm: dict[str, Path], dataset_name: str) -> dict[str, Any]:

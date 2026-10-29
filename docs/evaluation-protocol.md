@@ -90,3 +90,16 @@ The machine-readable definitions live in `evaluation/ablation-configurations.jso
 **Important:** the current app does not yet expose strict A/B/C/D runtime feature flags for every arm. The recipes in the manifest are operational definitions for a controlled evaluation; the evaluator is ready for saved outputs, but no A–D benchmark result is claimed until the arms are run with matching model ID, source/token budgets, datasets, split and prompts. The two-node query-planning graph is not a full iterative agent by itself.
 
 The metrics harness also reports MRR, Precision@K, Recall@K and NDCG@K for ranked passage retrieval when the input provides `expected_passage_ids` and `predicted_ranked_passage_ids`. These are ranking metrics, not scientific accuracy.
+
+
+## Extended labelled-record fields
+
+The evaluator accepts optional, independently labelled fields in each JSONL record:
+
+- Claim-to-passage support: `expected_support_passage_ids` and `predicted_support_passage_ids`. These produce per-record and pooled precision/recall/F1.
+- Citation review indicators: `citation_count`, `supported_citation_count`, `claim_count`, `claims_with_citations`, and `grounded_claim_count`. All five fields must be present together. The output includes citation-support precision, claim citation coverage, and exact-passage grounding rate. These are transparent labelled indicators, **not** a complete automated ALCE score.
+- Temporal impacts per source event: `expected_impacted_ids` and `predicted_impacted_ids` can be supplied on each event record. The evaluator reports per-event macro metrics, pooled counts, false alarms per source event and missed impact counts.
+- High-severity impact: `expected_high_severity_impacted_ids` and `predicted_high_severity_impacted_ids` produce recall and the number of missed high-severity entities.
+- Detection delay: optional `detection_latency_seconds` is supplied from recorded timestamps and reported as mean/P95 seconds.
+
+The A–D comparison runner requires the same unique `record_id` set in all four arm files. It reports per-arm metrics and D-minus-A deltas where both arms provide the metric. It does not itself produce each arm's predictions, and the application does not yet expose strict runtime flags for all four configurations.

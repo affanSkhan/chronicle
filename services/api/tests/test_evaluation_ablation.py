@@ -39,3 +39,22 @@ def test_ablation_matrix_returns_arm_metrics_and_d_minus_a(tmp_path):
     assert result["arms"]["A"]["metrics"]["relation_classification"]["accuracy"] == 1
     assert result["arms"]["D"]["metrics"]["temporal_impact"]["recall"] == 1
     assert result["D_minus_A"]["relation_classification"]["accuracy"] == 0
+
+
+def test_ablation_matrix_includes_claim_support_and_citation_metrics(tmp_path):
+    arms = {}
+    for arm in ("A", "B", "C", "D"):
+        arms[arm] = _write(tmp_path / f"{arm}.jsonl", [{
+            "record_id": "r1",
+            "expected_support_passage_ids": ["p1"],
+            "predicted_support_passage_ids": ["p1"] if arm == "D" else [],
+            "citation_count": 2,
+            "supported_citation_count": 2 if arm == "D" else 1,
+            "claim_count": 1,
+            "claims_with_citations": 1,
+            "grounded_claim_count": 1 if arm == "D" else 0,
+        }])
+    result = evaluate_ablation_matrix(arms, "labelled-citation-holdout-v1")
+    assert result["D_minus_A"]["claim_support_retrieval"]["recall"] == 1
+    assert result["D_minus_A"]["citation_quality"]["citation_support_precision"] == pytest.approx(0.5)
+    assert result["D_minus_A"]["passage_grounding"]["grounded_claim_rate"] == 1

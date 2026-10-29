@@ -81,3 +81,44 @@ def test_evaluate_records_aggregates_ranked_passage_metrics_per_query() -> None:
     assert ranking["sample_count"] == 2
     assert ranking["macro_mean"]["mrr"] == pytest.approx(0.75)
     assert ranking["macro_mean"]["recall_at_3"] == 1
+
+
+def test_evaluation_reports_claim_support_citations_grounding_and_temporal_false_alarms() -> None:
+    metrics = evaluate_records([
+        {
+            "record_id": "event-1",
+            "expected_support_passage_ids": ["p1", "p2"],
+            "predicted_support_passage_ids": ["p1", "p3"],
+            "expected_impacted_ids": ["claim-a", "claim-b"],
+            "predicted_impacted_ids": ["claim-a", "claim-c"],
+            "expected_high_severity_impacted_ids": ["claim-b"],
+            "predicted_high_severity_impacted_ids": [],
+            "citation_count": 4,
+            "supported_citation_count": 3,
+            "claim_count": 2,
+            "claims_with_citations": 2,
+            "grounded_claim_count": 1,
+            "detection_latency_seconds": 120,
+        },
+        {
+            "record_id": "event-2",
+            "expected_support_passage_ids": ["p4"],
+            "predicted_support_passage_ids": ["p4"],
+            "expected_impacted_ids": [],
+            "predicted_impacted_ids": ["claim-x"],
+            "expected_high_severity_impacted_ids": [],
+            "predicted_high_severity_impacted_ids": [],
+            "citation_count": 0,
+            "supported_citation_count": 0,
+            "claim_count": 1,
+            "claims_with_citations": 0,
+            "grounded_claim_count": 0,
+        },
+    ], dataset_name="labelled-temporal-pilot-v1")
+    assert metrics["claim_support_retrieval"]["macro_mean"]["precision"] == pytest.approx(0.75)
+    assert metrics["citation_quality"]["macro_mean"]["citation_support_precision"] == pytest.approx(0.375)
+    assert metrics["passage_grounding"]["grounded_claim_rate"] == pytest.approx(1 / 3)
+    assert metrics["temporal_impact_per_event"]["sample_count"] == 2
+    assert metrics["temporal_impact_per_event"]["false_alarms_per_source_event"] == pytest.approx(1.0)
+    assert metrics["high_severity_temporal_impact"]["missed_high_severity_impacts"] == 1
+    assert metrics["detection_latency"]["mean_seconds"] == 120
