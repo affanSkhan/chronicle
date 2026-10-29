@@ -313,6 +313,16 @@ export interface EvidenceGraphEdge {
   reviewer_status?: string;
   confidence?: number | null;
   rationale?: string | null;
+  contextual_comparison?: {
+    comparability_note?: string;
+    population_comparison?: string;
+    method_comparison?: string;
+    outcome_comparison?: string;
+    evidence_passage_ids?: string[];
+    uncertainty_notes?: string[];
+    model?: string;
+    requires_human_review?: boolean;
+  } | null;
 }
 
 export interface EvidenceGraphResponse {
@@ -516,6 +526,37 @@ export async function reviewEvidenceRelation(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ reviewer_status: reviewerStatus, reviewer_notes: reviewerNotes })
   });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json();
+}
+
+export interface ContextualRelationCheckResult {
+  relation_id: string;
+  claim_id: string;
+  related_claim_id: string;
+  relation_type: "supports" | "contradicts" | "qualifies" | "not_comparable";
+  rationale: string;
+  comparability_note: string;
+  population_comparison: string;
+  method_comparison: string;
+  outcome_comparison: string;
+  evidence_passage_ids: string[];
+  uncertainty_notes: string[];
+  reviewer_status: "unreviewed";
+  provenance_basis: "model_inferred";
+  model: string;
+  human_review_required: boolean;
+  notice: string;
+}
+
+export async function compareClaimsContextually(
+  claimId: string,
+  relatedClaimId: string
+): Promise<ContextualRelationCheckResult> {
+  const response = await apiFetch(
+    `${API_BASE}/api/v1/evidence/claims/${encodeURIComponent(claimId)}/compare/${encodeURIComponent(relatedClaimId)}`,
+    { method: "POST" }
+  );
   if (!response.ok) throw new Error(await readError(response));
   return response.json();
 }
