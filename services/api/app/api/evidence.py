@@ -805,6 +805,158 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
     }
 
 
+@router.get("/runs/{run_id}/conclusions")
+def list_run_conclusions(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """List saved synthesis conclusions with their exact passage and claim provenance."""
+    if db.scalar(select(ResearchRun.id).where(
+        ResearchRun.id == run_id, ResearchRun.owner_user_id == current_user.id
+    )) is None:
+        raise HTTPException(status_code=404, detail="Research run not found.")
+
+    conclusion_rows = list(db.scalars(
+        select(Conclusion).where(Conclusion.run_id == run_id).order_by(Conclusion.created_at.asc())
+    ).all())
+    conclusion_ids = {item.id for item in conclusion_rows}
+    edges = list(db.scalars(
+        select(ConclusionEvidenceRelation)
+        .where(ConclusionEvidenceRelation.conclusion_id.in_(conclusion_ids))
+        .order_by(ConclusionEvidenceRelation.created_at.asc())
+    ).all()) if conclusion_ids else []
+    edges_by_conclusion: dict[str, list[ConclusionEvidenceRelation]] = {}
+    for edge in edges:
+        edges_by_conclusion.setdefault(edge.conclusion_id, []).append(edge)
+
+    return {
+        "run_id": run_id,
+        "count": len(conclusion_rows),
+        "conclusions": [{
+            "id": item.id,
+            "run_id": item.run_id,
+            "report_version_id": item.report_version_id,
+            "statement": item.statement,
+            "relation_type": item.relation_type,
+            "reviewer_status": item.reviewer_status,
+            "review_required": item.reviewer_status != "accepted",
+            "provenance_basis": item.provenance_basis,
+            "rationale": item.rationale,
+            "uncertainty_notes": item.uncertainty_notes,
+            "metadata_snapshot": item.metadata_snapshot or {},
+            "created_at": item.created_at.isoformat() if item.created_at else None,
+            "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+            "evidence_relations": [{
+                "id": edge.id,
+                "claim_id": edge.claim_id,
+                "passage_id": edge.passage_id,
+                "relation_type": edge.relation_type,
+                "provenance_basis": edge.provenance_basis,
+                "reviewer_status": edge.reviewer_status,
+                "rationale": edge.rationale,
+            } for edge in edges_by_conclusion.get(item.id, [])],
+        } for item in conclusion_rows],
+        "note": "Model-inferred conclusions remain review prompts. Accepting a conclusion records human review; it does not certify scientific truth.",
+    }
+
+
+@router.patch("/conclusions/{conclusion_id}/review")
+def review_conclusion(
+    conclusion_id: str,
+    payload: ConclusionReview,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Record a human decision on a persisted conclusion and its provenance edges."""
+    conclusion = db.scalar(
+        select(Conclusion)
+        .join(ResearchRun, Conclusion.run_id == ResearchRun.id)
+        .where(
+            Conclusion.id == conclusion_id,
+            ResearchRun.owner_user_id == current_user.id,
+        )
+    )
+    if conclusion is None:
+        raise HTTPException(status_code=404, detail="Conclusion not found.")
+
+    previous = {
+        "reviewer_status": conclusion.reviewer_status,
+        "provenance_basis": conclusion.provenance_basis,
+        "metadata_snapshot": conclusion.metadata_snapshot or {},
+    }
+    metadata = dict(conclusion.metadata_snapshot or {})
+    metadata["original_provenance_basis"] = metadata.get(
+        "original_provenance_basis", conclusion.provenance_basis
+    )
+    metadata["human_review"] = {
+        "reviewer_status": payload.reviewer_status,
+        "reviewer_notes": payload.reviewer_notes,
+    }
+    metadata["review_history"] = [
+        *(metadata.get("review_history") or []),
+        {
+            "previous_status": conclusion.reviewer_status,
+            "new_status": payload.reviewer_status,
+            "reviewer_notes": payload.reviewer_notes,
+        },
+    ]
+    conclusion.metadata_snapshot = metadata
+    conclusion.reviewer_status = payload.reviewer_status
+    if payload.reviewer_status == "accepted":
+        conclusion.provenance_basis = "human_reviewed"
+    else:
+        conclusion.provenance_basis = metadata["original_provenance_basis"]
+
+    edge_rows = list(db.scalars(
+        select(ConclusionEvidenceRelation)
+        .where(ConclusionEvidenceRelation.conclusion_id == conclusion.id)
+    ).all())
+    previous_edges = [{
+        "id": edge.id,
+        "reviewer_status": edge.reviewer_status,
+        "provenance_basis": edge.provenance_basis,
+    } for edge in edge_rows]
+    for edge in edge_rows:
+        edge.reviewer_status = payload.reviewer_status
+        edge.provenance_basis = (
+            "human_reviewed" if payload.reviewer_status == "accepted" else "model_inferred"
+        )
+
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=conclusion.run_id,
+        target_entity_type="conclusion",
+        target_entity_id=conclusion.id,
+        action="conclusion.reviewed",
+        previous_value={**previous, "evidence_relations": previous_edges},
+        new_value={
+            "reviewer_status": conclusion.reviewer_status,
+            "provenance_basis": conclusion.provenance_basis,
+            "reviewer_notes": payload.reviewer_notes,
+            "evidence_relation_count": len(edge_rows),
+        },
+        reason=payload.reviewer_notes,
+        resolution_status=payload.reviewer_status,
+    )
+    db.commit()
+    db.refresh(conclusion)
+    return {
+        "id": conclusion.id,
+        "run_id": conclusion.run_id,
+        "report_version_id": conclusion.report_version_id,
+        "statement": conclusion.statement,
+        "relation_type": conclusion.relation_type,
+        "reviewer_status": conclusion.reviewer_status,
+        "review_required": conclusion.reviewer_status != "accepted",
+        "provenance_basis": conclusion.provenance_basis,
+        "rationale": conclusion.rationale,
+        "uncertainty_notes": conclusion.uncertainty_notes,
+        "metadata_snapshot": conclusion.metadata_snapshot or {},
+    }
+
+
 @router.post("/runs/{run_id}/reports", status_code=201)
 def create_report_version(run_id: str, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     run = db.scalar(select(ResearchRun).where(ResearchRun.id == run_id, ResearchRun.owner_user_id == current_user.id))
