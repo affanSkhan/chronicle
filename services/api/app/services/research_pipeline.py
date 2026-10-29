@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 
 from app.core.config import get_embedding_config, get_llm_config, get_settings
 from app.core.database import SessionLocal
-from app.models.entities import Claim, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun, Study
+from app.models.entities import Claim, Conclusion, ConclusionEvidenceRelation, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun, Study
 from app.services.academic_search import search_papers
 from app.services.audit import record_audit_event
 from app.services.claim_extraction import extract_claims_from_passages
@@ -1109,6 +1109,112 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                 change_summary="Initial scholarly discovery snapshot; extracted claims remain unreviewed candidates.",
             )
             db.add(report)
+            db.flush()
+
+            # Persist every synthesis finding as a report-version-scoped conclusion.
+            # Only exact, validated passage pointers are accepted; each conclusion and
+            # its provenance edges remain marked for human review.
+            persisted_conclusion_ids: list[str] = []
+            allowed_passage_ids = {str(item["id"]) for item in passages_for_extraction}
+            seen_conclusion_statements: set[str] = set()
+            findings = synthesis_result.get("findings", []) if isinstance(synthesis_result, dict) else []
+            if isinstance(findings, list):
+                for finding in findings[:15]:
+                    if not isinstance(finding, dict):
+                        continue
+                    statement = str(finding.get("statement") or "").strip()
+                    statement_key = " ".join(statement.casefold().split())
+                    if len(statement) < 8 or statement_key in seen_conclusion_statements:
+                        continue
+                    seen_conclusion_statements.add(statement_key)
+                    cited_passage_ids = list(dict.fromkeys(
+                        ref for ref in (finding.get("evidence_passage_ids") or [])
+                        if isinstance(ref, str) and ref in allowed_passage_ids
+                    ))
+                    if not cited_passage_ids:
+                        continue
+                    relation_type = finding.get("relation_type")
+                    if relation_type not in {"supports", "contradicts", "qualifies", "not_comparable"}:
+                        relation_type = "qualifies"
+                    rationale = str(finding.get("context_note") or
+                                    "Model-generated conclusion linked to exact retrieved passages; researcher review is required.")
+                    conclusion = Conclusion(
+                        run_id=run_id,
+                        report_version_id=report.id,
+                        statement=statement,
+                        relation_type=relation_type,
+                        reviewer_status="needs_review",
+                        provenance_basis="model_inferred",
+                        rationale=rationale,
+                        uncertainty_notes=(synthesis_result.get("uncertainty_statement") or None)
+                            if isinstance(synthesis_result, dict) else None,
+                        metadata_snapshot={
+                            "finding_index": len(persisted_conclusion_ids) + 1,
+                            "source_passage_ids": cited_passage_ids,
+                            "synthesis_human_review_required": True,
+                        },
+                    )
+                    db.add(conclusion)
+                    db.flush()
+                    persisted_conclusion_ids.append(conclusion.id)
+
+                    linked_claims_by_passage: dict[str, list[str]] = {}
+                    for claim_item in persisted_claims:
+                        claim_id = claim_item.get("id")
+                        if not isinstance(claim_id, str):
+                            continue
+                        for evidence in claim_item.get("evidence", []):
+                            if isinstance(evidence, dict) and evidence.get("passage_id") in cited_passage_ids:
+                                linked_claims_by_passage.setdefault(evidence["passage_id"], []).append(claim_id)
+
+                    for passage_id in cited_passage_ids:
+                        linked_claim_ids = sorted(set(linked_claims_by_passage.get(passage_id, [])))
+                        if linked_claim_ids:
+                            for claim_id in linked_claim_ids:
+                                db.add(ConclusionEvidenceRelation(
+                                    conclusion_id=conclusion.id,
+                                    claim_id=claim_id,
+                                    passage_id=passage_id,
+                                    relation_type=relation_type,
+                                    provenance_basis="model_inferred",
+                                    reviewer_status="needs_review",
+                                    rationale=(
+                                        "The claim and conclusion cite the same exact stored passage. "
+                                        "This is provenance linkage, not an independently verified entailment."
+                                    ),
+                                ))
+                        else:
+                            db.add(ConclusionEvidenceRelation(
+                                conclusion_id=conclusion.id,
+                                passage_id=passage_id,
+                                relation_type=relation_type,
+                                provenance_basis="model_inferred",
+                                reviewer_status="needs_review",
+                                rationale=rationale,
+                            ))
+                    record_audit_event(
+                        db,
+                        actor_user_id=None,
+                        run_id=run_id,
+                        target_entity_type="conclusion",
+                        target_entity_id=conclusion.id,
+                        action="conclusion.created",
+                        previous_value=None,
+                        new_value={
+                            "report_version_id": report.id,
+                            "statement": conclusion.statement,
+                            "relation_type": conclusion.relation_type,
+                            "provenance_basis": conclusion.provenance_basis,
+                            "reviewer_status": conclusion.reviewer_status,
+                            "passage_ids": cited_passage_ids,
+                        },
+                        reason="Synthesis finding persisted with validated source passage pointers; human review required.",
+                        resolution_status="needs_review",
+                    )
+            report.evidence_snapshot = {
+                **(report.evidence_snapshot or {}),
+                "conclusion_ids": persisted_conclusion_ids,
+            }
             run.status = completion_status
             run.demo = False
             run.error_message = None
