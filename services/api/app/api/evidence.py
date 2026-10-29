@@ -250,7 +250,7 @@ async def compare_claims_in_context(
     ).all()) if accessible_passage_ids else []
     study_by_passage = {
         study.source_passage_id: study for study in study_rows
-        if study.source_passage_id and study.source_passage_id not in {}
+        if study.source_passage_id
     }
     study_by_paper: dict[str, Study] = {}
     for study in study_rows:
@@ -765,12 +765,17 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
             source, target = f"passage:{relation.passage_id}", f"claim:{relation.claim_id}"
         else:
             source, target = f"claim:{relation.claim_id}", f"claim:{relation.related_claim_id}"
-        edges.append({
+        edge = {
             "id": relation.id, "source": source, "target": target,
             "type": relation.relation_type, "provenance_basis": relation.provenance_basis,
             "reviewer_status": relation.reviewer_status, "confidence": relation.confidence,
             "rationale": relation.rationale,
-        })
+        }
+        metadata = relation.metadata_snapshot if isinstance(relation.metadata_snapshot, dict) else {}
+        contextual_comparison = metadata.get("contextual_comparison")
+        if isinstance(contextual_comparison, dict):
+            edge["contextual_comparison"] = contextual_comparison
+        edges.append(edge)
     for passage in passages:
         edges.append({"source": f"paper-version:{passage.paper_version_id}", "target": f"passage:{passage.id}", "type": "contains"})
     for version in versions:
