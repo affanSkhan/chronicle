@@ -19,7 +19,8 @@ from app.services.audit import record_audit_event
 from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
 from app.services.dependency_candidates import build_dependency_clusters, suggest_dependency_candidates
-from app.services.research_planner import build_research_plan, focus_for_mode
+from app.services.research_planner import focus_for_mode
+from app.services.research_orchestrator import build_agentic_research_plan
 from app.services.hybrid_passage_retrieval import rank_passages_hybrid
 
 
@@ -476,7 +477,7 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
         return
 
     try:
-        execution_plan = build_research_plan(question, mode, limit)
+        execution_plan = await build_agentic_research_plan(question, mode, limit)
         # Persist the plan before network I/O so a failed or partial run remains inspectable.
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
