@@ -171,7 +171,17 @@ def test_optional_synthesis_persists_source_linked_study_context(monkeypatch, cl
         }
 
     async def fake_extract_claims_from_passages(question: str, passages: list[dict], api_key: str, api_base: str, model: str) -> list[dict]:
-        return []
+        passage_id = passages[0]["id"]
+        return [{
+            "statement": "The intervention is evaluated using a provenance-aware workflow.",
+            "scope": {"population": "120 adult participants"},
+            "uncertainty_notes": "Extracted from one abstract; inspect the full text.",
+            "evidence": [{
+                "passage_id": passage_id,
+                "relation_type": "supports",
+                "rationale": "The abstract describes the intervention and evaluation.",
+            }],
+        }]
 
     async def fake_synthesize_evidence(question: str, passages: list[dict], api_key: str, api_base: str, model: str) -> dict:
         passage_id = passages[0]["id"]
@@ -255,12 +265,38 @@ def test_optional_synthesis_persists_source_linked_study_context(monkeypatch, cl
     assert any(edge["source"] == f"passage:{passage_id}" and edge["target"] == recommendation_node["id"] for edge in graph["edges"])
     assert report_version_node["report_version_number"] == reports[0]["version_number"]
     assert conclusion_node["evidence_passage_ids"] == [passage_id]
+    assert conclusion_node["claim_ids"]
     assert recommendation_node["evidence_passage_ids"] == [passage_id]
+    assert any(
+        edge["source"] == f"claim:{conclusion_node['claim_ids'][0]}"
+        and edge["target"] == conclusion_node["id"]
+        and edge["type"] == "contributes_to_conclusion"
+        for edge in graph["edges"]
+    )
     assert any(edge["source"] == report_version_node["id"] and edge["target"] == recommendation_node["id"] and edge["type"] == "proposes_recommendation" for edge in graph["edges"])
 
     passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json").json()
     assert any(item["id"] == study_id and item["source_passage_id"] == passage_id for item in passport["studies"])
     assert any(item["target_entity_id"] == study_id and item["action"] == "study.context_extracted" for item in passport["audit_events"])
+    assert passport["schema_version"] == "1.1"
+    assert len(passport["conclusions"]) == 1
+    persisted_conclusion = passport["conclusions"][0]
+    assert persisted_conclusion["statement"] == "The abstract reports a provenance-aware intervention in one institution."
+    assert persisted_conclusion["reviewer_status"] == "needs_review"
+    assert any(edge["passage_id"] == passage_id for edge in persisted_conclusion["evidence_relations"])
+
+    review = client.patch(
+        f"/api/v1/evidence/conclusions/{persisted_conclusion['id']}/review",
+        json={"reviewer_status": "accepted", "reviewer_notes": "Checked against the cited abstract."},
+    )
+    assert review.status_code == 200, review.text
+    assert review.json()["reviewer_status"] == "accepted"
+    assert review.json()["provenance_basis"] == "human_reviewed"
+    refreshed_passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json").json()
+    reviewed = next(item for item in refreshed_passport["conclusions"] if item["id"] == persisted_conclusion["id"])
+    assert reviewed["reviewer_status"] == "accepted"
+    assert reviewed["metadata_snapshot"]["human_review"]["reviewer_notes"] == "Checked against the cited abstract."
+    assert any(item["action"] == "conclusion.reviewed" and item["target_entity_id"] == persisted_conclusion["id"] for item in refreshed_passport["audit_events"])
 
 
 def test_failed_research_run_preserves_execution_plan(monkeypatch, client) -> None:

@@ -6,14 +6,15 @@ from app.core.config import get_llm_config, get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.entities import (
-    AuditEvent, Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage,
+    AuditEvent, Claim, Conclusion, ConclusionEvidenceRelation, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage,
     ReportVersion, ResearchRun, SourceEvent, SourceStatusCheck, Study, User,
 )
 from app.services.audit import record_audit_event
 from app.services.citation_verification import verify_claim_with_llm
+from app.services.contextual_relation_checker import compare_claims_with_context
 from app.services.dependency_candidates import suggest_dependency_candidates
 from app.schemas.evidence import (
-    ClaimCreate, ClaimRead, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
+    ClaimCreate, ClaimRead, ConclusionReview, ContextualRelationCheckResponse, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
     PaperDependencyCreate, StudyCreate,
 )
 
@@ -168,6 +169,217 @@ async def verify_claim_citation_support(
         "provenance_basis": "model_inferred",
         "verifier_model": model,
         "notice": "This is a model-assisted evidence assessment, not proof of scientific truth. Human review is required.",
+    }
+
+
+@router.post(
+    "/claims/{claim_id}/compare/{related_claim_id}",
+    response_model=ContextualRelationCheckResponse,
+    status_code=201,
+)
+async def compare_claims_in_context(
+    claim_id: str,
+    related_claim_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Compare two saved claims using their exact evidence and study context."""
+    claim = db.scalar(
+        select(Claim)
+        .join(ResearchRun, Claim.run_id == ResearchRun.id)
+        .where(Claim.id == claim_id, ResearchRun.owner_user_id == current_user.id)
+    )
+    if claim is None:
+        raise HTTPException(status_code=404, detail="Claim not found.")
+    related_claim = db.scalar(
+        select(Claim)
+        .join(ResearchRun, Claim.run_id == ResearchRun.id)
+        .where(Claim.id == related_claim_id, ResearchRun.owner_user_id == current_user.id)
+    )
+    if related_claim is None:
+        raise HTTPException(status_code=404, detail="Related claim not found.")
+    if claim.id == related_claim.id:
+        raise HTTPException(status_code=422, detail="A claim cannot be compared with itself.")
+    if claim.run_id != related_claim.run_id:
+        raise HTTPException(status_code=422, detail="Claims must belong to the same research run for contextual comparison.")
+
+    def linked_passage_ids(target_claim_id: str) -> list[str]:
+        rows = list(db.scalars(
+            select(EvidenceRelation)
+            .where(
+                EvidenceRelation.claim_id == target_claim_id,
+                EvidenceRelation.passage_id.is_not(None),
+                EvidenceRelation.reviewer_status != "rejected",
+            )
+            .order_by(EvidenceRelation.created_at.desc())
+        ).all())
+        return list(dict.fromkeys(
+            edge.passage_id for edge in rows if edge.passage_id
+        ))[:3]
+
+    claim_a_passage_ids = linked_passage_ids(claim.id)
+    claim_b_passage_ids = linked_passage_ids(related_claim.id)
+    all_passage_ids = set(claim_a_passage_ids + claim_b_passage_ids)
+    if not claim_a_passage_ids or not claim_b_passage_ids:
+        raise HTTPException(
+            status_code=422,
+            detail="Both claims must have at least one non-rejected evidence passage before contextual comparison.",
+        )
+
+    passage_rows = db.execute(
+        select(Passage, Paper.id, Paper.title, Paper.doi)
+        .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+        .join(Paper, PaperVersion.paper_id == Paper.id)
+        .where(Passage.id.in_(all_passage_ids), Paper.owner_user_id == current_user.id)
+    ).all()
+    paper_ids = {paper_id for _, paper_id, _, _ in passage_rows}
+    accessible_passage_ids = {passage.id for passage, _, _, _ in passage_rows}
+    if not set(claim_a_passage_ids).issubset(accessible_passage_ids) or not set(claim_b_passage_ids).issubset(accessible_passage_ids):
+        raise HTTPException(status_code=422, detail="One or more linked evidence passages are unavailable.")
+    study_rows = list(db.scalars(
+        select(Study)
+        .join(Paper, Study.paper_id == Paper.id)
+        .where(
+            Paper.owner_user_id == current_user.id,
+            or_(
+                Study.source_passage_id.in_(accessible_passage_ids),
+                Study.paper_id.in_(paper_ids),
+            ),
+        )
+        .order_by(Study.created_at.desc())
+    ).all()) if accessible_passage_ids else []
+    study_by_passage = {
+        study.source_passage_id: study for study in study_rows
+        if study.source_passage_id
+    }
+    study_by_paper: dict[str, Study] = {}
+    for study in study_rows:
+        study_by_paper.setdefault(study.paper_id, study)
+
+    passages_by_id: dict[str, dict] = {}
+    for passage, paper_id, title, doi in passage_rows:
+        study = study_by_passage.get(passage.id) or study_by_paper.get(paper_id)
+        study_context = {}
+        if study is not None:
+            study_context = {
+                "study_type": study.study_type,
+                "population": study.population,
+                "method": study.method,
+                "intervention": study.intervention,
+                "outcomes": study.outcomes or [],
+                "limitations": study.limitations or [],
+            }
+        passages_by_id[passage.id] = {
+            "id": passage.id,
+            "paper_title": title,
+            "doi": doi,
+            "page_number": passage.page_number,
+            "section_title": passage.section_title,
+            "text": passage.text[:8000],
+            "study_context": study_context,
+        }
+
+    passages_a = [passages_by_id[item] for item in claim_a_passage_ids if item in passages_by_id]
+    passages_b = [passages_by_id[item] for item in claim_b_passage_ids if item in passages_by_id]
+    settings = get_settings()
+    api_key, api_base, model = get_llm_config(settings)
+    if not api_key or not model:
+        raise HTTPException(
+            status_code=503,
+            detail="Contextual relation checking requires LLM_API_KEY and LLM_MODEL (or legacy OPENAI_API_KEY and OPENAI_MODEL). No relation was created.",
+        )
+    try:
+        assessment = await compare_claims_with_context(
+            claim_a={
+                "id": claim.id,
+                "statement": claim.statement,
+                "scope": claim.scope or {},
+            },
+            claim_b={
+                "id": related_claim.id,
+                "statement": related_claim.statement,
+                "scope": related_claim.scope or {},
+            },
+            passages_a=passages_a,
+            passages_b=passages_b,
+            api_key=api_key,
+            api_base=api_base,
+            model=model,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="The contextual relation checker returned an invalid result. No relationship was saved.",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Contextual relation checking failed. No relationship was saved.",
+        ) from exc
+
+    rationale = (
+        f"{assessment['rationale']}\n"
+        f"Comparability: {assessment['comparability_note']}\n"
+        f"Population: {assessment['population_comparison']}\n"
+        f"Method: {assessment['method_comparison']}\n"
+        f"Outcome: {assessment['outcome_comparison']}"
+    )
+    relation = EvidenceRelation(
+        claim_id=claim.id,
+        passage_id=None,
+        related_claim_id=related_claim.id,
+        relation_type=assessment["relation_type"],
+        provenance_basis="model_inferred",
+        confidence=None,
+        reviewer_status="unreviewed",
+        rationale=rationale[:6000],
+        metadata_snapshot={
+            "contextual_comparison": {
+                "comparability_note": assessment["comparability_note"],
+                "population_comparison": assessment["population_comparison"],
+                "method_comparison": assessment["method_comparison"],
+                "outcome_comparison": assessment["outcome_comparison"],
+                "evidence_passage_ids": assessment["evidence_passage_ids"],
+                "uncertainty_notes": assessment["uncertainty_notes"],
+                "model": model,
+                "requires_human_review": True,
+            }
+        },
+    )
+    db.add(relation)
+    db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=claim.run_id,
+        target_entity_type="evidence_relation",
+        target_entity_id=relation.id,
+        action="evidence_relation.contextual_comparison_completed",
+        previous_value=None,
+        new_value={
+            "claim_id": claim.id,
+            "related_claim_id": related_claim.id,
+            "relation_type": relation.relation_type,
+            "reviewer_status": relation.reviewer_status,
+            "provenance_basis": relation.provenance_basis,
+            "evidence_passage_ids": assessment["evidence_passage_ids"],
+            "comparability_note": assessment["comparability_note"],
+            "model": model,
+        },
+        reason="Claims compared in their stored population, method and outcome context; human review is required.",
+        resolution_status="needs_review",
+    )
+    db.commit()
+    return {
+        "relation_id": relation.id,
+        "claim_id": claim.id,
+        "related_claim_id": related_claim.id,
+        **assessment,
+        "reviewer_status": relation.reviewer_status,
+        "provenance_basis": relation.provenance_basis,
+        "model": model,
+        "human_review_required": True,
+        "notice": "This context-aware relation is model-inferred and awaits human review. It is not proof of scientific truth.",
     }
 
 
@@ -424,6 +636,18 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
         select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number.asc())
     ).all())
     latest_report = report_versions[-1] if report_versions else None
+    persisted_conclusions = list(db.scalars(
+        select(Conclusion).where(Conclusion.run_id == run_id).order_by(Conclusion.created_at.asc())
+    ).all())
+    persisted_conclusion_ids = {conclusion.id for conclusion in persisted_conclusions}
+    conclusion_relations = list(db.scalars(
+        select(ConclusionEvidenceRelation)
+        .where(ConclusionEvidenceRelation.conclusion_id.in_(persisted_conclusion_ids))
+        .order_by(ConclusionEvidenceRelation.created_at.asc())
+    ).all()) if persisted_conclusion_ids else []
+    conclusion_relations_by_id: dict[str, list[ConclusionEvidenceRelation]] = {}
+    for conclusion_relation in conclusion_relations:
+        conclusion_relations_by_id.setdefault(conclusion_relation.conclusion_id, []).append(conclusion_relation)
 
     # All report versions may have different source sets after temporal updates.
     paper_ids: set[str] = set()
@@ -541,12 +765,17 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
             source, target = f"passage:{relation.passage_id}", f"claim:{relation.claim_id}"
         else:
             source, target = f"claim:{relation.claim_id}", f"claim:{relation.related_claim_id}"
-        edges.append({
+        edge = {
             "id": relation.id, "source": source, "target": target,
             "type": relation.relation_type, "provenance_basis": relation.provenance_basis,
             "reviewer_status": relation.reviewer_status, "confidence": relation.confidence,
             "rationale": relation.rationale,
-        })
+        }
+        metadata = relation.metadata_snapshot if isinstance(relation.metadata_snapshot, dict) else {}
+        contextual_comparison = metadata.get("contextual_comparison")
+        if isinstance(contextual_comparison, dict):
+            edge["contextual_comparison"] = contextual_comparison
+        edges.append(edge)
     for passage in passages:
         edges.append({"source": f"paper-version:{passage.paper_version_id}", "target": f"passage:{passage.id}", "type": "contains"})
     for version in versions:
@@ -577,6 +806,59 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
         })
     known_passage_ids = {passage.id for passage in passages}
     known_claim_ids = {claim.id for claim in claims}
+    durable_conclusions_by_report: dict[str, list[Conclusion]] = {}
+    for conclusion in persisted_conclusions:
+        durable_conclusions_by_report.setdefault(conclusion.report_version_id, []).append(conclusion)
+        linked_relations = conclusion_relations_by_id.get(conclusion.id, [])
+        cited_passage_ids = sorted({
+            relation.passage_id for relation in linked_relations
+            if relation.passage_id in known_passage_ids
+        })
+        cited_claim_ids = sorted({
+            relation.claim_id for relation in linked_relations
+            if relation.claim_id in known_claim_ids
+        })
+        nodes.append({
+            "id": f"conclusion:{conclusion.id}",
+            "type": "conclusion",
+            "label": conclusion.statement[:1200],
+            "assessment": conclusion.relation_type,
+            "review_required": conclusion.reviewer_status != "accepted",
+            "reviewer_status": conclusion.reviewer_status,
+            "provenance_basis": conclusion.provenance_basis,
+            "rationale": conclusion.rationale,
+            "uncertainty_notes": conclusion.uncertainty_notes,
+            "evidence_passage_ids": cited_passage_ids,
+            "claim_ids": cited_claim_ids,
+            "report_version_id": conclusion.report_version_id,
+        })
+        edges.append({
+            "source": f"report-version:{conclusion.report_version_id}",
+            "target": f"conclusion:{conclusion.id}",
+            "type": "contains_conclusion",
+            "provenance_basis": "system_recorded",
+        })
+        for relation in linked_relations:
+            if relation.passage_id in known_passage_ids:
+                edges.append({
+                    "source": f"passage:{relation.passage_id}",
+                    "target": f"conclusion:{conclusion.id}",
+                    "type": relation.relation_type,
+                    "provenance_basis": relation.provenance_basis,
+                    "reviewer_status": relation.reviewer_status,
+                    "rationale": relation.rationale,
+                    "id": relation.id,
+                })
+            if relation.claim_id in known_claim_ids:
+                edges.append({
+                    "source": f"claim:{relation.claim_id}",
+                    "target": f"conclusion:{conclusion.id}",
+                    "type": "contributes_to_conclusion",
+                    "provenance_basis": relation.provenance_basis,
+                    "reviewer_status": relation.reviewer_status,
+                    "rationale": relation.rationale,
+                    "id": relation.id,
+                })
     for report in report_versions:
         snapshot = report.evidence_snapshot if isinstance(report.evidence_snapshot, dict) else {}
         report_node_id = f"report-version:{report.id}"
@@ -594,7 +876,9 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
             continue
 
         findings = synthesis.get("findings", [])
-        if isinstance(findings, list):
+        # New report versions have durable conclusion rows and provenance edges.
+        # Use the synthesis snapshot only as a compatibility fallback for legacy reports.
+        if report.id not in durable_conclusions_by_report and isinstance(findings, list):
             for index, finding in enumerate(findings, start=1):
                 if not isinstance(finding, dict) or not isinstance(finding.get("statement"), str):
                     continue
@@ -605,6 +889,16 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
                     ref for ref in (finding.get("evidence_passage_ids") or [])
                     if isinstance(ref, str) and ref in known_passage_ids
                 ]
+                # A conclusion is linked to the claims whose exact evidence passages
+                # the synthesis cites. Do not fabricate a claim edge when the model
+                # only has a passage-level citation or the reviewer rejected that edge.
+                claim_ids_for_finding = sorted({
+                    relation.claim_id
+                    for relation in relations
+                    if relation.passage_id in allowed_refs
+                    and relation.claim_id in known_claim_ids
+                    and relation.reviewer_status != "rejected"
+                })
                 conclusion_id = f"conclusion:{report.id}:{index}"
                 relation_type = finding.get("relation_type")
                 if relation_type not in {"supports", "contradicts", "qualifies", "not_comparable"}:
@@ -618,6 +912,7 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
                     "provenance_basis": "model_inferred",
                     "rationale": finding.get("context_note") or "Model-generated synthesis finding; researcher review required.",
                     "evidence_passage_ids": allowed_refs,
+                    "claim_ids": claim_ids_for_finding,
                 })
                 edges.append({
                     "source": report_node_id,
@@ -633,6 +928,18 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
                         "provenance_basis": "model_inferred",
                         "reviewer_status": "needs_review",
                         "rationale": finding.get("context_note") or "The report synthesis links this finding to the cited passage; review the original source text.",
+                    })
+                for claim_id in claim_ids_for_finding:
+                    edges.append({
+                        "source": f"claim:{claim_id}",
+                        "target": conclusion_id,
+                        "type": "contributes_to_conclusion",
+                        "provenance_basis": "system_recorded_from_shared_evidence",
+                        "reviewer_status": "needs_review",
+                        "rationale": (
+                            "This claim cites at least one exact passage that the synthesis finding also cites. "
+                            "The edge records shared evidence lineage, not an independently verified entailment."
+                        ),
                     })
 
         opportunities = synthesis.get("research_opportunities", [])
@@ -712,6 +1019,158 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
     return {
         "run_id": run_id, "nodes": nodes, "edges": edges,
         "note": "Only persisted relationships are shown. Missing edges are not evidence that a relationship does not exist.",
+    }
+
+
+@router.get("/runs/{run_id}/conclusions")
+def list_run_conclusions(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """List saved synthesis conclusions with their exact passage and claim provenance."""
+    if db.scalar(select(ResearchRun.id).where(
+        ResearchRun.id == run_id, ResearchRun.owner_user_id == current_user.id
+    )) is None:
+        raise HTTPException(status_code=404, detail="Research run not found.")
+
+    conclusion_rows = list(db.scalars(
+        select(Conclusion).where(Conclusion.run_id == run_id).order_by(Conclusion.created_at.asc())
+    ).all())
+    conclusion_ids = {item.id for item in conclusion_rows}
+    edges = list(db.scalars(
+        select(ConclusionEvidenceRelation)
+        .where(ConclusionEvidenceRelation.conclusion_id.in_(conclusion_ids))
+        .order_by(ConclusionEvidenceRelation.created_at.asc())
+    ).all()) if conclusion_ids else []
+    edges_by_conclusion: dict[str, list[ConclusionEvidenceRelation]] = {}
+    for edge in edges:
+        edges_by_conclusion.setdefault(edge.conclusion_id, []).append(edge)
+
+    return {
+        "run_id": run_id,
+        "count": len(conclusion_rows),
+        "conclusions": [{
+            "id": item.id,
+            "run_id": item.run_id,
+            "report_version_id": item.report_version_id,
+            "statement": item.statement,
+            "relation_type": item.relation_type,
+            "reviewer_status": item.reviewer_status,
+            "review_required": item.reviewer_status != "accepted",
+            "provenance_basis": item.provenance_basis,
+            "rationale": item.rationale,
+            "uncertainty_notes": item.uncertainty_notes,
+            "metadata_snapshot": item.metadata_snapshot or {},
+            "created_at": item.created_at.isoformat() if item.created_at else None,
+            "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+            "evidence_relations": [{
+                "id": edge.id,
+                "claim_id": edge.claim_id,
+                "passage_id": edge.passage_id,
+                "relation_type": edge.relation_type,
+                "provenance_basis": edge.provenance_basis,
+                "reviewer_status": edge.reviewer_status,
+                "rationale": edge.rationale,
+            } for edge in edges_by_conclusion.get(item.id, [])],
+        } for item in conclusion_rows],
+        "note": "Model-inferred conclusions remain review prompts. Accepting a conclusion records human review; it does not certify scientific truth.",
+    }
+
+
+@router.patch("/conclusions/{conclusion_id}/review")
+def review_conclusion(
+    conclusion_id: str,
+    payload: ConclusionReview,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Record a human decision on a persisted conclusion and its provenance edges."""
+    conclusion = db.scalar(
+        select(Conclusion)
+        .join(ResearchRun, Conclusion.run_id == ResearchRun.id)
+        .where(
+            Conclusion.id == conclusion_id,
+            ResearchRun.owner_user_id == current_user.id,
+        )
+    )
+    if conclusion is None:
+        raise HTTPException(status_code=404, detail="Conclusion not found.")
+
+    previous = {
+        "reviewer_status": conclusion.reviewer_status,
+        "provenance_basis": conclusion.provenance_basis,
+        "metadata_snapshot": conclusion.metadata_snapshot or {},
+    }
+    metadata = dict(conclusion.metadata_snapshot or {})
+    metadata["original_provenance_basis"] = metadata.get(
+        "original_provenance_basis", conclusion.provenance_basis
+    )
+    metadata["human_review"] = {
+        "reviewer_status": payload.reviewer_status,
+        "reviewer_notes": payload.reviewer_notes,
+    }
+    metadata["review_history"] = [
+        *(metadata.get("review_history") or []),
+        {
+            "previous_status": conclusion.reviewer_status,
+            "new_status": payload.reviewer_status,
+            "reviewer_notes": payload.reviewer_notes,
+        },
+    ]
+    conclusion.metadata_snapshot = metadata
+    conclusion.reviewer_status = payload.reviewer_status
+    if payload.reviewer_status == "accepted":
+        conclusion.provenance_basis = "human_reviewed"
+    else:
+        conclusion.provenance_basis = metadata["original_provenance_basis"]
+
+    edge_rows = list(db.scalars(
+        select(ConclusionEvidenceRelation)
+        .where(ConclusionEvidenceRelation.conclusion_id == conclusion.id)
+    ).all())
+    previous_edges = [{
+        "id": edge.id,
+        "reviewer_status": edge.reviewer_status,
+        "provenance_basis": edge.provenance_basis,
+    } for edge in edge_rows]
+    for edge in edge_rows:
+        edge.reviewer_status = payload.reviewer_status
+        edge.provenance_basis = (
+            "human_reviewed" if payload.reviewer_status == "accepted" else "model_inferred"
+        )
+
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=conclusion.run_id,
+        target_entity_type="conclusion",
+        target_entity_id=conclusion.id,
+        action="conclusion.reviewed",
+        previous_value={**previous, "evidence_relations": previous_edges},
+        new_value={
+            "reviewer_status": conclusion.reviewer_status,
+            "provenance_basis": conclusion.provenance_basis,
+            "reviewer_notes": payload.reviewer_notes,
+            "evidence_relation_count": len(edge_rows),
+        },
+        reason=payload.reviewer_notes,
+        resolution_status=payload.reviewer_status,
+    )
+    db.commit()
+    db.refresh(conclusion)
+    return {
+        "id": conclusion.id,
+        "run_id": conclusion.run_id,
+        "report_version_id": conclusion.report_version_id,
+        "statement": conclusion.statement,
+        "relation_type": conclusion.relation_type,
+        "reviewer_status": conclusion.reviewer_status,
+        "review_required": conclusion.reviewer_status != "accepted",
+        "provenance_basis": conclusion.provenance_basis,
+        "rationale": conclusion.rationale,
+        "uncertainty_notes": conclusion.uncertainty_notes,
+        "metadata_snapshot": conclusion.metadata_snapshot or {},
     }
 
 
@@ -922,12 +1381,25 @@ def export_evidence_passport(
     relation_by_claim: dict[str, list[EvidenceRelation]] = {}
     for relation in relations:
         relation_by_claim.setdefault(relation.claim_id, []).append(relation)
+    claim_by_id = {claim.id: claim for claim in claims}
+    conclusions = list(db.scalars(
+        select(Conclusion).where(Conclusion.run_id == run_id).order_by(Conclusion.created_at.asc())
+    ).all())
+    conclusion_ids = {item.id for item in conclusions}
+    conclusion_evidence_relations = list(db.scalars(
+        select(ConclusionEvidenceRelation)
+        .where(ConclusionEvidenceRelation.conclusion_id.in_(conclusion_ids))
+        .order_by(ConclusionEvidenceRelation.created_at.asc())
+    ).all()) if conclusion_ids else []
+    conclusion_edges_by_id: dict[str, list[ConclusionEvidenceRelation]] = {}
+    for edge in conclusion_evidence_relations:
+        conclusion_edges_by_id.setdefault(edge.conclusion_id, []).append(edge)
 
     def iso(value):
         return value.isoformat() if value else None
 
     passport = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "passport_generated_at": datetime.now(timezone.utc).isoformat(),
         "scope": {
             "run_id": run.id,
@@ -1006,6 +1478,40 @@ def export_evidence_passport(
                 } if relation.passage_id in passage_by_id and passage_by_id[relation.passage_id].paper_version_id in version_by_id else None),
             } for relation in relation_by_claim.get(claim.id, [])],
         } for claim in claims],
+        "conclusions": [{
+            "id": conclusion.id,
+            "run_id": conclusion.run_id,
+            "report_version_id": conclusion.report_version_id,
+            "statement": conclusion.statement,
+            "relation_type": conclusion.relation_type,
+            "reviewer_status": conclusion.reviewer_status,
+            "review_required": conclusion.reviewer_status != "accepted",
+            "provenance_basis": conclusion.provenance_basis,
+            "rationale": conclusion.rationale,
+            "uncertainty_notes": conclusion.uncertainty_notes,
+            "metadata_snapshot": conclusion.metadata_snapshot or {},
+            "created_at": iso(conclusion.created_at),
+            "updated_at": iso(conclusion.updated_at),
+            "evidence_relations": [{
+                "id": edge.id,
+                "claim_id": edge.claim_id,
+                "claim_statement": claim_by_id[edge.claim_id].statement if edge.claim_id in claim_by_id else None,
+                "passage_id": edge.passage_id,
+                "relation_type": edge.relation_type,
+                "provenance_basis": edge.provenance_basis,
+                "reviewer_status": edge.reviewer_status,
+                "rationale": edge.rationale,
+                "passage": ({
+                    "id": passage_by_id[edge.passage_id].id,
+                    "text": passage_by_id[edge.passage_id].text,
+                    "page_number": passage_by_id[edge.passage_id].page_number,
+                    "section_title": passage_by_id[edge.passage_id].section_title,
+                    "text_hash": passage_by_id[edge.passage_id].text_hash,
+                    "paper_version_id": passage_by_id[edge.passage_id].paper_version_id,
+                    "paper_id": version_by_id[passage_by_id[edge.passage_id].paper_version_id].paper_id,
+                } if edge.passage_id in passage_by_id and passage_by_id[edge.passage_id].paper_version_id in version_by_id else None),
+            } for edge in conclusion_edges_by_id.get(conclusion.id, [])],
+        } for conclusion in conclusions],
         "paper_dependencies": [{
             "id": dependency.id,
             "dependent_paper_id": dependency.dependent_paper_id,
@@ -1135,6 +1641,33 @@ def export_evidence_passport(
                 passage = relation["passage"]
                 lines.append(f"  - Passage ID: {passage['id']} · page: {passage['page_number'] or 'abstract / page unavailable'} · paper: {passage['paper_id']}")
                 lines.append("  - Exact text: " + passage["text"].replace("\n", " "))
+        lines.append("")
+    lines.extend(["## Persisted conclusions", ""])
+    if not passport["conclusions"]:
+        lines.append("No persisted synthesis conclusions are linked to this run.")
+    for conclusion in passport["conclusions"]:
+        lines.extend([
+            f"### {conclusion['statement']}",
+            "",
+            f"- **Assessment:** {conclusion['relation_type']}",
+            f"- **Human review:** {conclusion['reviewer_status']}",
+            f"- **Provenance basis:** {conclusion['provenance_basis']}",
+            f"- **Report version:** {conclusion['report_version_id']}",
+        ])
+        if conclusion["rationale"]:
+            lines.append(f"- **Rationale:** {conclusion['rationale']}")
+        if conclusion["uncertainty_notes"]:
+            lines.append(f"- **Uncertainty:** {conclusion['uncertainty_notes']}")
+        for edge in conclusion["evidence_relations"]:
+            lines.append(f"- **Evidence edge:** {edge['relation_type']} · reviewer status: {edge['reviewer_status']} · basis: {edge['provenance_basis']}")
+            if edge["claim_statement"]:
+                lines.append(f"  - Claim: {edge['claim_statement']}")
+            if edge["passage"]:
+                passage = edge["passage"]
+                lines.append(f"  - Passage ID: {passage['id']} · page: {passage['page_number'] or 'abstract / page unavailable'} · paper: {passage['paper_id']}")
+                lines.append("  - Exact text: " + passage["text"].replace("\n", " "))
+            if edge["rationale"]:
+                lines.append(f"  - Rationale: {edge['rationale']}")
         lines.append("")
     lines.extend(["## Source dependencies", ""])
     if not passport["paper_dependencies"]:

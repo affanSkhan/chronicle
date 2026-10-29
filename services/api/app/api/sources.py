@@ -474,7 +474,29 @@ def record_source_event(
 
     paper_ids, paper_reasons = impacted_papers(db, paper_id)
     claim_ids, claim_reasons = impacted_claims(db, paper_ids)
-    from app.models.entities import Claim, ReportVersion
+    from app.models.entities import Claim, Conclusion, ConclusionEvidenceRelation, ReportVersion
+
+    # A/B/C are controlled ablations and must not receive the temporal
+    # propagation feature. Normal runs default to D; only D (or legacy runs
+    # without arm metadata) are marked for source-update reassessment.
+    eligible_claim_ids: list[str] = []
+    eligible_claim_reasons: dict = {}
+    run_arm_cache: dict[str, str] = {}
+    for candidate_id in claim_ids:
+        candidate = db.get(Claim, candidate_id)
+        if candidate is None:
+            continue
+        if candidate.run_id not in run_arm_cache:
+            candidate_run = db.get(ResearchRun, candidate.run_id)
+            run_arm_cache[candidate.run_id] = str(
+                ((candidate_run.configuration or {}).get("evaluation_arm") if candidate_run else None) or "D"
+            ).upper()
+        if run_arm_cache[candidate.run_id] == "D":
+            eligible_claim_ids.append(candidate_id)
+            if candidate_id in claim_reasons:
+                eligible_claim_reasons[candidate_id] = claim_reasons[candidate_id]
+    claim_ids = eligible_claim_ids
+    claim_reasons = eligible_claim_reasons
     claims_before = {
         claim.id: {
             "assessment": claim.assessment,
@@ -499,6 +521,13 @@ def record_source_event(
         snapshot_passages = set(snapshot.get("passage_ids", [])) if isinstance(snapshot.get("passage_ids"), list) else set()
         if (snapshot_papers & paper_ids) or (snapshot_passages & impacted_passage_ids):
             run_ids.add(report.run_id)
+
+    # Filter snapshot-only hits as well: arms A-C do not run temporal propagation.
+    for affected_run_id in list(run_ids):
+        affected_run = db.get(ResearchRun, affected_run_id)
+        arm = str(((affected_run.configuration or {}).get("evaluation_arm") if affected_run else None) or "D").upper()
+        if arm != "D":
+            run_ids.discard(affected_run_id)
 
     # A prior report is an immutable historical snapshot. Create one child
     # version per affected run and flag the new version for human reassessment.
@@ -565,6 +594,79 @@ def record_source_event(
         )
         db.add(revised)
         db.flush()
+
+        # Each temporal report version gets its own conclusion records. The old
+        # report and its conclusions remain immutable; cloned conclusions are
+        # explicitly returned to needs_review because the cited source changed.
+        prior_conclusions = list(db.scalars(
+            select(Conclusion).where(Conclusion.report_version_id == prior.id).order_by(Conclusion.created_at.asc())
+        ).all())
+        new_conclusion_ids: list[str] = []
+        for old_conclusion in prior_conclusions:
+            original_basis = (
+                (old_conclusion.metadata_snapshot or {}).get("original_provenance_basis")
+                or old_conclusion.provenance_basis
+            )
+            cloned_conclusion = Conclusion(
+                run_id=prior.run_id,
+                report_version_id=revised.id,
+                statement=old_conclusion.statement,
+                relation_type=old_conclusion.relation_type,
+                reviewer_status="needs_review",
+                provenance_basis=original_basis,
+                rationale=old_conclusion.rationale,
+                uncertainty_notes=old_conclusion.uncertainty_notes,
+                metadata_snapshot={
+                    **(old_conclusion.metadata_snapshot or {}),
+                    "source_conclusion_id": old_conclusion.id,
+                    "source_event_id": event.id,
+                    "original_provenance_basis": original_basis,
+                    "source_update_requires_review": True,
+                },
+            )
+            db.add(cloned_conclusion)
+            db.flush()
+            new_conclusion_ids.append(cloned_conclusion.id)
+            old_edges = list(db.scalars(
+                select(ConclusionEvidenceRelation).where(
+                    ConclusionEvidenceRelation.conclusion_id == old_conclusion.id
+                )
+            ).all())
+            for old_edge in old_edges:
+                db.add(ConclusionEvidenceRelation(
+                    conclusion_id=cloned_conclusion.id,
+                    claim_id=old_edge.claim_id,
+                    passage_id=old_edge.passage_id,
+                    relation_type=old_edge.relation_type,
+                    provenance_basis=old_edge.provenance_basis,
+                    reviewer_status="needs_review",
+                    rationale=old_edge.rationale,
+                ))
+            record_audit_event(
+                db,
+                actor_user_id=current_user.id,
+                run_id=prior.run_id,
+                target_entity_type="conclusion",
+                target_entity_id=cloned_conclusion.id,
+                action="conclusion.versioned_after_source_event",
+                previous_value={
+                    "source_conclusion_id": old_conclusion.id,
+                    "reviewer_status": old_conclusion.reviewer_status,
+                    "report_version_id": prior.id,
+                },
+                new_value={
+                    "reviewer_status": cloned_conclusion.reviewer_status,
+                    "report_version_id": revised.id,
+                    "source_event_id": event.id,
+                    "evidence_relation_count": len(old_edges),
+                },
+                reason="Source event created a new conclusion record that requires reassessment.",
+                resolution_status="needs_review",
+            )
+        revised.evidence_snapshot = {
+            **(revised.evidence_snapshot or {}),
+            "conclusion_ids": new_conclusion_ids,
+        }
         new_report_versions.append((prior, revised))
 
     for claim_id in sorted(claim_ids):

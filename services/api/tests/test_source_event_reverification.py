@@ -12,13 +12,14 @@ def _pdf_bytes() -> bytes:
     return payload
 
 
-def _claim_and_source_event(client, verification_status="human_verified"):
-    run = client.post(
-        "/api/v1/research/runs",
-        json={"question": "Does the intervention improve review quality?", "mode": "academic"},
-    )
+def _claim_and_source_event(client, verification_status="human_verified", evaluation_arm=None):
+    run_payload = {"question": "Does the intervention improve review quality?", "mode": "academic"}
+    if evaluation_arm is not None:
+        run_payload["evaluation_arm"] = evaluation_arm
+    run = client.post("/api/v1/research/runs", json=run_payload)
     assert run.status_code == 201, run.text
     run_id = run.json()["id"]
+    assert run.json()["evaluation_arm"] == (evaluation_arm or "D")
 
     upload = client.post(
         "/api/v1/documents/upload",
@@ -52,8 +53,19 @@ def _claim_and_source_event(client, verification_status="human_verified"):
         },
     )
     assert event.status_code == 201, event.text
-    assert claim_id in event.json()["impact"]["affected_claim_ids"]
+    if evaluation_arm == "C":
+        assert claim_id not in event.json()["impact"]["affected_claim_ids"]
+    else:
+        assert claim_id in event.json()["impact"]["affected_claim_ids"]
     return run_id, claim_id, event.json()["event"]["id"]
+
+
+def test_ablation_arm_c_does_not_enable_temporal_reverification(client):
+    _, claim_id, event_id = _claim_and_source_event(client, evaluation_arm="C")
+    response = client.post(f"/api/v1/sources/events/{event_id}/reverify-impacted-claims")
+    assert response.status_code == 200, response.text
+    assert response.json()["rechecked_count"] == 0
+    assert claim_id not in [item.get("claim_id") for item in response.json()["results"]]
 
 
 def test_source_event_reverification_records_new_verdict_and_keeps_human_review(monkeypatch, client):

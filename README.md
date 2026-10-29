@@ -3,14 +3,14 @@
 
 Chronicle is the working name for the VIIT B.Tech major project **Multi-Agent Research Assistant with Explainable Reasoning**. The current prototype focuses on source discovery, passage-level evidence records, provenance-aware relationships, human review, temporal source-event impact analysis and reproducible report history.
 
-> **Current status:** Working development prototype, not production-ready and not a scientific-truth verifier. It supports accounts and account-scoped records, Crossref/OpenAlex metadata search, selectable-text PDF ingestion, persistent discovery runs, optional evidence-bounded model drafts, an inspectable evidence graph, source-event impact propagation, a review audit trail and Markdown/JSON Evidence Passport exports.
+> **Current status:** Deployed academic research prototype, not a scientific-truth verifier. It supports account-scoped workspaces, Crossref/OpenAlex/Semantic Scholar and public-web discovery adapters, uploaded-PDF ingestion and passage retrieval, four bounded research modes, optional model-assisted claims and synthesis, reviewable conclusion records, a provenance evidence graph, source-event impact/versioning, audit history, and Markdown/JSON/PDF Evidence Passport exports. Production deployments are registered READY; full live end-to-end acceptance and labelled benchmark efficacy remain in progress.
 
 ## Core workflow
 1. Register/sign in to a private Chronicle account.
 2. Search Crossref/OpenAlex or upload a PDF.
-3. Submit a research question. The current worker retrieves scholarly metadata, stores paper versions and abstract passages, and creates a versioned Academic Discovery Snapshot.
+3. Submit a research question. The API executes a bounded, mode-specific plan, retrieves scholarly metadata and selected PDF passages, and creates a versioned Academic Discovery Snapshot. B–D evaluation runs can perform up to two recorded evidence-gap follow-up searches; A is a single-query baseline.
 4. With a backend-configured OpenAI-compatible model, Chronicle can create candidate claims linked to retrieved passage IDs and a structured synthesis draft. These are always marked as unreviewed/model-inferred.
-5. Inspect the stored graph, record/preview source status signals, review relationships, and record corrections/retractions/conflicting findings.
+5. Inspect the stored graph, review claims, conclusions and relationships, check source status, and record corrections/retractions/conflicting findings. Model-derived conclusions and provenance edges begin in a review-required state; a human review decision is audit-logged.
 6. Chronicle traces recorded dependencies and flags affected claims/report versions for review, preserving actor, timestamp and before/after values in its audit trail.
 7. View report history, compare Markdown revisions, and export an Evidence Passport.
 
@@ -85,10 +85,11 @@ Legacy `OPENAI_API_KEY`, `OPENAI_API_BASE`, and `OPENAI_MODEL` variables remain 
 - `POST /api/v1/evidence/claims`, `POST /api/v1/evidence/claims/{claim_id}/relations`
 - `PATCH /api/v1/evidence/relations/{relation_id}/review`
 - `GET /api/v1/evidence/runs/{run_id}/graph`, `GET /api/v1/evidence/runs/{run_id}/audit`
+- `GET /api/v1/evidence/runs/{run_id}/conclusions`, `PATCH /api/v1/evidence/conclusions/{conclusion_id}/review` (persisted report findings and human review)
 - `GET /api/v1/sources/papers/{paper_id}/status-check` (preview only)
 - `POST /api/v1/sources/papers/{paper_id}/events`, `GET /api/v1/sources/events`
 - `GET /api/v1/evidence/runs/{run_id}/reports`
-- `GET /api/v1/evidence/runs/{run_id}/passport?format=markdown|json`
+- `GET /api/v1/evidence/runs/{run_id}/passport?format=markdown|json|pdf` (includes versioned conclusions and their passage/claim provenance edges)
 
 ## Tests
 ```bash
@@ -98,11 +99,11 @@ pytest -q
 GitHub Actions runs API tests, frontend typecheck/lint/production build and Docker Compose/image-build checks.
 
 ## Current limitations
-- The research executor is a FastAPI background task, not a durable job queue; a process restart can interrupt a run.
-- Search is currently metadata/abstract-level; full-text verification, embeddings/hybrid retrieval and calibrated evidence-strength scoring are not implemented.
-- OCR for scanned PDFs, run cancellation/retry, PDF export, hypothesis novelty evaluation and completed benchmark experiments are not implemented. Scheduled status checks are provided by the local worker or optional hourly GitHub Actions workflow, but public metadata monitoring is not exhaustive.
+- The default Vercel executor is inline/in-process; an optional PostgreSQL queue worker exists for separate Docker deployment, but a continuously running worker is not deployed on Vercel. In-process runs can be interrupted by a function/process restart.
+- External academic adapters primarily return metadata and abstracts; publisher full-text acquisition and systematic full-text appraisal are not implemented. Hybrid BM25 plus dense reranking is optional and requires Hugging Face configuration; dense passage vectors are not persistently indexed.
+- OCR is a bounded fallback, not a guarantee of accurate scanned-text extraction. A–D evaluation arms and a metrics harness exist, but labelled SciFact/SciFact-Open experiments, ALCE-style citation-quality evaluations, and the adjudicated temporal-update study have not yet produced reproducible results. Scheduled source monitoring and post-update reassessment remain bounded and human-led rather than a fully autonomous evidence-gap/temporal-agent loop.
 - Authentication uses short-lived signed bearer tokens held in browser session storage for this prototype. Production deployment needs a reviewed session/cookie design, rate limiting, abuse protection, secure secret management and operational monitoring.
-- Uploaded files are in local/container storage; configure private durable object storage and retention/deletion workflows before public use.
+- Vercel PDF uploads are capped at 3 MB until direct-to-object-storage upload is implemented. Production originals use private S3-compatible storage when configured or the private PostgreSQL blob table otherwise. Application-level deletion removes source-derived conclusions and report text, but backup and third-party provider retention policies remain outside that deletion path.
 - Research outputs and hypothesis suggestions are aids for human review, not claims of verified scientific truth.
 
 See [docs/implementation-status.md](docs/implementation-status.md) for the current implementation boundary, [docs/evaluation-protocol.md](docs/evaluation-protocol.md) for the reproducible benchmark protocol, and [docs/deployment-free-tier.md](docs/deployment-free-tier.md) for the free-tier deployment runbook.

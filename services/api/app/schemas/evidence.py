@@ -122,7 +122,26 @@ class EvidenceRelationRead(BaseModel):
     confidence: float | None
     reviewer_status: str
     rationale: str | None
+    metadata_snapshot: dict = Field(default_factory=dict)
 
+
+class ContextualRelationCheckResponse(BaseModel):
+    relation_id: str
+    claim_id: str
+    related_claim_id: str
+    relation_type: Literal["supports", "contradicts", "qualifies", "not_comparable"]
+    rationale: str
+    comparability_note: str
+    population_comparison: str
+    method_comparison: str
+    outcome_comparison: str
+    evidence_passage_ids: list[str]
+    uncertainty_notes: list[str] = Field(default_factory=list)
+    reviewer_status: Literal["unreviewed"] = "unreviewed"
+    provenance_basis: Literal["model_inferred"] = "model_inferred"
+    model: str
+    human_review_required: bool = True
+    notice: str = "Contextual relation assessments are model-inferred review prompts, not scientific truth."
 
 class PaperDependencyCreate(BaseModel):
     dependent_paper_id: str
@@ -156,6 +175,11 @@ class SourceEventRead(BaseModel):
 
 
 class EvidenceRelationReview(BaseModel):
+    reviewer_status: Literal["accepted", "rejected", "needs_review"]
+    reviewer_notes: str | None = Field(default=None, max_length=3000)
+
+
+class ConclusionReview(BaseModel):
     reviewer_status: Literal["accepted", "rejected", "needs_review"]
     reviewer_notes: str | None = Field(default=None, max_length=3000)
 

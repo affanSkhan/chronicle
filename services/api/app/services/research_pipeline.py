@@ -13,13 +13,14 @@ from sqlalchemy import func, select
 
 from app.core.config import get_embedding_config, get_llm_config, get_settings
 from app.core.database import SessionLocal
-from app.models.entities import Claim, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun, Study
+from app.models.entities import Claim, Conclusion, ConclusionEvidenceRelation, EvidenceRelation, Paper, PaperVersion, Passage, ReportVersion, ResearchRun, Study
 from app.services.academic_search import search_papers
 from app.services.audit import record_audit_event
 from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
 from app.services.dependency_candidates import build_dependency_clusters, suggest_dependency_candidates
-from app.services.research_planner import focus_for_mode
+from app.services.research_planner import build_research_plan, focus_for_mode
+from app.services.evaluation_arms import configure_evaluation_arm
 from app.services.research_orchestrator import build_agentic_research_plan
 from app.services.hybrid_passage_retrieval import rank_passages_hybrid
 
@@ -150,9 +151,28 @@ def _markdown_report(
             f"- **Profile:** {execution_plan.get('profile_label', mode)}",
             f"- **Planner version:** {execution_plan.get('version', '1.0')}",
             f"- **Source budget:** {execution_plan.get('source_budget', len(papers))}",
+            f"- **Evaluation arm:** {(execution_plan.get('evaluation') or {}).get('arm', execution_plan.get('evaluation_arm', 'D'))}",
+            f"- **Execution type:** {'controlled A–D experiment' if (execution_plan.get('evaluation') or {}).get('controlled_experiment') else 'normal product run'}",
             "- **Search subqueries actually executed:**",
         ]
         plan_lines.extend(f"  - {query}" for query in execution_plan.get("queries", []))
+        evaluation = execution_plan.get("evaluation") if isinstance(execution_plan.get("evaluation"), dict) else {}
+        feature_flags = evaluation.get("feature_flags") if isinstance(evaluation.get("feature_flags"), dict) else {}
+        features = execution_plan.get("features") if isinstance(execution_plan.get("features"), dict) else {}
+        if feature_flags or features:
+            plan_lines.append("- **Feature flags:**")
+            combined_flags = {**features, **feature_flags}
+            for flag, enabled in sorted(combined_flags.items()):
+                if isinstance(enabled, bool):
+                    plan_lines.append(f"  - {flag}: {'enabled' if enabled else 'disabled'}")
+        iterations = execution_plan.get("research_iterations")
+        if isinstance(iterations, list) and iterations:
+            plan_lines.append("- **Evidence-gap follow-up searches:**")
+            plan_lines.extend(
+                f"  - Iteration {item.get('iteration')}: {item.get('query')} "
+                f"(new unique sources: {item.get('new_unique_sources', 0)})"
+                for item in iterations if isinstance(item, dict)
+            )
         plan_lines.append("- **Workflow modules:**")
         plan_lines.extend(f"  - {module}" for module in execution_plan.get("modules", []))
         plan_lines.extend(["", f"**Mode focus:** {execution_plan.get('focus', 'General scholarly discovery')}", ""])
@@ -414,6 +434,83 @@ async def _execute_planned_search(
                 prior["publication_year"] = prior.get("publication_year") or item.get("publication_year")
                 prior["doi"] = prior.get("doi") or item.get("doi")
                 prior["matched_queries"] = sorted(set(prior.get("matched_queries", []) + [query]))
+    # B/C/D perform bounded follow-up searches when the first retrieval pass leaves
+    # a source-budget gap. These are actual provider calls, not merely documented
+    # query templates. Arm A is intentionally a one-query single-pass baseline.
+    feature_config = plan.get("features", {}) if isinstance(plan.get("features"), dict) else {}
+    max_iterations = max(0, min(int(feature_config.get("max_additional_search_iterations", 0) or 0), 2))
+    if feature_config.get("iterative_retrieval") and max_iterations:
+        question_prefix = re.sub(r"\s+", " ", question).strip()[:145]
+        mode_key = str(mode or "deep").lower()
+        suffixes = {
+            "deep": ["methods results limitations open questions", "recent review conflicting findings replication"],
+            "academic": ["study design population methods outcomes limitations", "systematic review conflicting results evidence gaps"],
+            "forensic": ["contradictory findings corrections retractions replication", "shared datasets source dependence limitations"],
+            "quick": [],
+        }.get(mode_key, ["methods results limitations open questions", "recent review conflicting findings replication"])
+        tried_queries = {str(query).casefold() for query in queries}
+        query_ceiling = min(5, max(1, int(max_sources)))
+        iteration_number = 0
+        for suffix in suffixes:
+            if iteration_number >= max_iterations or len(merged) >= max_sources or len(queries) >= query_ceiling:
+                break
+            gap_query = f"{question_prefix} {suffix}".strip()
+            if not gap_query or gap_query.casefold() in tried_queries:
+                continue
+            tried_queries.add(gap_query.casefold())
+            queries.append(gap_query)
+            plan["queries"] = list(queries)
+            plan["query_budget"] = len(queries)
+            iteration_number += 1
+            try:
+                response = await _await_with_cancellation(
+                    search_papers(gap_query, limit=max(1, min(5, max_sources - len(merged))), provider="all"),
+                    run_id,
+                ) if run_id else await search_papers(
+                    gap_query, limit=max(1, min(5, max_sources - len(merged))), provider="all"
+                )
+            except ResearchRunCancelled:
+                raise
+            except Exception as exc:
+                provider_errors[f"iteration_{iteration_number}"] = f"Follow-up evidence-gap search failed ({type(exc).__name__})."
+                continue
+            successful_queries += 1
+            for name, message in (response.get("provider_errors") or {}).items():
+                provider_errors[f"iteration_{iteration_number}_{name}"] = message
+            new_items = 0
+            for result_rank, raw_item in enumerate(response.get("results", []), start=1):
+                item = dict(raw_item)
+                doi = _normalize_doi(item.get("doi"))
+                normalized_title = " ".join(str(item.get("title") or "").lower().split())
+                if not normalized_title:
+                    continue
+                key = f"doi:{doi.lower()}" if doi else f"title:{normalized_title}"
+                fused_query_scores[key] = fused_query_scores.get(key, 0.0) + 1.0 / (60 + result_rank)
+                if key not in merged:
+                    item["matched_queries"] = [gap_query]
+                    merged[key] = item
+                    new_items += 1
+                else:
+                    prior = merged[key]
+                    prior["abstract"] = prior.get("abstract") or item.get("abstract")
+                    prior["authors"] = prior.get("authors") or item.get("authors") or []
+                    prior["landing_url"] = prior.get("landing_url") or item.get("landing_url")
+                    prior["publisher"] = prior.get("publisher") or item.get("publisher")
+                    prior["publication_year"] = prior.get("publication_year") or item.get("publication_year")
+                    prior["doi"] = prior.get("doi") or item.get("doi")
+                    prior["matched_queries"] = sorted(set(prior.get("matched_queries", []) + [gap_query]))
+            plan.setdefault("research_iterations", []).append({
+                "iteration": iteration_number,
+                "reason": "source_budget_gap_after_initial_retrieval",
+                "query": gap_query,
+                "new_unique_sources": new_items,
+                "sources_after_iteration": len(merged),
+            })
+            if new_items == 0 and iteration_number >= 1:
+                # One distinct follow-up can still be useful after a no-new-source pass;
+                # the bounded ceiling prevents open-ended provider calls.
+                continue
+
     if successful_queries == 0:
         raise RuntimeError("All planned scholarly searches failed.")
 
@@ -471,6 +568,8 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
             limit = run.max_sources
             mode = run.mode
             owner_user_id = run.owner_user_id
+            evaluation_arm = str((run.configuration or {}).get("evaluation_arm") or "D").strip().upper()
+            evaluation_arm_explicitly_requested = bool((run.configuration or {}).get("evaluation_arm_explicitly_requested"))
             source_paper_ids = list(dict.fromkeys(
                 item for item in ((run.configuration or {}).get("source_paper_ids") or [])
                 if isinstance(item, str) and item
@@ -481,7 +580,42 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
         return
 
     try:
-        execution_plan = await build_agentic_research_plan(question, mode, limit)
+        if evaluation_arm_explicitly_requested:
+            if evaluation_arm == "A":
+                base_plan = build_research_plan(question, mode, limit)
+            else:
+                base_plan = await build_agentic_research_plan(question, mode, limit)
+            execution_plan = configure_evaluation_arm(base_plan, evaluation_arm, question=question)
+        else:
+            # Ordinary product runs retain the requested mode's stage policy.
+            # A/B/C/D overrides are only applied to explicitly designated experiments.
+            execution_plan = await build_agentic_research_plan(question, mode, limit)
+            mode_stages = dict(execution_plan.get("stages") or {})
+            actual_features = {
+                "research_planning": mode != "quick",
+                "iterative_retrieval": mode != "quick",
+                "claim_graph": bool(mode_stages.get("claim_extraction")),
+                "dependency_graph": bool(mode_stages.get("dependency_candidate_scan")),
+                "temporal_propagation": True,
+                "report_versioning": True,
+                "audit_trail": True,
+            }
+            execution_plan["evaluation_arm"] = "D"
+            execution_plan["evaluation"] = {
+                "protocol": "default product mode policy",
+                "arm": "D",
+                "name": "Full lifecycle product mode",
+                "controlled_experiment": False,
+                "feature_flags": actual_features,
+                "mode_profile_stages_preserved": True,
+            }
+            execution_plan["features"] = {
+                **actual_features,
+                "max_additional_search_iterations": 2 if mode != "quick" else 0,
+                "mode_profile_stages_preserved": True,
+            }
+        execution_plan.setdefault("evaluation", {})["controlled_experiment"] = evaluation_arm_explicitly_requested
+        execution_plan.setdefault("evaluation", {}).setdefault("arm", evaluation_arm)
         # Persist the plan before network I/O so a failed or partial run remains inspectable.
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
@@ -491,6 +625,9 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                 **(run.configuration or {}),
                 "pipeline": "mode-specific-scholarly-discovery",
                 "planner_version": execution_plan["version"],
+                "evaluation_arm": evaluation_arm,
+                "evaluation": execution_plan.get("evaluation", {}),
+                "features": execution_plan.get("features", {}),
                 "execution_plan": execution_plan,
                 "planned_search_queries": execution_plan["queries"],
             }
@@ -972,6 +1109,112 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                 change_summary="Initial scholarly discovery snapshot; extracted claims remain unreviewed candidates.",
             )
             db.add(report)
+            db.flush()
+
+            # Persist every synthesis finding as a report-version-scoped conclusion.
+            # Only exact, validated passage pointers are accepted; each conclusion and
+            # its provenance edges remain marked for human review.
+            persisted_conclusion_ids: list[str] = []
+            allowed_passage_ids = {str(item["id"]) for item in passages_for_extraction}
+            seen_conclusion_statements: set[str] = set()
+            findings = synthesis_result.get("findings", []) if isinstance(synthesis_result, dict) else []
+            if isinstance(findings, list):
+                for finding in findings[:15]:
+                    if not isinstance(finding, dict):
+                        continue
+                    statement = str(finding.get("statement") or "").strip()
+                    statement_key = " ".join(statement.casefold().split())
+                    if len(statement) < 8 or statement_key in seen_conclusion_statements:
+                        continue
+                    seen_conclusion_statements.add(statement_key)
+                    cited_passage_ids = list(dict.fromkeys(
+                        ref for ref in (finding.get("evidence_passage_ids") or [])
+                        if isinstance(ref, str) and ref in allowed_passage_ids
+                    ))
+                    if not cited_passage_ids:
+                        continue
+                    relation_type = finding.get("relation_type")
+                    if relation_type not in {"supports", "contradicts", "qualifies", "not_comparable"}:
+                        relation_type = "qualifies"
+                    rationale = str(finding.get("context_note") or
+                                    "Model-generated conclusion linked to exact retrieved passages; researcher review is required.")
+                    conclusion = Conclusion(
+                        run_id=run_id,
+                        report_version_id=report.id,
+                        statement=statement,
+                        relation_type=relation_type,
+                        reviewer_status="needs_review",
+                        provenance_basis="model_inferred",
+                        rationale=rationale,
+                        uncertainty_notes=(synthesis_result.get("uncertainty_statement") or None)
+                            if isinstance(synthesis_result, dict) else None,
+                        metadata_snapshot={
+                            "finding_index": len(persisted_conclusion_ids) + 1,
+                            "source_passage_ids": cited_passage_ids,
+                            "synthesis_human_review_required": True,
+                        },
+                    )
+                    db.add(conclusion)
+                    db.flush()
+                    persisted_conclusion_ids.append(conclusion.id)
+
+                    linked_claims_by_passage: dict[str, list[str]] = {}
+                    for claim_item in persisted_claims:
+                        claim_id = claim_item.get("id")
+                        if not isinstance(claim_id, str):
+                            continue
+                        for evidence in claim_item.get("evidence", []):
+                            if isinstance(evidence, dict) and evidence.get("passage_id") in cited_passage_ids:
+                                linked_claims_by_passage.setdefault(evidence["passage_id"], []).append(claim_id)
+
+                    for passage_id in cited_passage_ids:
+                        linked_claim_ids = sorted(set(linked_claims_by_passage.get(passage_id, [])))
+                        if linked_claim_ids:
+                            for claim_id in linked_claim_ids:
+                                db.add(ConclusionEvidenceRelation(
+                                    conclusion_id=conclusion.id,
+                                    claim_id=claim_id,
+                                    passage_id=passage_id,
+                                    relation_type=relation_type,
+                                    provenance_basis="model_inferred",
+                                    reviewer_status="needs_review",
+                                    rationale=(
+                                        "The claim and conclusion cite the same exact stored passage. "
+                                        "This is provenance linkage, not an independently verified entailment."
+                                    ),
+                                ))
+                        else:
+                            db.add(ConclusionEvidenceRelation(
+                                conclusion_id=conclusion.id,
+                                passage_id=passage_id,
+                                relation_type=relation_type,
+                                provenance_basis="model_inferred",
+                                reviewer_status="needs_review",
+                                rationale=rationale,
+                            ))
+                    record_audit_event(
+                        db,
+                        actor_user_id=None,
+                        run_id=run_id,
+                        target_entity_type="conclusion",
+                        target_entity_id=conclusion.id,
+                        action="conclusion.created",
+                        previous_value=None,
+                        new_value={
+                            "report_version_id": report.id,
+                            "statement": conclusion.statement,
+                            "relation_type": conclusion.relation_type,
+                            "provenance_basis": conclusion.provenance_basis,
+                            "reviewer_status": conclusion.reviewer_status,
+                            "passage_ids": cited_passage_ids,
+                        },
+                        reason="Synthesis finding persisted with validated source passage pointers; human review required.",
+                        resolution_status="needs_review",
+                    )
+            report.evidence_snapshot = {
+                **(report.evidence_snapshot or {}),
+                "conclusion_ids": persisted_conclusion_ids,
+            }
             run.status = completion_status
             run.demo = False
             run.error_message = None
