@@ -5,12 +5,12 @@ Repository: [affanSkhan/chronicle](https://github.com/affanSkhan/chronicle)
 Completion branch: `feat/ff180-completion-pass`  
 Approved basis: VIIT FF180 synopsis for “Multi-Agent Research Assistant with Explainable Reasoning”.
 
-This is an implementation audit, not a claim of full SRS compliance. The completion branch is separate from `main`; its new functionality must pass branch-head CI, be reviewed/merged, and be verified after deployment before it can be described as production functionality.
+This is an implementation audit, not a claim of full SRS compliance. The core FF180 completion work was merged into `main` at `5223600e722fe53e8b6a950879a7720b484911b7`. Additional hardening is being prepared separately; production status must be verified against the deployed commit and database schema before it is described as live.
 
 ## Implemented in the current repository
 
 - **Identity and workspace security:** Argon2 password hashes, signed bearer tokens, owner-scoped workspace/run/source/evidence queries, archive/restore, and audit events for material operations.
-- **Scholarly retrieval:** Crossref and OpenAlex adapters, DOI/title normalization and deduplication, provider rank fusion, and reciprocal-rank fusion across planned subqueries. Coverage limitations and provider errors are preserved rather than hidden.
+- **Scholarly retrieval:** Crossref, OpenAlex, and Semantic Scholar adapters with DOI/title normalization, provider rank fusion, and reciprocal-rank fusion across planned subqueries. An additional public-web adapter returns attributed result URLs and short discovery snippets. Web snippets are explicitly distinguished from article abstracts/full text. Coverage limitations and provider errors are preserved rather than hidden.
 - **Four execution modes:** Quick Discovery, Deep Research, Academic Review, and Forensic Analysis have bounded, mode-specific query plans and stage policies. The planner is deterministic; it is not the full autonomous multi-agent/LangGraph architecture in the synopsis.
 - **PDF ingestion:** PDF content-type/signature, byte and page limits, PyMuPDF extraction, bounded Tesseract OCR for low-text pages, passage/page metadata, SHA-256 duplicate detection, and per-file extraction/coverage warnings. OCR behavior is tested with mocks; real-scan accuracy is not measured.
 - **PDF-to-run evidence path (completion branch):** A run can attach up to five PDFs owned by the authenticated user. The pipeline loads saved page-aware passages and ranks them with BM25. When `HF_TOKEN` is configured, it reranks a bounded lexical shortlist using Hugging Face feature-extraction embeddings and reciprocal-rank fusion. If the token is absent or the service fails, the run falls back to BM25 and records that state. Retrieval scores are not confidence scores; dense embeddings are calculated per run and are not persistently indexed.
@@ -25,9 +25,9 @@ This is an implementation audit, not a claim of full SRS compliance. The complet
 
 ## Still partial or not implemented
 
-- **Production document storage requires explicit verification.** The currently visible Vercel API environment variables do not include an OBJECT_STORAGE configuration; until a private object store is configured and upload/read/delete is tested in production, uploaded originals may rely on ephemeral filesystem storage. Do not describe these originals as durable.
+- **Production document storage requires an additive database migration and live verification.** The hardening branch adds a Postgres-backed original-PDF fallback for serverless deployments when private object storage is not configured; it also caps the serverless fallback upload path at 3 MB. This is not production-ready until migration 0008 is applied to the production database and upload/read/delete is verified against the exact deployed commit.
 
-1. **Not yet a complete multi-agent system.** The executed flow is a bounded deterministic pipeline with modular model stages, not the full seven/eight-layer autonomous orchestrator described by the proposal.
+1. **Multi-agent orchestration remains partial.** The current mainline is a bounded deterministic pipeline with modular model stages, not yet the full LangGraph orchestration specified by the proposal.
 2. **Not a full-text systematic-review system.** External search returns metadata and abstracts; user-selected PDFs contribute retrieved excerpts. Publisher full-text acquisition, supplementary-material handling, document-wide critical appraisal, and exhaustive academic/web-provider coverage are not implemented.
 3. **Hybrid retrieval has limits.** Dense reranking is optional, requires `HF_TOKEN`, and considers a bounded BM25 shortlist to control inference usage. It does not guarantee semantic recall over every passage. Retrieval vectors are not stored in pgvector or persistently indexed. Without a token, BM25-only behavior is intentional.
 4. **Durable background jobs are missing.** Run processing still uses FastAPI in-process background tasks; restart-safe recovery, persisted subtask checkpoints, distributed cancellation and a durable worker queue are not implemented.
