@@ -421,7 +421,7 @@ async def _execute_planned_search(
     feature_config = plan.get("features", {}) if isinstance(plan.get("features"), dict) else {}
     max_iterations = max(0, min(int(feature_config.get("max_additional_search_iterations", 0) or 0), 2))
     if feature_config.get("iterative_retrieval") and max_iterations:
-        question_prefix = re.sub(r"\\s+", " ", question).strip()[:145]
+        question_prefix = re.sub(r"\s+", " ", question).strip()[:145]
         mode_key = str(mode or "deep").lower()
         suffixes = {
             "deep": ["methods results limitations open questions", "recent review conflicting findings replication"],
