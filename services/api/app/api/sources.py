@@ -475,6 +475,28 @@ def record_source_event(
     paper_ids, paper_reasons = impacted_papers(db, paper_id)
     claim_ids, claim_reasons = impacted_claims(db, paper_ids)
     from app.models.entities import Claim, ReportVersion
+
+    # A/B/C are controlled ablations and must not receive the temporal
+    # propagation feature. Normal runs default to D; only D (or legacy runs
+    # without arm metadata) are marked for source-update reassessment.
+    eligible_claim_ids: list[str] = []
+    eligible_claim_reasons: dict = {}
+    run_arm_cache: dict[str, str] = {}
+    for candidate_id in claim_ids:
+        candidate = db.get(Claim, candidate_id)
+        if candidate is None:
+            continue
+        if candidate.run_id not in run_arm_cache:
+            candidate_run = db.get(ResearchRun, candidate.run_id)
+            run_arm_cache[candidate.run_id] = str(
+                ((candidate_run.configuration or {}).get("evaluation_arm") if candidate_run else None) or "D"
+            ).upper()
+        if run_arm_cache[candidate.run_id] == "D":
+            eligible_claim_ids.append(candidate_id)
+            if candidate_id in claim_reasons:
+                eligible_claim_reasons[candidate_id] = claim_reasons[candidate_id]
+    claim_ids = eligible_claim_ids
+    claim_reasons = eligible_claim_reasons
     claims_before = {
         claim.id: {
             "assessment": claim.assessment,
@@ -499,6 +521,13 @@ def record_source_event(
         snapshot_passages = set(snapshot.get("passage_ids", [])) if isinstance(snapshot.get("passage_ids"), list) else set()
         if (snapshot_papers & paper_ids) or (snapshot_passages & impacted_passage_ids):
             run_ids.add(report.run_id)
+
+    # Filter snapshot-only hits as well: arms A-C do not run temporal propagation.
+    for affected_run_id in list(run_ids):
+        affected_run = db.get(ResearchRun, affected_run_id)
+        arm = str(((affected_run.configuration or {}).get("evaluation_arm") if affected_run else None) or "D").upper()
+        if arm != "D":
+            run_ids.discard(affected_run_id)
 
     # A prior report is an immutable historical snapshot. Create one child
     # version per affected run and flag the new version for human reassessment.
