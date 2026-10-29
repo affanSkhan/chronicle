@@ -278,6 +278,25 @@ def test_optional_synthesis_persists_source_linked_study_context(monkeypatch, cl
     passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json").json()
     assert any(item["id"] == study_id and item["source_passage_id"] == passage_id for item in passport["studies"])
     assert any(item["target_entity_id"] == study_id and item["action"] == "study.context_extracted" for item in passport["audit_events"])
+    assert passport["schema_version"] == "1.1"
+    assert len(passport["conclusions"]) == 1
+    persisted_conclusion = passport["conclusions"][0]
+    assert persisted_conclusion["statement"] == "The abstract reports a provenance-aware intervention in one institution."
+    assert persisted_conclusion["reviewer_status"] == "needs_review"
+    assert any(edge["passage_id"] == passage_id for edge in persisted_conclusion["evidence_relations"])
+
+    review = client.patch(
+        f"/api/v1/evidence/conclusions/{persisted_conclusion['id']}/review",
+        json={"reviewer_status": "accepted", "reviewer_notes": "Checked against the cited abstract."},
+    )
+    assert review.status_code == 200, review.text
+    assert review.json()["reviewer_status"] == "accepted"
+    assert review.json()["provenance_basis"] == "human_reviewed"
+    refreshed_passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json").json()
+    reviewed = next(item for item in refreshed_passport["conclusions"] if item["id"] == persisted_conclusion["id"])
+    assert reviewed["reviewer_status"] == "accepted"
+    assert reviewed["metadata_snapshot"]["human_review"]["reviewer_notes"] == "Checked against the cited abstract."
+    assert any(item["action"] == "conclusion.reviewed" and item["target_entity_id"] == persisted_conclusion["id"] for item in refreshed_passport["audit_events"])
 
 
 def test_failed_research_run_preserves_execution_plan(monkeypatch, client) -> None:
