@@ -51,7 +51,10 @@ def test_upgrade_existing_0005_database_preserves_run_data_and_adds_lifecycle_fi
     assert {"cancel_requested_at", "cancelled_at", "retry_of_run_id"} <= run_columns
     assert run_status.length == 40
     assert "ix_research_runs_retry_of_run_id" in {index["name"] for index in inspector.get_indexes("research_runs")}
-    assert "original_pdf_bytes" in {column["name"] for column in inspector.get_columns("paper_versions")}
+    assert "uploaded_pdf_blobs" in inspector.get_table_names()
+    assert {"paper_version_id", "sha256", "data"} <= {
+        column["name"] for column in inspector.get_columns("uploaded_pdf_blobs")
+    }
 
     with engine.connect() as connection:
         assert connection.execute(text("SELECT title FROM research_projects WHERE id='project-1'")).scalar_one() == "Existing workspace"

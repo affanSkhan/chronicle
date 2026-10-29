@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.entities import AuditEvent, Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage, ReportVersion, SourceEvent, SourceStatusCheck, Study, User
+from app.models.entities import AuditEvent, Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage, ReportVersion, SourceEvent, SourceStatusCheck, Study, UploadedPdfBlob, User
 from app.services.pdf_ingestion import extract_pdf
 from app.services.private_object_storage import delete_original_pdf, store_original_pdf
 from app.services.audit import record_audit_event
@@ -104,7 +104,6 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         paper_id=paper.id,
         version_label=f"upload-{file_hash[:12]}",
         publication_status="unknown",
-        original_pdf_bytes=data if stored_original["backend"] == "database" else None,
         metadata_snapshot={
             "original_filename": raw_name,
             "sha256": file_hash,
@@ -124,6 +123,8 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     )
     db.add(version)
     db.flush()
+    if stored_original["backend"] == "database":
+        db.add(UploadedPdfBlob(paper_version_id=version.id, sha256=file_hash, data=data))
 
     passages = [
         Passage(
@@ -367,6 +368,12 @@ def permanently_delete_uploaded_pdf(
         reason="The owner permanently deleted an uploaded PDF and its derived report text.",
         resolution_status="completed",
     )
+    if version_ids:
+        for blob in db.scalars(
+            select(UploadedPdfBlob).where(UploadedPdfBlob.paper_version_id.in_(version_ids))
+        ).all():
+            db.delete(blob)
+
     db.delete(paper)
     db.commit()
     return {

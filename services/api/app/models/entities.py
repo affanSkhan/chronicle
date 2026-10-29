@@ -104,11 +104,21 @@ class PaperVersion(Base):
     retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     status_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_snapshot: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
-    # Binary fallback for private uploaded PDFs on serverless deployments without object storage.
-    original_pdf_bytes: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
 
     paper: Mapped[Paper] = relationship(back_populates="versions")
     passages: Mapped[list["Passage"]] = relationship(back_populates="paper_version", cascade="all, delete-orphan")
+
+
+class UploadedPdfBlob(Base):
+    """Private original bytes kept separately so ordinary PaperVersion reads stay small."""
+    __tablename__ = "uploaded_pdf_blobs"
+
+    paper_version_id: Mapped[str] = mapped_column(
+        ForeignKey("paper_versions.id", ondelete="CASCADE"), primary_key=True
+    )
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
 class Study(Base):

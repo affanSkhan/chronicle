@@ -5,7 +5,7 @@ import fitz
 from PIL import Image
 
 from app.api import documents as documents_api
-from app.models.entities import PaperVersion
+from app.models.entities import PaperVersion, UploadedPdfBlob
 from app.services import pdf_ingestion
 from conftest import TestingSessionLocal
 
@@ -147,3 +147,63 @@ def test_scanned_pdf_upload_persists_ocr_method_and_quality_metadata(monkeypatch
     passages = client.get(f"/api/v1/documents/papers/{payload['paper_id']}/passages")
     assert passages.status_code == 200, passages.text
     assert passages.json()["passages"][0]["extraction_method"] == "tesseract_ocr"
+
+
+def test_serverless_pdf_upload_persists_original_bytes_and_deletion_removes_blob(monkeypatch, client, tmp_path) -> None:
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_text((72, 72), "A private PDF contains evidence passages that must persist after the request ends.")
+    pdf_bytes = document.tobytes()
+    document.close()
+
+    monkeypatch.setattr(
+        documents_api,
+        "settings",
+        SimpleNamespace(
+            environment="production",
+            max_upload_mb=50,
+            max_pdf_pages=300,
+            enable_pdf_ocr=False,
+            pdf_ocr_max_pages=0,
+            pdf_ocr_dpi=150,
+            pdf_ocr_min_text_chars=40,
+            pdf_ocr_language="eng",
+            upload_dir=str(tmp_path),
+            object_storage_endpoint_url="",
+            object_storage_bucket="",
+            object_storage_access_key_id=None,
+            object_storage_secret_access_key=None,
+        ),
+    )
+
+    def store_in_db(data, *, owner_id, sha256, settings):
+        return {
+            "reference": f"dbpdf://{owner_id}/{sha256}",
+            "backend": "database",
+            "durable": True,
+            "object_key": None,
+        }
+
+    monkeypatch.setattr(documents_api, "store_original_pdf", store_in_db)
+    response = client.post(
+        "/api/v1/documents/upload",
+        files={"file": ("private-study.pdf", pdf_bytes, "application/pdf")},
+    )
+    assert response.status_code == 201, response.text
+    payload = response.json()
+    assert payload["storage_backend"] == "database"
+    assert payload["binary_storage_durable"] is True
+
+    with TestingSessionLocal() as db:
+        blob = db.query(UploadedPdfBlob).filter(
+            UploadedPdfBlob.paper_version_id == payload["paper_version_id"]
+        ).one()
+        assert blob.data == pdf_bytes
+        assert blob.sha256 == payload["sha256"]
+
+    deleted = client.delete(f"/api/v1/documents/papers/{payload['paper_id']}")
+    assert deleted.status_code == 200, deleted.text
+    with TestingSessionLocal() as db:
+        assert db.query(UploadedPdfBlob).filter(
+            UploadedPdfBlob.paper_version_id == payload["paper_version_id"]
+        ).count() == 0
