@@ -605,6 +605,16 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
                     ref for ref in (finding.get("evidence_passage_ids") or [])
                     if isinstance(ref, str) and ref in known_passage_ids
                 ]
+                # A conclusion is linked to the claims whose exact evidence passages
+                # the synthesis cites. Do not fabricate a claim edge when the model
+                # only has a passage-level citation or the reviewer rejected that edge.
+                claim_ids_for_finding = sorted({
+                    relation.claim_id
+                    for relation in relations
+                    if relation.passage_id in allowed_refs
+                    and relation.claim_id in known_claim_ids
+                    and relation.reviewer_status != "rejected"
+                })
                 conclusion_id = f"conclusion:{report.id}:{index}"
                 relation_type = finding.get("relation_type")
                 if relation_type not in {"supports", "contradicts", "qualifies", "not_comparable"}:
@@ -618,6 +628,7 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
                     "provenance_basis": "model_inferred",
                     "rationale": finding.get("context_note") or "Model-generated synthesis finding; researcher review required.",
                     "evidence_passage_ids": allowed_refs,
+                    "claim_ids": claim_ids_for_finding,
                 })
                 edges.append({
                     "source": report_node_id,
@@ -633,6 +644,18 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
                         "provenance_basis": "model_inferred",
                         "reviewer_status": "needs_review",
                         "rationale": finding.get("context_note") or "The report synthesis links this finding to the cited passage; review the original source text.",
+                    })
+                for claim_id in claim_ids_for_finding:
+                    edges.append({
+                        "source": f"claim:{claim_id}",
+                        "target": conclusion_id,
+                        "type": "contributes_to_conclusion",
+                        "provenance_basis": "system_recorded_from_shared_evidence",
+                        "reviewer_status": "needs_review",
+                        "rationale": (
+                            "This claim cites at least one exact passage that the synthesis finding also cites. "
+                            "The edge records shared evidence lineage, not an independently verified entailment."
+                        ),
                     })
 
         opportunities = synthesis.get("research_opportunities", [])
