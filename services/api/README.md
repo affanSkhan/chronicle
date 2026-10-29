@@ -25,7 +25,7 @@ uvicorn app.main:app --reload --port 8000
 - `GET /api/v1/health` — process liveness.
 - `POST /api/v1/projects`, `GET /api/v1/projects` — research project records.
 - `POST /api/v1/research/runs` with `execute=true` — trigger live scholarly metadata discovery.
-- `GET /api/v1/sources/search?q=...&provider=all` — Crossref/OpenAlex metadata search.
+- `GET /api/v1/sources/search?q=...&provider=all` — Crossref/OpenAlex/Semantic Scholar plus public-web discovery snippets.
 - `POST /api/v1/sources/papers` — import bibliographic metadata.
 - `POST /api/v1/documents/upload` — extract selectable PDF text into page-aware passages.
 - `POST /api/v1/evidence/claims` — create a claim record.
@@ -50,7 +50,7 @@ For free hosted environments that sleep, `.github/workflows/source-monitor.yml` 
 
 Chronicle validates PDF type/signature, byte size, and page count, extracts page-aware passages, and uses selected passage excerpts in a research run when the owner attaches a PDF. The runner first ranks passages with deterministic BM25 lexical retrieval; if a Hugging Face token is configured, it embeds a bounded lexical shortlist with `BAAI/bge-small-en-v1.5` and combines dense and lexical ranks with reciprocal rank fusion (RRF). This is a retrieval ranking, not a calibrated evidence score. Without `HF_TOKEN`, the workflow remains usable in BM25-only mode; if inference fails, it falls back to BM25 and records the fallback in the run snapshot. Hugging Face Inference Providers offers a feature-extraction API for embedding use cases, subject to provider/model availability and quota: https://huggingface.co/docs/inference-providers/en/tasks/feature-extraction
 
-The original PDF bytes can be written to a private S3-compatible bucket by configuring `OBJECT_STORAGE_ENDPOINT_URL`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY`, and optionally `OBJECT_STORAGE_REGION` / `OBJECT_STORAGE_PREFIX`. Never commit these credentials. When the bucket is not configured, the development filesystem fallback is not durable on serverless platforms; the API reports that limitation. Vercel Function request/response payloads are limited to 4.5 MB, so for a Vercel deployment configure a conservative upload cap (e.g. 3 MB) or implement direct-to-object-storage uploads before accepting larger files. See https://vercel.com/docs/functions/limitations.
+The original PDF bytes can be written to a private S3-compatible bucket by configuring `OBJECT_STORAGE_ENDPOINT_URL`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY`, and optionally `OBJECT_STORAGE_REGION` / `OBJECT_STORAGE_PREFIX`. Never commit these credentials. On production/serverless deployments without a complete object-store configuration, Chronicle writes the original bytes to the separate `uploaded_pdf_blobs` PostgreSQL table created by migration 0008; the metadata table does not load binary content on ordinary reads. Vercel requests are capped at 3 MB until direct-to-object-storage uploads are implemented. Ensure `alembic upgrade head` has run before using this fallback. See https://vercel.com/docs/functions/limitations.
 
 Owners may permanently delete an uploaded PDF via `DELETE /api/v1/documents/papers/{paper_id}`. This removes the stored object when the storage backend is configured/reachable, extracted passages, linked and dependent claims, source status/event records and source dependency edges; affected report versions are redacted, and potentially sensitive audit payloads are redacted while retaining the audit record of deletion. This is an application-level deletion operation, not proof that backups or provider-side logs are erased.
 
@@ -68,7 +68,7 @@ Set these server-side variables to use Groq's free tier:
 The free plan has token and request caps, so the implementation uses bounded passages and response tokens. No paid credits or billing method are required for this configuration. If the free provider is unavailable or rate-limited, retrieval-only research and exports remain available. Legacy `OPENAI_*` settings are still supported; OpenAI API billing is separate from ChatGPT.
 
 ## Limitations
-Crossref/OpenAlex records are not a complete index of all research, and abstract-level evidence is not full-text verification. Crossref/OpenAlex monitoring is scheduled when the in-process worker or the optional GitHub Actions job is enabled, but does not provide exhaustive publisher surveillance. LLM-generated claims and research-question suggestions remain unreviewed candidates. PDF uploads are stored in local/container storage; use authenticated durable object storage before public deployment.
+Crossref/OpenAlex/Semantic Scholar records are not a complete index of all research. Public-web results are title/snippet discovery leads, not verified full-text evidence; abstract-level evidence is not full-text verification. Source monitoring is not exhaustive publisher surveillance. LLM-generated claims and research-question suggestions remain unreviewed candidates. The optional database-backed run queue requires a continuously running worker; it is not enabled on Vercel by default.
 
 ## Tests
 ```bash
@@ -87,3 +87,14 @@ pytest -q
 ```
 
 These tests validate code paths and data-integrity behavior. They are not scientific-accuracy results: benchmark metrics must be computed from a frozen, labelled evaluation set as described in [the evaluation protocol](../../docs/evaluation-protocol.md).
+
+
+## Optional durable research queue worker
+
+The default `RESEARCH_EXECUTION_MODE=inline` keeps local development and serverless behavior compatible. To use a persistent PostgreSQL queue with a separate worker, set `RESEARCH_EXECUTION_MODE=queue` in the root `.env`, then apply the latest database migrations and start the worker profile:
+
+```bash
+docker compose -f infra/docker-compose.yml --profile worker up --build
+```
+
+The API persists queued runs; the worker claims them transactionally, writes audit events and heartbeats, and marks stale worker leases failed for explicit retry instead of silently rerunning partially completed work. This does not provide checkpoint-level resume, and it is not a hosted worker deployment by itself. Keep queue mode disabled unless a worker is actually running.

@@ -7,7 +7,7 @@
 - **Recurring status checks:** GitHub Actions workflow `.github/workflows/source-monitor.yml` runs hourly; add the database URL as a repository Actions secret to activate it.
 - **AI synthesis:** optional. Use Groq's free API with `LLM_API_KEY`, `LLM_API_BASE=https://api.groq.com/openai/v1`, and `LLM_MODEL=openai/gpt-oss-20b`; no paid API is required.
 
-This is a **free-tier demo deployment**, not a production/SLA deployment. Render Free services sleep after idle time and have ephemeral filesystems; Neon Free has scale-to-zero and finite quotas. Chronicle's relational records (accounts, runs, paper metadata, extracted passages, audit trail) are stored in Neon, but original uploaded PDF files are currently written to the API filesystem and may disappear after a Render restart/redeploy/spin-down. Do not use it as long-term archival storage until private object storage is implemented. See the provider limits linked at the bottom of this document.
+This is a **free-tier demo deployment**, not a production/SLA deployment. Render Free services sleep after idle time and have ephemeral filesystems; Neon Free has scale-to-zero and finite quotas. Chronicle's relational records (accounts, runs, paper metadata, extracted passages, audit trail) are stored in Neon. With migration 0008 applied, production/serverless uploads without private object storage use a separate database blob table (conservatively capped at 3 MB on serverless); private S3-compatible storage remains preferable for larger files. Verify the deployed migration before relying on this fallback. See the provider limits linked at the bottom of this document.
 
 ## 1. Create the Render Blueprint
 
@@ -51,7 +51,7 @@ Gemini is another free-tier option through `https://generativelanguage.googleapi
 - Free Render web services spin down after 15 minutes without inbound traffic, and local filesystem changes are lost on restart/redeploy/spin-down.
 - Neon Free provides limited compute/storage/transfer quotas and scales idle compute to zero.
 - The current scheduled workflow checks up to the configured batch each hour. It is not publisher-complete, and coverage depends on Crossref/OpenAlex metadata being present.
-- The research executor still uses FastAPI background tasks, not a durable task queue. Long research runs can be interrupted by a restart.
+- The API supports an optional PostgreSQL-backed queue, but it requires the separate `RESEARCH_EXECUTION_MODE=queue` worker service to be deployed and continuously running. Vercel is left in inline mode until such a worker is hosted; long runs on the serverless deployment can still be interrupted by restarts.
 - Before real users rely on this system, implement private durable object storage for original PDFs, a reviewed cookie/session model, rate limiting, backups/restore tests, monitoring, and a comprehensive security review.
 
 ## Official provider documentation

@@ -132,3 +132,22 @@ def test_running_provider_search_cancels_cooperatively(monkeypatch, client) -> N
         assert run.cancel_requested_at is not None
         assert run.cancelled_at is not None
         assert run.demo is False
+
+
+def test_queue_mode_persists_run_without_inline_execution(client, monkeypatch) -> None:
+    monkeypatch.setattr(research_routes, "get_settings", lambda: SimpleNamespace(research_execution_mode="queue"))
+    executed = []
+
+    async def fake_execute(run_id: str) -> None:
+        executed.append(run_id)
+
+    monkeypatch.setattr(research_routes, "execute_research_run", fake_execute)
+    response = client.post("/api/v1/research/runs", json={
+        "question": "How should queued research runs persist across API process restarts?",
+        "mode": "deep",
+        "execute": True,
+    })
+    assert response.status_code == 201, response.text
+    assert response.json()["status"] == "queued"
+    assert response.json()["demo"] is False
+    assert executed == []
