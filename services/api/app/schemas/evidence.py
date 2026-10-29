@@ -122,6 +122,7 @@ class EvidenceRelationRead(BaseModel):
     confidence: float | None
     reviewer_status: str
     rationale: str | None
+    metadata_snapshot: dict = Field(default_factory=dict)
 
 
 class ContextualRelationCheckResponse(BaseModel):
