@@ -2,7 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import sys
 
-from app.services.private_object_storage import store_original_pdf
+from app.services.private_object_storage import delete_original_pdf, store_original_pdf
 
 
 def test_local_pdf_storage_uses_generated_owner_scoped_name_and_private_mode(tmp_path) -> None:
@@ -29,7 +29,7 @@ def test_local_pdf_storage_uses_generated_owner_scoped_name_and_private_mode(tmp
     assert result["durable"] is True
 
 
-def test_serverless_filesystem_fallback_is_reported_as_non_durable(tmp_path) -> None:
+def test_production_without_object_storage_uses_database_binary_fallback(tmp_path) -> None:
     settings = SimpleNamespace(
         object_storage_endpoint_url="",
         object_storage_bucket="",
@@ -44,8 +44,13 @@ def test_serverless_filesystem_fallback_is_reported_as_non_durable(tmp_path) -> 
         sha256="b" * 64,
         settings=settings,
     )
-    assert result["backend"] == "filesystem"
-    assert result["durable"] is False
+    assert result["backend"] == "database"
+    assert result["durable"] is True
+    assert result["reference"] == "dbpdf://user-id/" + ("b" * 64)
+    assert delete_original_pdf(result["reference"], owner_id="user-id", settings=settings) == {
+        "deleted": True,
+        "backend": "database",
+    }
 
 
 def test_s3_storage_uses_private_object_key_without_public_acl(monkeypatch) -> None:
@@ -116,5 +121,6 @@ def test_serverless_env_overrides_development_default_durability(tmp_path, monke
         sha256="e" * 64,
         settings=settings,
     )
-    assert result["backend"] == "filesystem"
-    assert result["durable"] is False
+    assert result["backend"] == "database"
+    assert result["durable"] is True
+    assert result["reference"].startswith("dbpdf://user-id/")

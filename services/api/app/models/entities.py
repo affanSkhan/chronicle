@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -104,6 +104,8 @@ class PaperVersion(Base):
     retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     status_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_snapshot: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    # Binary fallback for private uploaded PDFs on serverless deployments without object storage.
+    original_pdf_bytes: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
 
     paper: Mapped[Paper] = relationship(back_populates="versions")
     passages: Mapped[list["Passage"]] = relationship(back_populates="paper_version", cascade="all, delete-orphan")
