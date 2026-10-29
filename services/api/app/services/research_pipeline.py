@@ -550,6 +550,7 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
             mode = run.mode
             owner_user_id = run.owner_user_id
             evaluation_arm = str((run.configuration or {}).get("evaluation_arm") or "D").strip().upper()
+            evaluation_arm_explicitly_requested = bool((run.configuration or {}).get("evaluation_arm_explicitly_requested"))
             source_paper_ids = list(dict.fromkeys(
                 item for item in ((run.configuration or {}).get("source_paper_ids") or [])
                 if isinstance(item, str) and item
@@ -560,11 +561,40 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
         return
 
     try:
-        if evaluation_arm == "A":
-            base_plan = build_research_plan(question, mode, limit)
+        if evaluation_arm_explicitly_requested:
+            if evaluation_arm == "A":
+                base_plan = build_research_plan(question, mode, limit)
+            else:
+                base_plan = await build_agentic_research_plan(question, mode, limit)
+            execution_plan = configure_evaluation_arm(base_plan, evaluation_arm, question=question)
         else:
-            base_plan = await build_agentic_research_plan(question, mode, limit)
-        execution_plan = configure_evaluation_arm(base_plan, evaluation_arm, question=question)
+            # Ordinary product runs retain the requested mode's stage policy.
+            # A/B/C/D overrides are only applied to explicitly designated experiments.
+            execution_plan = await build_agentic_research_plan(question, mode, limit)
+            mode_stages = dict(execution_plan.get("stages") or {})
+            actual_features = {
+                "research_planning": mode != "quick",
+                "iterative_retrieval": mode != "quick",
+                "claim_graph": bool(mode_stages.get("claim_extraction")),
+                "dependency_graph": bool(mode_stages.get("dependency_candidate_scan")),
+                "temporal_propagation": True,
+                "report_versioning": True,
+                "audit_trail": True,
+            }
+            execution_plan["evaluation_arm"] = "D"
+            execution_plan["evaluation"] = {
+                "protocol": "default product mode policy",
+                "arm": "D",
+                "name": "Full lifecycle product mode",
+                "controlled_experiment": False,
+                "feature_flags": actual_features,
+                "mode_profile_stages_preserved": True,
+            }
+            execution_plan["features"] = {
+                **actual_features,
+                "max_additional_search_iterations": 2 if mode != "quick" else 0,
+                "mode_profile_stages_preserved": True,
+            }
         # Persist the plan before network I/O so a failed or partial run remains inspectable.
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
