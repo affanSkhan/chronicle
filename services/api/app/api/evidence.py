@@ -424,6 +424,18 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
         select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number.asc())
     ).all())
     latest_report = report_versions[-1] if report_versions else None
+    persisted_conclusions = list(db.scalars(
+        select(Conclusion).where(Conclusion.run_id == run_id).order_by(Conclusion.created_at.asc())
+    ).all())
+    persisted_conclusion_ids = {conclusion.id for conclusion in persisted_conclusions}
+    conclusion_relations = list(db.scalars(
+        select(ConclusionEvidenceRelation)
+        .where(ConclusionEvidenceRelation.conclusion_id.in_(persisted_conclusion_ids))
+        .order_by(ConclusionEvidenceRelation.created_at.asc())
+    ).all()) if persisted_conclusion_ids else []
+    conclusion_relations_by_id: dict[str, list[ConclusionEvidenceRelation]] = {}
+    for conclusion_relation in conclusion_relations:
+        conclusion_relations_by_id.setdefault(conclusion_relation.conclusion_id, []).append(conclusion_relation)
 
     # All report versions may have different source sets after temporal updates.
     paper_ids: set[str] = set()
@@ -577,6 +589,59 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
         })
     known_passage_ids = {passage.id for passage in passages}
     known_claim_ids = {claim.id for claim in claims}
+    durable_conclusions_by_report: dict[str, list[Conclusion]] = {}
+    for conclusion in persisted_conclusions:
+        durable_conclusions_by_report.setdefault(conclusion.report_version_id, []).append(conclusion)
+        linked_relations = conclusion_relations_by_id.get(conclusion.id, [])
+        cited_passage_ids = sorted({
+            relation.passage_id for relation in linked_relations
+            if relation.passage_id in known_passage_ids
+        })
+        cited_claim_ids = sorted({
+            relation.claim_id for relation in linked_relations
+            if relation.claim_id in known_claim_ids
+        })
+        nodes.append({
+            "id": f"conclusion:{conclusion.id}",
+            "type": "conclusion",
+            "label": conclusion.statement[:1200],
+            "assessment": conclusion.relation_type,
+            "review_required": conclusion.reviewer_status != "accepted",
+            "reviewer_status": conclusion.reviewer_status,
+            "provenance_basis": conclusion.provenance_basis,
+            "rationale": conclusion.rationale,
+            "uncertainty_notes": conclusion.uncertainty_notes,
+            "evidence_passage_ids": cited_passage_ids,
+            "claim_ids": cited_claim_ids,
+            "report_version_id": conclusion.report_version_id,
+        })
+        edges.append({
+            "source": f"report-version:{conclusion.report_version_id}",
+            "target": f"conclusion:{conclusion.id}",
+            "type": "contains_conclusion",
+            "provenance_basis": "system_recorded",
+        })
+        for relation in linked_relations:
+            if relation.passage_id in known_passage_ids:
+                edges.append({
+                    "source": f"passage:{relation.passage_id}",
+                    "target": f"conclusion:{conclusion.id}",
+                    "type": relation.relation_type,
+                    "provenance_basis": relation.provenance_basis,
+                    "reviewer_status": relation.reviewer_status,
+                    "rationale": relation.rationale,
+                    "id": relation.id,
+                })
+            if relation.claim_id in known_claim_ids:
+                edges.append({
+                    "source": f"claim:{relation.claim_id}",
+                    "target": f"conclusion:{conclusion.id}",
+                    "type": "contributes_to_conclusion",
+                    "provenance_basis": relation.provenance_basis,
+                    "reviewer_status": relation.reviewer_status,
+                    "rationale": relation.rationale,
+                    "id": relation.id,
+                })
     for report in report_versions:
         snapshot = report.evidence_snapshot if isinstance(report.evidence_snapshot, dict) else {}
         report_node_id = f"report-version:{report.id}"
@@ -594,7 +659,9 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
             continue
 
         findings = synthesis.get("findings", [])
-        if isinstance(findings, list):
+        # New report versions have durable conclusion rows and provenance edges.
+        # Use the synthesis snapshot only as a compatibility fallback for legacy reports.
+        if report.id not in durable_conclusions_by_report and isinstance(findings, list):
             for index, finding in enumerate(findings, start=1):
                 if not isinstance(finding, dict) or not isinstance(finding.get("statement"), str):
                     continue
