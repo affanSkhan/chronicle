@@ -160,6 +160,11 @@ class EvidenceRelationReview(BaseModel):
     reviewer_notes: str | None = Field(default=None, max_length=3000)
 
 
+class ConclusionReview(BaseModel):
+    reviewer_status: Literal["accepted", "rejected", "needs_review"]
+    reviewer_notes: str | None = Field(default=None, max_length=3000)
+
+
 class PaperMonitoringUpdate(BaseModel):
     enabled: bool
     interval_minutes: int = Field(default=1440, ge=60, le=10080)
