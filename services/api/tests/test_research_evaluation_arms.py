@@ -32,9 +32,10 @@ def test_iterative_arm_performs_bounded_follow_up_searches(monkeypatch):
         return {"results": [_result(len(calls))], "provider_errors": {}}
 
     monkeypatch.setattr(research_pipeline, "search_papers", fake_search)
-    plan = configure_evaluation_arm(
-        build_research_plan(QUESTION, "deep", max_sources=4), "B", question=QUESTION
-    )
+    base_plan = build_research_plan(QUESTION, "deep", max_sources=4)
+    base_plan["queries"] = [QUESTION]
+    base_plan["query_budget"] = 1
+    plan = configure_evaluation_arm(base_plan, "B", question=QUESTION)
 
     response, executed_plan = asyncio.run(
         research_pipeline._execute_planned_search(QUESTION, "deep", 4, plan=plan)
@@ -55,9 +56,10 @@ def test_standard_rag_arm_never_runs_follow_up_searches(monkeypatch):
         return {"results": [_result(len(calls))], "provider_errors": {}}
 
     monkeypatch.setattr(research_pipeline, "search_papers", fake_search)
-    plan = configure_evaluation_arm(
-        build_research_plan(QUESTION, "deep", max_sources=4), "A", question=QUESTION
-    )
+    base_plan = build_research_plan(QUESTION, "deep", max_sources=4)
+    base_plan["queries"] = [QUESTION]
+    base_plan["query_budget"] = 1
+    plan = configure_evaluation_arm(base_plan, "A", question=QUESTION)
 
     response, executed_plan = asyncio.run(
         research_pipeline._execute_planned_search(QUESTION, "deep", 4, plan=plan)
