@@ -11,9 +11,10 @@ from app.models.entities import (
 )
 from app.services.audit import record_audit_event
 from app.services.citation_verification import verify_claim_with_llm
+from app.services.contextual_relation_checker import compare_claims_with_context
 from app.services.dependency_candidates import suggest_dependency_candidates
 from app.schemas.evidence import (
-    ClaimCreate, ClaimRead, ConclusionReview, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
+    ClaimCreate, ClaimRead, ConclusionReview, ContextualRelationCheckResponse, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
     PaperDependencyCreate, StudyCreate,
 )
 
@@ -168,6 +169,217 @@ async def verify_claim_citation_support(
         "provenance_basis": "model_inferred",
         "verifier_model": model,
         "notice": "This is a model-assisted evidence assessment, not proof of scientific truth. Human review is required.",
+    }
+
+
+@router.post(
+    "/claims/{claim_id}/compare/{related_claim_id}",
+    response_model=ContextualRelationCheckResponse,
+    status_code=201,
+)
+async def compare_claims_in_context(
+    claim_id: str,
+    related_claim_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Compare two saved claims using their exact evidence and study context."""
+    claim = db.scalar(
+        select(Claim)
+        .join(ResearchRun, Claim.run_id == ResearchRun.id)
+        .where(Claim.id == claim_id, ResearchRun.owner_user_id == current_user.id)
+    )
+    if claim is None:
+        raise HTTPException(status_code=404, detail="Claim not found.")
+    related_claim = db.scalar(
+        select(Claim)
+        .join(ResearchRun, Claim.run_id == ResearchRun.id)
+        .where(Claim.id == related_claim_id, ResearchRun.owner_user_id == current_user.id)
+    )
+    if related_claim is None:
+        raise HTTPException(status_code=404, detail="Related claim not found.")
+    if claim.id == related_claim.id:
+        raise HTTPException(status_code=422, detail="A claim cannot be compared with itself.")
+    if claim.run_id != related_claim.run_id:
+        raise HTTPException(status_code=422, detail="Claims must belong to the same research run for contextual comparison.")
+
+    def linked_passage_ids(target_claim_id: str) -> list[str]:
+        rows = list(db.scalars(
+            select(EvidenceRelation)
+            .where(
+                EvidenceRelation.claim_id == target_claim_id,
+                EvidenceRelation.passage_id.is_not(None),
+                EvidenceRelation.reviewer_status != "rejected",
+            )
+            .order_by(EvidenceRelation.created_at.desc())
+        ).all())
+        return list(dict.fromkeys(
+            edge.passage_id for edge in rows if edge.passage_id
+        ))[:3]
+
+    claim_a_passage_ids = linked_passage_ids(claim.id)
+    claim_b_passage_ids = linked_passage_ids(related_claim.id)
+    all_passage_ids = set(claim_a_passage_ids + claim_b_passage_ids)
+    if not claim_a_passage_ids or not claim_b_passage_ids:
+        raise HTTPException(
+            status_code=422,
+            detail="Both claims must have at least one non-rejected evidence passage before contextual comparison.",
+        )
+
+    passage_rows = db.execute(
+        select(Passage, Paper.id, Paper.title, Paper.doi)
+        .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+        .join(Paper, PaperVersion.paper_id == Paper.id)
+        .where(Passage.id.in_(all_passage_ids), Paper.owner_user_id == current_user.id)
+    ).all()
+    paper_ids = {paper_id for _, paper_id, _, _ in passage_rows}
+    accessible_passage_ids = {passage.id for passage, _, _, _ in passage_rows}
+    if not set(claim_a_passage_ids).issubset(accessible_passage_ids) or not set(claim_b_passage_ids).issubset(accessible_passage_ids):
+        raise HTTPException(status_code=422, detail="One or more linked evidence passages are unavailable.")
+    study_rows = list(db.scalars(
+        select(Study)
+        .join(Paper, Study.paper_id == Paper.id)
+        .where(
+            Paper.owner_user_id == current_user.id,
+            or_(
+                Study.source_passage_id.in_(accessible_passage_ids),
+                Study.paper_id.in_(paper_ids),
+            ),
+        )
+        .order_by(Study.created_at.desc())
+    ).all()) if accessible_passage_ids else []
+    study_by_passage = {
+        study.source_passage_id: study for study in study_rows
+        if study.source_passage_id and study.source_passage_id not in {}
+    }
+    study_by_paper: dict[str, Study] = {}
+    for study in study_rows:
+        study_by_paper.setdefault(study.paper_id, study)
+
+    passages_by_id: dict[str, dict] = {}
+    for passage, paper_id, title, doi in passage_rows:
+        study = study_by_passage.get(passage.id) or study_by_paper.get(paper_id)
+        study_context = {}
+        if study is not None:
+            study_context = {
+                "study_type": study.study_type,
+                "population": study.population,
+                "method": study.method,
+                "intervention": study.intervention,
+                "outcomes": study.outcomes or [],
+                "limitations": study.limitations or [],
+            }
+        passages_by_id[passage.id] = {
+            "id": passage.id,
+            "paper_title": title,
+            "doi": doi,
+            "page_number": passage.page_number,
+            "section_title": passage.section_title,
+            "text": passage.text[:8000],
+            "study_context": study_context,
+        }
+
+    passages_a = [passages_by_id[item] for item in claim_a_passage_ids if item in passages_by_id]
+    passages_b = [passages_by_id[item] for item in claim_b_passage_ids if item in passages_by_id]
+    settings = get_settings()
+    api_key, api_base, model = get_llm_config(settings)
+    if not api_key or not model:
+        raise HTTPException(
+            status_code=503,
+            detail="Contextual relation checking requires LLM_API_KEY and LLM_MODEL (or legacy OPENAI_API_KEY and OPENAI_MODEL). No relation was created.",
+        )
+    try:
+        assessment = await compare_claims_with_context(
+            claim_a={
+                "id": claim.id,
+                "statement": claim.statement,
+                "scope": claim.scope or {},
+            },
+            claim_b={
+                "id": related_claim.id,
+                "statement": related_claim.statement,
+                "scope": related_claim.scope or {},
+            },
+            passages_a=passages_a,
+            passages_b=passages_b,
+            api_key=api_key,
+            api_base=api_base,
+            model=model,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="The contextual relation checker returned an invalid result. No relationship was saved.",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Contextual relation checking failed. No relationship was saved.",
+        ) from exc
+
+    rationale = (
+        f"{assessment['rationale']}\n"
+        f"Comparability: {assessment['comparability_note']}\n"
+        f"Population: {assessment['population_comparison']}\n"
+        f"Method: {assessment['method_comparison']}\n"
+        f"Outcome: {assessment['outcome_comparison']}"
+    )
+    relation = EvidenceRelation(
+        claim_id=claim.id,
+        passage_id=None,
+        related_claim_id=related_claim.id,
+        relation_type=assessment["relation_type"],
+        provenance_basis="model_inferred",
+        confidence=None,
+        reviewer_status="unreviewed",
+        rationale=rationale[:6000],
+        metadata_snapshot={
+            "contextual_comparison": {
+                "comparability_note": assessment["comparability_note"],
+                "population_comparison": assessment["population_comparison"],
+                "method_comparison": assessment["method_comparison"],
+                "outcome_comparison": assessment["outcome_comparison"],
+                "evidence_passage_ids": assessment["evidence_passage_ids"],
+                "uncertainty_notes": assessment["uncertainty_notes"],
+                "model": model,
+                "requires_human_review": True,
+            }
+        },
+    )
+    db.add(relation)
+    db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=claim.run_id,
+        target_entity_type="evidence_relation",
+        target_entity_id=relation.id,
+        action="evidence_relation.contextual_comparison_completed",
+        previous_value=None,
+        new_value={
+            "claim_id": claim.id,
+            "related_claim_id": related_claim.id,
+            "relation_type": relation.relation_type,
+            "reviewer_status": relation.reviewer_status,
+            "provenance_basis": relation.provenance_basis,
+            "evidence_passage_ids": assessment["evidence_passage_ids"],
+            "comparability_note": assessment["comparability_note"],
+            "model": model,
+        },
+        reason="Claims compared in their stored population, method and outcome context; human review is required.",
+        resolution_status="needs_review",
+    )
+    db.commit()
+    return {
+        "relation_id": relation.id,
+        "claim_id": claim.id,
+        "related_claim_id": related_claim.id,
+        **assessment,
+        "reviewer_status": relation.reviewer_status,
+        "provenance_basis": relation.provenance_basis,
+        "model": model,
+        "human_review_required": True,
+        "notice": "This context-aware relation is model-inferred and awaits human review. It is not proof of scientific truth.",
     }
 
 
