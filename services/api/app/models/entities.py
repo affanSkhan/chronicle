@@ -63,6 +63,12 @@ class ResearchRun(Base):
     claims: Mapped[list["Claim"]] = relationship(back_populates="run", cascade="all, delete-orphan")
     report_versions: Mapped[list["ReportVersion"]] = relationship(back_populates="run", cascade="all, delete-orphan")
 
+    @property
+    def evaluation_arm(self) -> str:
+        """Expose the run's persisted FF180 experiment arm without a schema migration."""
+        configuration = self.configuration if isinstance(self.configuration, dict) else {}
+        return str(configuration.get("evaluation_arm") or "D").upper()
+
 
 class Paper(Base):
     __tablename__ = "papers"
