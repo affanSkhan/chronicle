@@ -46,6 +46,7 @@ class ResearchRun(BaseModel):
     cancel_requested_at: datetime | None = None
     cancelled_at: datetime | None = None
     retry_of_run_id: str | None = None
+    evaluation_arm: Literal["A", "B", "C", "D"] = "D"
 
 
 class ProjectCreate(BaseModel):
