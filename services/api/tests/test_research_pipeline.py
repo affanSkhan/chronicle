@@ -171,7 +171,17 @@ def test_optional_synthesis_persists_source_linked_study_context(monkeypatch, cl
         }
 
     async def fake_extract_claims_from_passages(question: str, passages: list[dict], api_key: str, api_base: str, model: str) -> list[dict]:
-        return []
+        passage_id = passages[0]["id"]
+        return [{
+            "statement": "The intervention is evaluated using a provenance-aware workflow.",
+            "scope": {"population": "120 adult participants"},
+            "uncertainty_notes": "Extracted from one abstract; inspect the full text.",
+            "evidence": [{
+                "passage_id": passage_id,
+                "relation_type": "supports",
+                "rationale": "The abstract describes the intervention and evaluation.",
+            }],
+        }]
 
     async def fake_synthesize_evidence(question: str, passages: list[dict], api_key: str, api_base: str, model: str) -> dict:
         passage_id = passages[0]["id"]
@@ -255,7 +265,14 @@ def test_optional_synthesis_persists_source_linked_study_context(monkeypatch, cl
     assert any(edge["source"] == f"passage:{passage_id}" and edge["target"] == recommendation_node["id"] for edge in graph["edges"])
     assert report_version_node["report_version_number"] == reports[0]["version_number"]
     assert conclusion_node["evidence_passage_ids"] == [passage_id]
+    assert conclusion_node["claim_ids"]
     assert recommendation_node["evidence_passage_ids"] == [passage_id]
+    assert any(
+        edge["source"] == f"claim:{conclusion_node['claim_ids'][0]}"
+        and edge["target"] == conclusion_node["id"]
+        and edge["type"] == "contributes_to_conclusion"
+        for edge in graph["edges"]
+    )
     assert any(edge["source"] == report_version_node["id"] and edge["target"] == recommendation_node["id"] and edge["type"] == "proposes_recommendation" for edge in graph["edges"])
 
     passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=json").json()
