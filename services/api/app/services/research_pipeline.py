@@ -184,7 +184,7 @@ def _markdown_report(
             lines.append("- **Selected web-snippet passage(s):** " + ", ".join(paper.get("passage_ids", [])))
         elif paper.get("passage_ids"):
             lines.append("- **Source kind:** Scholarly metadata abstract")
-            lines.append("- **Selected abstract evidence passage(s):** " + ", ".join(paper.get("passage_ids", []))
+            lines.append("- **Selected abstract evidence passage(s):** " + ", ".join(paper.get("passage_ids", [])))
         if not paper.get("is_uploaded_document") and paper.get("query_rank_fusion_score") is not None:
             lines.append(f"- **Query rank fusion (RRF; ranking signal only):** {paper['query_rank_fusion_score']}")
         abstract = (paper.get("abstract") or "").strip()
