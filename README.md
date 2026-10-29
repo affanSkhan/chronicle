@@ -85,10 +85,11 @@ Legacy `OPENAI_API_KEY`, `OPENAI_API_BASE`, and `OPENAI_MODEL` variables remain 
 - `POST /api/v1/evidence/claims`, `POST /api/v1/evidence/claims/{claim_id}/relations`
 - `PATCH /api/v1/evidence/relations/{relation_id}/review`
 - `GET /api/v1/evidence/runs/{run_id}/graph`, `GET /api/v1/evidence/runs/{run_id}/audit`
+- `GET /api/v1/evidence/runs/{run_id}/conclusions`, `PATCH /api/v1/evidence/conclusions/{conclusion_id}/review` (persisted report findings and human review)
 - `GET /api/v1/sources/papers/{paper_id}/status-check` (preview only)
 - `POST /api/v1/sources/papers/{paper_id}/events`, `GET /api/v1/sources/events`
 - `GET /api/v1/evidence/runs/{run_id}/reports`
-- `GET /api/v1/evidence/runs/{run_id}/passport?format=markdown|json`
+- `GET /api/v1/evidence/runs/{run_id}/passport?format=markdown|json|pdf` (includes versioned conclusions and their passage/claim provenance edges)
 
 ## Tests
 ```bash
