@@ -6,14 +6,14 @@ from app.core.config import get_llm_config, get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.entities import (
-    AuditEvent, Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage,
+    AuditEvent, Claim, Conclusion, ConclusionEvidenceRelation, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage,
     ReportVersion, ResearchRun, SourceEvent, SourceStatusCheck, Study, User,
 )
 from app.services.audit import record_audit_event
 from app.services.citation_verification import verify_claim_with_llm
 from app.services.dependency_candidates import suggest_dependency_candidates
 from app.schemas.evidence import (
-    ClaimCreate, ClaimRead, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
+    ClaimCreate, ClaimRead, ConclusionReview, EvidenceRelationCreate, EvidenceRelationRead, EvidenceRelationReview,
     PaperDependencyCreate, StudyCreate,
 )
 
