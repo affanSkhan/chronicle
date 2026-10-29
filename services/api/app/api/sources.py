@@ -36,7 +36,7 @@ def normalize_doi(value: str | None) -> str | None:
 @router.get("/sources/search")
 async def search_academic_sources(
     q: str = Query(min_length=3, max_length=500),
-    provider: str = Query(default="all", pattern="^(all|crossref|openalex)$"),
+    provider: str = Query(default="all", pattern="^(all|crossref|openalex|semantic_scholar|web)$"),
     limit: int = Query(default=10, ge=1, le=25),
 ) -> dict:
     try:

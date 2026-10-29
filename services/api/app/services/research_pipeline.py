@@ -593,6 +593,8 @@ async def execute_research_run(run_id: str) -> None:
                         "paper_title": paper.title,
                         "doi": paper.doi,
                         "text": abstract,
+                        "source_kind": "web_search_snippet" if paper.source_provider == "web" else "metadata_abstract",
+                        "retrieval_method": "web_search_snippet" if paper.source_provider == "web" else "metadata_abstract",
                     })
 
                 saved_papers.append({

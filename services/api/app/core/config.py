@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     object_storage_region: str = "auto"
     object_storage_prefix: str = "chronicle-private"
     openalex_api_key: SecretStr | None = None
+    # Optional key improves Semantic Scholar throughput; keyless requests still work.
+    semantic_scholar_api_key: SecretStr | None = None
     # Optional Hugging Face Inference Providers dense embeddings; lexical retrieval works without it.
     hf_token: SecretStr | None = None
     hf_embedding_model: str = "BAAI/bge-small-en-v1.5"
@@ -73,6 +75,16 @@ def openalex_auth_headers() -> dict[str, str]:
         return {}
     token = key.get_secret_value().strip()
     return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def semantic_scholar_auth_headers(settings: Settings | None = None) -> dict[str, str]:
+    """Return provider-scoped Semantic Scholar headers without exposing the key in URLs."""
+    settings = settings or get_settings()
+    key = settings.semantic_scholar_api_key
+    if key is None:
+        return {}
+    token = key.get_secret_value().strip()
+    return {"x-api-key": token} if token else {}
 
 
 def get_llm_config(settings: Settings | None = None) -> tuple[str, str, str]:
