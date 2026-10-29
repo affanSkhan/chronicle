@@ -1164,12 +1164,25 @@ def export_evidence_passport(
     relation_by_claim: dict[str, list[EvidenceRelation]] = {}
     for relation in relations:
         relation_by_claim.setdefault(relation.claim_id, []).append(relation)
+    claim_by_id = {claim.id: claim for claim in claims}
+    conclusions = list(db.scalars(
+        select(Conclusion).where(Conclusion.run_id == run_id).order_by(Conclusion.created_at.asc())
+    ).all())
+    conclusion_ids = {item.id for item in conclusions}
+    conclusion_evidence_relations = list(db.scalars(
+        select(ConclusionEvidenceRelation)
+        .where(ConclusionEvidenceRelation.conclusion_id.in_(conclusion_ids))
+        .order_by(ConclusionEvidenceRelation.created_at.asc())
+    ).all()) if conclusion_ids else []
+    conclusion_edges_by_id: dict[str, list[ConclusionEvidenceRelation]] = {}
+    for edge in conclusion_evidence_relations:
+        conclusion_edges_by_id.setdefault(edge.conclusion_id, []).append(edge)
 
     def iso(value):
         return value.isoformat() if value else None
 
     passport = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "passport_generated_at": datetime.now(timezone.utc).isoformat(),
         "scope": {
             "run_id": run.id,
@@ -1248,6 +1261,40 @@ def export_evidence_passport(
                 } if relation.passage_id in passage_by_id and passage_by_id[relation.passage_id].paper_version_id in version_by_id else None),
             } for relation in relation_by_claim.get(claim.id, [])],
         } for claim in claims],
+        "conclusions": [{
+            "id": conclusion.id,
+            "run_id": conclusion.run_id,
+            "report_version_id": conclusion.report_version_id,
+            "statement": conclusion.statement,
+            "relation_type": conclusion.relation_type,
+            "reviewer_status": conclusion.reviewer_status,
+            "review_required": conclusion.reviewer_status != "accepted",
+            "provenance_basis": conclusion.provenance_basis,
+            "rationale": conclusion.rationale,
+            "uncertainty_notes": conclusion.uncertainty_notes,
+            "metadata_snapshot": conclusion.metadata_snapshot or {},
+            "created_at": iso(conclusion.created_at),
+            "updated_at": iso(conclusion.updated_at),
+            "evidence_relations": [{
+                "id": edge.id,
+                "claim_id": edge.claim_id,
+                "claim_statement": claim_by_id[edge.claim_id].statement if edge.claim_id in claim_by_id else None,
+                "passage_id": edge.passage_id,
+                "relation_type": edge.relation_type,
+                "provenance_basis": edge.provenance_basis,
+                "reviewer_status": edge.reviewer_status,
+                "rationale": edge.rationale,
+                "passage": ({
+                    "id": passage_by_id[edge.passage_id].id,
+                    "text": passage_by_id[edge.passage_id].text,
+                    "page_number": passage_by_id[edge.passage_id].page_number,
+                    "section_title": passage_by_id[edge.passage_id].section_title,
+                    "text_hash": passage_by_id[edge.passage_id].text_hash,
+                    "paper_version_id": passage_by_id[edge.passage_id].paper_version_id,
+                    "paper_id": version_by_id[passage_by_id[edge.passage_id].paper_version_id].paper_id,
+                } if edge.passage_id in passage_by_id and passage_by_id[edge.passage_id].paper_version_id in version_by_id else None),
+            } for edge in conclusion_edges_by_id.get(conclusion.id, [])],
+        } for conclusion in conclusions],
         "paper_dependencies": [{
             "id": dependency.id,
             "dependent_paper_id": dependency.dependent_paper_id,
@@ -1377,6 +1424,33 @@ def export_evidence_passport(
                 passage = relation["passage"]
                 lines.append(f"  - Passage ID: {passage['id']} · page: {passage['page_number'] or 'abstract / page unavailable'} · paper: {passage['paper_id']}")
                 lines.append("  - Exact text: " + passage["text"].replace("\n", " "))
+        lines.append("")
+    lines.extend(["## Persisted conclusions", ""])
+    if not passport["conclusions"]:
+        lines.append("No persisted synthesis conclusions are linked to this run.")
+    for conclusion in passport["conclusions"]:
+        lines.extend([
+            f"### {conclusion['statement']}",
+            "",
+            f"- **Assessment:** {conclusion['relation_type']}",
+            f"- **Human review:** {conclusion['reviewer_status']}",
+            f"- **Provenance basis:** {conclusion['provenance_basis']}",
+            f"- **Report version:** {conclusion['report_version_id']}",
+        ])
+        if conclusion["rationale"]:
+            lines.append(f"- **Rationale:** {conclusion['rationale']}")
+        if conclusion["uncertainty_notes"]:
+            lines.append(f"- **Uncertainty:** {conclusion['uncertainty_notes']}")
+        for edge in conclusion["evidence_relations"]:
+            lines.append(f"- **Evidence edge:** {edge['relation_type']} · reviewer status: {edge['reviewer_status']} · basis: {edge['provenance_basis']}")
+            if edge["claim_statement"]:
+                lines.append(f"  - Claim: {edge['claim_statement']}")
+            if edge["passage"]:
+                passage = edge["passage"]
+                lines.append(f"  - Passage ID: {passage['id']} · page: {passage['page_number'] or 'abstract / page unavailable'} · paper: {passage['paper_id']}")
+                lines.append("  - Exact text: " + passage["text"].replace("\n", " "))
+            if edge["rationale"]:
+                lines.append(f"  - Rationale: {edge['rationale']}")
         lines.append("")
     lines.extend(["## Source dependencies", ""])
     if not passport["paper_dependencies"]:
