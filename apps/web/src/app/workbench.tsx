@@ -17,7 +17,7 @@ import {
   addPaperDependency, listDependencyCandidates,
   cancelResearchRun, retryResearchRun, reverifySourceEventImpactedClaims,
   createResearchProject, listResearchProjects, updateResearchProject,
-  reviewEvidenceRelation, reviewConclusion as reviewConclusionRecord, saveAccessToken, searchAcademicSources, uploadPdf, deleteUploadedPdf,
+  reviewEvidenceRelation, reviewConclusion as reviewConclusionRecord, compareClaimsContextually, saveAccessToken, searchAcademicSources, uploadPdf, deleteUploadedPdf,
   verifyClaimCitationSupport,
   type AcademicSearchResult, type AuthUser, type CitationVerificationResult, type DependencyCandidate, type EvidenceGraphResponse, type LibraryPaper,
   type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchProjectRecord, type ResearchRun,
@@ -263,6 +263,8 @@ export default function ChronicleWorkbench() {
   const [reviewingRelationId, setReviewingRelationId] = useState<string | null>(null);
   const [reviewingConclusionId, setReviewingConclusionId] = useState<string | null>(null);
   const [verifyingClaimId, setVerifyingClaimId] = useState<string | null>(null);
+  const [comparisonTargetClaimId, setComparisonTargetClaimId] = useState("");
+  const [comparingClaims, setComparingClaims] = useState(false);
   const [verificationByClaim, setVerificationByClaim] = useState<Record<string, CitationVerificationResult>>({});
   const [dependencyCandidates, setDependencyCandidates] = useState<DependencyCandidate[]>([]);
   const [dependencyCandidatesLoading, setDependencyCandidatesLoading] = useState(false);
@@ -647,6 +649,32 @@ export default function ChronicleWorkbench() {
       setGraphError(error instanceof Error ? error.message : "Could not save the conclusion review.");
     } finally {
       setReviewingConclusionId(null);
+    }
+  }
+
+  async function compareClaimContext(claimNodeId: string) {
+    const claimId = claimNodeId.startsWith("claim:") ? claimNodeId.slice("claim:".length) : claimNodeId;
+    const relatedClaimId = comparisonTargetClaimId.startsWith("claim:")
+      ? comparisonTargetClaimId.slice("claim:".length)
+      : comparisonTargetClaimId;
+    if (!relatedClaimId) {
+      setGraphError("Select another claim from this run before comparing study context.");
+      return;
+    }
+    setComparingClaims(true);
+    setGraphError("");
+    try {
+      const result = await compareClaimsContextually(claimId, relatedClaimId);
+      const graph = activeRunId ? await getEvidenceGraph(activeRunId) : null;
+      if (graph) setGraphData(graph);
+      setSelectedGraphNodeId(claimNodeId);
+      setNotice(
+        `Contextual comparison saved as ${result.relation_type.replaceAll("_", " ")}. Review the population, method and outcome comparison before accepting the relationship.`
+      );
+    } catch (error) {
+      setGraphError(error instanceof Error ? error.message : "Could not compare these claims in context.");
+    } finally {
+      setComparingClaims(false);
     }
   }
 
@@ -1228,6 +1256,17 @@ export default function ChronicleWorkbench() {
                   </div> : null}
                 <details className="mt-5 border-t border-slate-100 pt-3"><summary className="cursor-pointer text-xs font-medium text-slate-500">Record ID</summary><code className="mt-2 block break-all text-[10px] leading-4 text-slate-500">{selectedGraphNode.id}</code></details>
                 {selectedGraphNode.type === "claim" ? <div className="mt-5 space-y-3">
+                  <div className="rounded-xl border border-slate-100 p-3">
+                    <label className="block text-xs font-semibold text-slate-800">Compare this claim with another claim</label>
+                    <p className="mt-1 text-[11px] leading-5 text-slate-500">Chronicle compares recorded population, method/intervention and outcome context with linked passage excerpts. The suggested relation remains unreviewed.</p>
+                    <select value={comparisonTargetClaimId} onChange={(event) => setComparisonTargetClaimId(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                      <option value="">Select a claim in this run…</option>
+                      {graphSource.nodes.filter((node) => node.type === "claim" && node.id !== selectedGraphNode.id).map((node) => <option key={node.id} value={node.id}>{shorten(node.label, 90)}</option>)}
+                    </select>
+                    <button type="button" onClick={() => void compareClaimContext(selectedGraphNode.id)} disabled={comparingClaims || !comparisonTargetClaimId} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50">
+                      {comparingClaims ? <><LoaderCircle size={13} className="animate-spin"/>Comparing study context…</> : <><Network size={13}/>Compare contextual evidence</>}
+                    </button>
+                  </div>
                   <div className="grid grid-cols-1 gap-2">
                     <p className="text-xs leading-5 text-slate-500">Run a model-assisted comparison between this claim and its linked passages. The result is a review prompt, not proof of scientific truth.</p>
                     <button onClick={() => void verifyClaim(selectedGraphNode.id)} disabled={verifyingClaimId === selectedGraphNode.id} className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
@@ -1242,7 +1281,7 @@ export default function ChronicleWorkbench() {
                     {verificationByClaim[selectedGraphNode.id].uncertainty_notes.length ? <div className="mt-2"><p className="text-[11px] font-semibold text-slate-600">Uncertainty notes</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{verificationByClaim[selectedGraphNode.id].uncertainty_notes.map((item, index) => <li key={index}>{item}</li>)}</ul></div> : null}
                     <p className="mt-3 text-[11px] leading-5 text-amber-800">{verificationByClaim[selectedGraphNode.id].notice}</p>
                   </div> : null}
-                  {visibleGraphEdges.filter((edge) => edge.id && (edge.source === selectedGraphNode.id || edge.target === selectedGraphNode.id) && edge.reviewer_status === "unreviewed").map((edge) => <div key={edge.id} className="rounded-xl border border-slate-100 p-3"><p className="text-xs font-medium text-slate-800">{edge.type.replaceAll("_", " ")}</p><p className="mt-1 text-[11px] text-slate-500">{shorten(graphSource.nodes.find((node) => node.id === (edge.source === selectedGraphNode.id ? edge.target : edge.source))?.label ?? "", 90)}</p><div className="mt-3 flex gap-2"><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "accepted")} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{reviewingRelationId === edge.id ? "Saving…" : "Accept"}</button><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "needs_review")} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Needs review</button></div></div>)}
+                  {visibleGraphEdges.filter((edge) => edge.id && (edge.source === selectedGraphNode.id || edge.target === selectedGraphNode.id) && edge.reviewer_status === "unreviewed").map((edge) => <div key={edge.id} className="rounded-xl border border-slate-100 p-3"><p className="text-xs font-medium text-slate-800">{edge.type.replaceAll("_", " ")}</p><p className="mt-1 text-[11px] text-slate-500">{shorten(graphSource.nodes.find((node) => node.id === (edge.source === selectedGraphNode.id ? edge.target : edge.source))?.label ?? "", 90)}</p>{edge.contextual_comparison ? <div className="mt-3 space-y-2 rounded-lg bg-indigo-50/60 p-3 text-[11px] leading-5 text-slate-700"><p className="font-semibold text-slate-800">Study-context comparison</p><p>{edge.contextual_comparison.comparability_note}</p><p><span className="font-medium">Population:</span> {edge.contextual_comparison.population_comparison}</p><p><span className="font-medium">Method:</span> {edge.contextual_comparison.method_comparison}</p><p><span className="font-medium">Outcome:</span> {edge.contextual_comparison.outcome_comparison}</p>{edge.contextual_comparison.evidence_passage_ids?.length ? <p className="break-words text-slate-500">Evidence passages: {edge.contextual_comparison.evidence_passage_ids.join(", ")}</p> : null}{edge.contextual_comparison.uncertainty_notes?.length ? <ul className="list-disc pl-4">{edge.contextual_comparison.uncertainty_notes.map((note, index) => <li key={index}>{note}</li>)}</ul> : null}<p className="font-medium text-amber-800">Model-inferred · human review required</p></div> : null}<div className="mt-3 flex gap-2"><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "accepted")} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{reviewingRelationId === edge.id ? "Saving…" : "Accept"}</button><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "needs_review")} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Needs review</button></div></div>)}
                 </div> : null}
               </> : <div><Network size={20} className="text-slate-400"/><h3 className="mt-3 font-semibold text-slate-900">Select a node</h3><p className="mt-1 text-sm leading-5 text-slate-500">Its saved metadata and review state will appear here.</p></div>}
             </aside>
