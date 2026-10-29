@@ -119,6 +119,7 @@ def test_source_event_flags_dependent_claims_and_report(client) -> None:
     # Seed an accepted, persisted conclusion to prove a source event creates a
     # separate, review-required conclusion for the new report version.
     from app.models.entities import Conclusion, ConclusionEvidenceRelation
+    from conftest import TestingSessionLocal
     with TestingSessionLocal() as db:
         conclusion = Conclusion(
             run_id=run_id,
