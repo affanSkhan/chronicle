@@ -116,6 +116,35 @@ def test_source_event_flags_dependent_claims_and_report(client) -> None:
     assert report_response.status_code == 201, report_response.text
     original_report_id = report_response.json()["id"]
 
+    # Seed an accepted, persisted conclusion to prove a source event creates a
+    # separate, review-required conclusion for the new report version.
+    from app.models.entities import Conclusion, ConclusionEvidenceRelation
+    with TestingSessionLocal() as db:
+        conclusion = Conclusion(
+            run_id=run_id,
+            report_version_id=original_report_id,
+            statement="The intervention may improve the measured outcome.",
+            relation_type="supports",
+            reviewer_status="accepted",
+            provenance_basis="human_reviewed",
+            rationale="Human-reviewed against the exact cited passage.",
+            uncertainty_notes="Single source; revisit if the source status changes.",
+            metadata_snapshot={"source_passage_ids": [passage_id], "original_provenance_basis": "human_reviewed"},
+        )
+        db.add(conclusion)
+        db.flush()
+        db.add(ConclusionEvidenceRelation(
+            conclusion_id=conclusion.id,
+            claim_id=claim_id,
+            passage_id=passage_id,
+            relation_type="supports",
+            provenance_basis="human_reviewed",
+            reviewer_status="accepted",
+            rationale="Human-reviewed claim/passage lineage.",
+        ))
+        db.commit()
+        original_conclusion_id = conclusion.id
+
     event_response = client.post(
         f"/api/v1/sources/papers/{origin_id}/events",
         json={
@@ -176,6 +205,18 @@ def test_source_event_flags_dependent_claims_and_report(client) -> None:
     assert any(item["action"] == "claim.flagged_by_source_event" for item in passport["audit_events"])
     assert any(item["action"] == "report_version.created_after_source_event" for item in passport["audit_events"])
     assert any(dep["relation_type"] == "same_dataset" for dep in passport["paper_dependencies"])
+    conclusion_records = passport["conclusions"]
+    original_conclusion = next(item for item in conclusion_records if item["id"] == original_conclusion_id)
+    assert original_conclusion["reviewer_status"] == "accepted"
+    versioned_conclusion = next(item for item in conclusion_records if item["id"] != original_conclusion_id)
+    assert versioned_conclusion["reviewer_status"] == "needs_review"
+    assert versioned_conclusion["metadata_snapshot"]["source_event_id"] == event_response.json()["event"]["id"]
+    assert versioned_conclusion["metadata_snapshot"]["source_conclusion_id"] == original_conclusion_id
+    assert any(
+        item["action"] == "conclusion.versioned_after_source_event"
+        and item["target_entity_id"] == versioned_conclusion["id"]
+        for item in passport["audit_events"]
+    )
 
     markdown_passport = client.get(f"/api/v1/evidence/runs/{run_id}/passport?format=markdown")
     assert markdown_passport.status_code == 200
