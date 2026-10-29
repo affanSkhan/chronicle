@@ -42,8 +42,13 @@ def test_contextual_claim_comparison_uses_study_context_and_persists_review_edge
         "An observational study of 40 pediatric patients found no clear change in the school attendance outcome.",
         "pediatric-study.pdf",
     )
-    passages_a = client.get(f"/api/v1/documents/papers/{pdf_a['paper_id']}/passages").json()
-    passages_b = client.get(f"/api/v1/documents/papers/{pdf_b['paper_id']}/passages").json()
+    passages_a_response = client.get(f"/api/v1/documents/papers/{pdf_a['paper_id']}/passages")
+    passages_b_response = client.get(f"/api/v1/documents/papers/{pdf_b['paper_id']}/passages")
+    assert passages_a_response.status_code == 200, passages_a_response.text
+    assert passages_b_response.status_code == 200, passages_b_response.text
+    passages_a = passages_a_response.json()["passages"]
+    passages_b = passages_b_response.json()["passages"]
+    assert passages_a and passages_b
     passage_a_id, passage_b_id = passages_a[0]["id"], passages_b[0]["id"]
 
     with TestingSessionLocal() as db:
