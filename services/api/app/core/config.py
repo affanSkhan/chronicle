@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     enable_scheduled_monitoring: bool = False
     source_monitor_poll_seconds: int = 60
     source_monitor_batch_size: int = 20
+    # Optional durable PostgreSQL-backed queue; keep "inline" on serverless unless a worker runs separately.
+    research_execution_mode: str = "inline"
+    research_worker_poll_seconds: int = 3
+    research_worker_heartbeat_seconds: int = 15
+    research_worker_stale_after_seconds: int = 180
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

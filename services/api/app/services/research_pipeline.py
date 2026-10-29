@@ -440,7 +440,7 @@ async def _execute_planned_search(
     return provider_result, plan
 
 
-async def execute_research_run(run_id: str) -> None:
+async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) -> None:
     """Execute a discovery run and persist its status, source records and report."""
     cancel_before_start = False
     with SessionLocal() as db:
@@ -449,8 +449,12 @@ async def execute_research_run(run_id: str) -> None:
             return
         if run.status in {"cancel_requested", "cancelled"}:
             cancel_before_start = True
+        elif run.status == "running" and not claimed_by_worker:
+            # Prevent a duplicate inline invocation from racing a claimed durable worker.
+            return
         else:
-            run.status = "running"
+            if run.status != "running":
+                run.status = "running"
             run.demo = False
             run.error_message = None
             run.configuration = {
