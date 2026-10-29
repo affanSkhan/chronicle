@@ -92,6 +92,7 @@ export async function createResearchRun(input: {
   project_id?: string | null;
   source_paper_ids?: string[];
   execute?: boolean;
+  evaluation_arm?: "A" | "B" | "C" | "D";
 }): Promise<ResearchRun> {
   const response = await apiFetch(`${API_BASE}/api/v1/research/runs`, {
     method: "POST",
