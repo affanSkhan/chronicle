@@ -151,9 +151,28 @@ def _markdown_report(
             f"- **Profile:** {execution_plan.get('profile_label', mode)}",
             f"- **Planner version:** {execution_plan.get('version', '1.0')}",
             f"- **Source budget:** {execution_plan.get('source_budget', len(papers))}",
+            f"- **Evaluation arm:** {(execution_plan.get('evaluation') or {}).get('arm', execution_plan.get('evaluation_arm', 'D'))}",
+            f"- **Execution type:** {'controlled A–D experiment' if (execution_plan.get('evaluation') or {}).get('controlled_experiment') else 'normal product run'}",
             "- **Search subqueries actually executed:**",
         ]
         plan_lines.extend(f"  - {query}" for query in execution_plan.get("queries", []))
+        evaluation = execution_plan.get("evaluation") if isinstance(execution_plan.get("evaluation"), dict) else {}
+        feature_flags = evaluation.get("feature_flags") if isinstance(evaluation.get("feature_flags"), dict) else {}
+        features = execution_plan.get("features") if isinstance(execution_plan.get("features"), dict) else {}
+        if feature_flags or features:
+            plan_lines.append("- **Feature flags:**")
+            combined_flags = {**features, **feature_flags}
+            for flag, enabled in sorted(combined_flags.items()):
+                if isinstance(enabled, bool):
+                    plan_lines.append(f"  - {flag}: {'enabled' if enabled else 'disabled'}")
+        iterations = execution_plan.get("research_iterations")
+        if isinstance(iterations, list) and iterations:
+            plan_lines.append("- **Evidence-gap follow-up searches:**")
+            plan_lines.extend(
+                f"  - Iteration {item.get('iteration')}: {item.get('query')} "
+                f"(new unique sources: {item.get('new_unique_sources', 0)})"
+                for item in iterations if isinstance(item, dict)
+            )
         plan_lines.append("- **Workflow modules:**")
         plan_lines.extend(f"  - {module}" for module in execution_plan.get("modules", []))
         plan_lines.extend(["", f"**Mode focus:** {execution_plan.get('focus', 'General scholarly discovery')}", ""])
@@ -595,6 +614,8 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                 "max_additional_search_iterations": 2 if mode != "quick" else 0,
                 "mode_profile_stages_preserved": True,
             }
+        execution_plan.setdefault("evaluation", {})["controlled_experiment"] = evaluation_arm_explicitly_requested
+        execution_plan.setdefault("evaluation", {}).setdefault("arm", evaluation_arm)
         # Persist the plan before network I/O so a failed or partial run remains inspectable.
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
