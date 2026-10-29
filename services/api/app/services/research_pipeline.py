@@ -19,7 +19,8 @@ from app.services.audit import record_audit_event
 from app.services.claim_extraction import extract_claims_from_passages
 from app.services.evidence_synthesis import synthesize_evidence
 from app.services.dependency_candidates import build_dependency_clusters, suggest_dependency_candidates
-from app.services.research_planner import focus_for_mode
+from app.services.research_planner import build_research_plan, focus_for_mode
+from app.services.evaluation_arms import configure_evaluation_arm
 from app.services.research_orchestrator import build_agentic_research_plan
 from app.services.hybrid_passage_retrieval import rank_passages_hybrid
 
@@ -414,6 +415,83 @@ async def _execute_planned_search(
                 prior["publication_year"] = prior.get("publication_year") or item.get("publication_year")
                 prior["doi"] = prior.get("doi") or item.get("doi")
                 prior["matched_queries"] = sorted(set(prior.get("matched_queries", []) + [query]))
+    # B/C/D perform bounded follow-up searches when the first retrieval pass leaves
+    # a source-budget gap. These are actual provider calls, not merely documented
+    # query templates. Arm A is intentionally a one-query single-pass baseline.
+    feature_config = plan.get("features", {}) if isinstance(plan.get("features"), dict) else {}
+    max_iterations = max(0, min(int(feature_config.get("max_additional_search_iterations", 0) or 0), 2))
+    if feature_config.get("iterative_retrieval") and max_iterations:
+        question_prefix = re.sub(r"\\s+", " ", question).strip()[:145]
+        mode_key = str(mode or "deep").lower()
+        suffixes = {
+            "deep": ["methods results limitations open questions", "recent review conflicting findings replication"],
+            "academic": ["study design population methods outcomes limitations", "systematic review conflicting results evidence gaps"],
+            "forensic": ["contradictory findings corrections retractions replication", "shared datasets source dependence limitations"],
+            "quick": [],
+        }.get(mode_key, ["methods results limitations open questions", "recent review conflicting findings replication"])
+        tried_queries = {str(query).casefold() for query in queries}
+        query_ceiling = min(5, max(1, int(max_sources)))
+        iteration_number = 0
+        for suffix in suffixes:
+            if iteration_number >= max_iterations or len(merged) >= max_sources or len(queries) >= query_ceiling:
+                break
+            gap_query = f"{question_prefix} {suffix}".strip()
+            if not gap_query or gap_query.casefold() in tried_queries:
+                continue
+            tried_queries.add(gap_query.casefold())
+            queries.append(gap_query)
+            plan["queries"] = list(queries)
+            plan["query_budget"] = len(queries)
+            iteration_number += 1
+            try:
+                response = await _await_with_cancellation(
+                    search_papers(gap_query, limit=max(1, min(5, max_sources - len(merged))), provider="all"),
+                    run_id,
+                ) if run_id else await search_papers(
+                    gap_query, limit=max(1, min(5, max_sources - len(merged))), provider="all"
+                )
+            except ResearchRunCancelled:
+                raise
+            except Exception as exc:
+                provider_errors[f"iteration_{iteration_number}"] = f"Follow-up evidence-gap search failed ({type(exc).__name__})."
+                continue
+            successful_queries += 1
+            for name, message in (response.get("provider_errors") or {}).items():
+                provider_errors[f"iteration_{iteration_number}_{name}"] = message
+            new_items = 0
+            for result_rank, raw_item in enumerate(response.get("results", []), start=1):
+                item = dict(raw_item)
+                doi = _normalize_doi(item.get("doi"))
+                normalized_title = " ".join(str(item.get("title") or "").lower().split())
+                if not normalized_title:
+                    continue
+                key = f"doi:{doi.lower()}" if doi else f"title:{normalized_title}"
+                fused_query_scores[key] = fused_query_scores.get(key, 0.0) + 1.0 / (60 + result_rank)
+                if key not in merged:
+                    item["matched_queries"] = [gap_query]
+                    merged[key] = item
+                    new_items += 1
+                else:
+                    prior = merged[key]
+                    prior["abstract"] = prior.get("abstract") or item.get("abstract")
+                    prior["authors"] = prior.get("authors") or item.get("authors") or []
+                    prior["landing_url"] = prior.get("landing_url") or item.get("landing_url")
+                    prior["publisher"] = prior.get("publisher") or item.get("publisher")
+                    prior["publication_year"] = prior.get("publication_year") or item.get("publication_year")
+                    prior["doi"] = prior.get("doi") or item.get("doi")
+                    prior["matched_queries"] = sorted(set(prior.get("matched_queries", []) + [gap_query]))
+            plan.setdefault("research_iterations", []).append({
+                "iteration": iteration_number,
+                "reason": "source_budget_gap_after_initial_retrieval",
+                "query": gap_query,
+                "new_unique_sources": new_items,
+                "sources_after_iteration": len(merged),
+            })
+            if new_items == 0 and iteration_number >= 1:
+                # One distinct follow-up can still be useful after a no-new-source pass;
+                # the bounded ceiling prevents open-ended provider calls.
+                continue
+
     if successful_queries == 0:
         raise RuntimeError("All planned scholarly searches failed.")
 
@@ -471,6 +549,7 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
             limit = run.max_sources
             mode = run.mode
             owner_user_id = run.owner_user_id
+            evaluation_arm = str((run.configuration or {}).get("evaluation_arm") or "D").strip().upper()
             source_paper_ids = list(dict.fromkeys(
                 item for item in ((run.configuration or {}).get("source_paper_ids") or [])
                 if isinstance(item, str) and item
@@ -481,7 +560,11 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
         return
 
     try:
-        execution_plan = await build_agentic_research_plan(question, mode, limit)
+        if evaluation_arm == "A":
+            base_plan = build_research_plan(question, mode, limit)
+        else:
+            base_plan = await build_agentic_research_plan(question, mode, limit)
+        execution_plan = configure_evaluation_arm(base_plan, evaluation_arm, question=question)
         # Persist the plan before network I/O so a failed or partial run remains inspectable.
         with SessionLocal() as db:
             run = db.get(ResearchRun, run_id)
@@ -491,6 +574,9 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                 **(run.configuration or {}),
                 "pipeline": "mode-specific-scholarly-discovery",
                 "planner_version": execution_plan["version"],
+                "evaluation_arm": evaluation_arm,
+                "evaluation": execution_plan.get("evaluation", {}),
+                "features": execution_plan.get("features", {}),
                 "execution_plan": execution_plan,
                 "planned_search_queries": execution_plan["queries"],
             }
