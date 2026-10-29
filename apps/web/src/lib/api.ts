@@ -276,6 +276,10 @@ export interface EvidenceGraphNode {
   label: string;
   assessment?: string;
   review_required?: boolean;
+  reviewer_status?: string;
+  claim_ids?: string[];
+  uncertainty_notes?: string | null;
+  report_version_id?: string;
   page_number?: number | null;
   paper_version_id?: string;
   publication_status?: string;
@@ -506,7 +510,21 @@ export async function reviewEvidenceRelation(
   reviewerStatus: "accepted" | "rejected" | "needs_review",
   reviewerNotes?: string
 ): Promise<{ id: string; reviewer_status: string; provenance_basis: string; relation_type: string }> {
-  const response = await apiFetch(`${API_BASE}/api/v1/evidence/relations/${relationId}/review`, {
+  const response = await apiFetch(`${API_BASE}/api/v1/evidence/relations/${encodeURIComponent(relationId)}/review`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reviewer_status: reviewerStatus, reviewer_notes: reviewerNotes })
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json();
+}
+
+export async function reviewConclusion(
+  conclusionId: string,
+  reviewerStatus: "accepted" | "rejected" | "needs_review",
+  reviewerNotes?: string
+): Promise<{ id: string; reviewer_status: string; provenance_basis: string; review_required: boolean }> {
+  const response = await apiFetch(`${API_BASE}/api/v1/evidence/conclusions/${encodeURIComponent(conclusionId)}/review`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ reviewer_status: reviewerStatus, reviewer_notes: reviewerNotes })
