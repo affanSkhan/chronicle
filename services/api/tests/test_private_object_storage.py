@@ -1,4 +1,7 @@
+import os
 from pathlib import Path
+
+import pytest
 from types import SimpleNamespace
 import sys
 
@@ -24,7 +27,10 @@ def test_local_pdf_storage_uses_generated_owner_scoped_name_and_private_mode(tmp
     path = Path(result["reference"])
     assert path == tmp_path / "user-id" / (("a" * 64) + ".pdf")
     assert path.read_bytes() == b"%PDF-test"
-    assert path.stat().st_mode & 0o777 == 0o600
+    if os.name != "nt":
+        # POSIX exposes the requested owner-only mode through stat(). Windows
+        # reports ACL-backed mode bits as a platform default instead.
+        assert path.stat().st_mode & 0o777 == 0o600
     assert result["backend"] == "filesystem"
     assert result["durable"] is True
 
