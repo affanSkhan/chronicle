@@ -552,6 +552,15 @@ def record_source_event(
         "impacted_paper_ids": sorted(paper_ids),
         "affected_claim_ids": sorted(claim_ids),
         "affected_run_ids": sorted(run_ids),
+        "reassessment": {
+            "task_id": f"reverify-{event.id}",
+            "status": "queued_for_human_review",
+            "queued_at": event.observed_at.isoformat(),
+            "claim_ids": sorted(claim_ids),
+            "run_ids": sorted(run_ids),
+            "automatic_verdict_promotion": False,
+            "note": "A reviewer must explicitly start and resolve re-verification; source events never promote model verdicts automatically.",
+        },
     }
     event.metadata_snapshot = event_metadata
 

@@ -57,6 +57,9 @@ def _claim_and_source_event(client, verification_status="human_verified", evalua
         assert claim_id not in event.json()["impact"]["affected_claim_ids"]
     else:
         assert claim_id in event.json()["impact"]["affected_claim_ids"]
+    reassessment = event.json()["event"]["metadata_snapshot"]["reassessment"]
+    assert reassessment["status"] == "queued_for_human_review"
+    assert reassessment["automatic_verdict_promotion"] is False
     return run_id, claim_id, event.json()["event"]["id"]
 
 
