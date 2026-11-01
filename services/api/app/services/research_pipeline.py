@@ -8,6 +8,7 @@ import asyncio
 import math
 import hashlib
 import re
+from typing import Any
 
 from sqlalchemy import func, select
 
@@ -579,6 +580,28 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
         _finalize_cancelled_run(run_id, "Run was cancelled before the worker began.")
         return
 
+    def record_checkpoint(stage: str, *, details: dict[str, Any] | None = None) -> None:
+        """Persist coarse-grained progress so operators can distinguish partial work.
+
+        Checkpoints are intentionally descriptive, not restart tokens: provider calls and
+        model stages are not replay-safe without a full task ledger. They make queued
+        execution observable and preserve the last completed boundary for human retry.
+        """
+        with SessionLocal() as checkpoint_db:
+            checkpoint_run = checkpoint_db.get(ResearchRun, run_id)
+            if checkpoint_run is None:
+                return
+            config = checkpoint_run.configuration if isinstance(checkpoint_run.configuration, dict) else {}
+            checkpoint_run.configuration = {
+                **config,
+                "checkpoint": {
+                    "stage": stage,
+                    "recorded_at": datetime.now(timezone.utc).isoformat(),
+                    **(details or {}),
+                },
+            }
+            checkpoint_db.commit()
+
     try:
         if evaluation_arm_explicitly_requested:
             if evaluation_arm == "A":
@@ -633,12 +656,15 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
             }
             db.commit()
 
+        record_checkpoint("planned", details={"query_count": len(execution_plan.get("queries", []))})
+
         provider_result, execution_plan = await _execute_planned_search(
             question, mode, limit, plan=execution_plan, run_id=run_id
         )
         if _run_cancellation_requested(run_id):
             raise ResearchRunCancelled("Research run cancellation was requested.")
         result_items = provider_result.get("results", [])
+        record_checkpoint("search_completed", details={"result_count": len(result_items)})
         saved_papers: list[dict] = []
         passages_for_extraction: list[dict] = []
 
@@ -760,6 +786,8 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                     "source_provider": paper.source_provider,
                 })
             db.commit()
+
+        record_checkpoint("evidence_persisted", details={"paper_count": len(saved_papers), "passage_count": len(passages_for_extraction)})
 
         # Attach user-selected PDFs to the actual research run, not just the library.
         # Their extracted passages are already persisted in PostgreSQL; original file bytes
@@ -1013,7 +1041,12 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                         "uncertainty_notes": claim.uncertainty_notes,
                         "evidence": stored_edges,
                     })
-                db.commit()
+                    db.commit()
+
+        record_checkpoint("model_stages_completed", details={
+            "claim_count": len(extracted_claims),
+            "synthesis_completed": synthesis_result is not None,
+        })
 
         dependency_candidates: list[dict] = []
         dependency_analysis: dict = {
@@ -1241,6 +1274,8 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                 "completed_with_limitations": has_limitations,
             }
             db.commit()
+
+        record_checkpoint("report_persisted", details={"report_version_id": report.id})
 
     except ResearchRunCancelled:
         _finalize_cancelled_run(run_id)
