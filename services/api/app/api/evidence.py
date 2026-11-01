@@ -283,11 +283,6 @@ async def compare_claims_in_context(
     passages_b = [passages_by_id[item] for item in claim_b_passage_ids if item in passages_by_id]
     settings = get_settings()
     api_key, api_base, model = get_llm_config(settings)
-    if not api_key or not model:
-        raise HTTPException(
-            status_code=503,
-            detail="Contextual relation checking requires LLM_API_KEY and LLM_MODEL (or legacy OPENAI_API_KEY and OPENAI_MODEL). No relation was created.",
-        )
     try:
         assessment = await compare_claims_with_context(
             claim_a={
