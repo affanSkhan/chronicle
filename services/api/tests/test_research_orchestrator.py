@@ -10,7 +10,8 @@ def test_planner_graph_falls_back_without_model_and_preserves_budgets(monkeypatc
         "How does retrieval practice affect long-term learning?", "deep", 3
     ))
     assert plan["planner"]["backend"] == "deterministic_fallback"
-    assert plan["planner"]["nodes"] == ["query_planner_agent", "query_budget_critic"]
+    assert plan["planner"]["nodes"] == ["query_planner_agent", "query_budget_critic", "specialist_role_contracts"]
+    assert [role["role"] for role in plan["specialist_roles"]] == ["discovery", "study_appraisal", "claim_synthesis", "temporal_monitor"]
     assert plan["queries"][0] == "How does retrieval practice affect long-term learning?"
     assert len(plan["queries"]) <= 3
 
@@ -53,6 +54,7 @@ def test_planner_graph_accepts_bounded_suggestions_and_rejects_urls(monkeypatch)
     assert len(plan["queries"]) <= 3
     assert all("://" not in query for query in plan["queries"])
     assert len({query.casefold() for query in plan["queries"]}) == len(plan["queries"])
+    assert all(role["human_review_required"] for role in plan["specialist_roles"])
 
 
 def test_query_critic_preserves_long_original_question():

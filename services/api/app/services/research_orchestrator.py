@@ -30,6 +30,7 @@ class PlanningState(TypedDict, total=False):
     planner_backend: str
     fallback_reason: str
     final_plan: dict[str, Any]
+    specialist_roles: list[dict[str, Any]]
 
 
 def _clean_query(value: object) -> str | None:
@@ -188,13 +189,43 @@ def _query_critic(state: PlanningState) -> dict[str, Any]:
     return {"final_plan": base_plan}
 
 
+def _specialist_role_agent(state: PlanningState) -> dict[str, Any]:
+    """Attach bounded role contracts to the plan without inventing findings.
+
+    These contracts make the specialist boundaries explicit for the downstream
+    pipeline. Each role consumes persisted artifacts and emits reviewable
+    candidates; none is an independent source of scientific truth.
+    """
+    plan = dict(state.get("final_plan") or state.get("base_plan") or {})
+    roles = [
+        {"role": "discovery", "input": "research question", "output": "ranked scholarly metadata and passages", "max_items": int(plan.get("source_budget", 10))},
+        {"role": "study_appraisal", "input": "validated source passages", "output": "study-context and limitation candidates", "max_items": 8},
+        {"role": "claim_synthesis", "input": "passage-bounded evidence", "output": "claim/conclusion candidates with citations", "max_items": 12},
+        {"role": "temporal_monitor", "input": "source events and dependency edges", "output": "impacted entities requiring reassessment", "max_items": 50},
+    ]
+    for role in roles:
+        role["human_review_required"] = True
+        role["bounded"] = True
+    plan["specialist_roles"] = roles
+    plan["planner"] = {
+        **(plan.get("planner") or {}),
+        "nodes": ["query_planner_agent", "query_budget_critic", "specialist_role_contracts"],
+        "specialist_roles_bounded": True,
+        "note": "Specialist roles are explicit contracts over persisted artifacts; they do not independently establish scientific truth.",
+    }
+    plan["steps"] = list(plan.get("steps") or []) + ["Execute bounded discovery, study-appraisal, claim-synthesis and temporal-monitor role contracts; preserve human review for every generated judgment."]
+    return {"final_plan": plan, "specialist_roles": roles}
+
+
 if StateGraph is not None:
     _graph_builder = StateGraph(PlanningState)
     _graph_builder.add_node("query_planner_agent", _planner_agent)
     _graph_builder.add_node("query_budget_critic", _query_critic)
+    _graph_builder.add_node("specialist_role_contracts", _specialist_role_agent)
     _graph_builder.add_edge(START, "query_planner_agent")
     _graph_builder.add_edge("query_planner_agent", "query_budget_critic")
-    _graph_builder.add_edge("query_budget_critic", END)
+    _graph_builder.add_edge("query_budget_critic", "specialist_role_contracts")
+    _graph_builder.add_edge("specialist_role_contracts", END)
     _PLANNER_GRAPH = _graph_builder.compile()
 else:
     _PLANNER_GRAPH = None
@@ -206,7 +237,7 @@ async def build_agentic_research_plan(question: str, mode: str, max_sources: int
         plan = build_research_plan(question, mode, max_sources)
         plan["planner"] = {
             "framework": "LangGraph StateGraph",
-            "nodes": ["query_planner_agent", "query_budget_critic"],
+            "nodes": ["query_planner_agent", "query_budget_critic", "specialist_role_contracts"],
             "backend": "deterministic_fallback",
             "fallback_reason": "langgraph_package_unavailable",
             "query_limit_enforced": plan["query_budget"],
