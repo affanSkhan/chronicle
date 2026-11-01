@@ -1,0 +1,134 @@
+{
+  "dataset_name": "synthetic-smoke-v1",
+  "record_count": 2,
+  "relation_classification": {
+    "sample_count": 2,
+    "accuracy": 0.5,
+    "macro_precision": 0.3333333333333333,
+    "macro_recall": 0.3333333333333333,
+    "macro_f1": 0.3333333333333333,
+    "micro_precision": 0.5,
+    "micro_recall": 0.5,
+    "micro_f1": 0.5,
+    "labels": [
+      "contradicts",
+      "qualifies",
+      "supports"
+    ],
+    "per_class": {
+      "contradicts": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 1,
+        "true_positive": 0,
+        "false_positive": 0,
+        "false_negative": 1
+      },
+      "qualifies": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 0,
+        "true_positive": 0,
+        "false_positive": 1,
+        "false_negative": 0
+      },
+      "supports": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 1,
+        "true_positive": 1,
+        "false_positive": 0,
+        "false_negative": 0
+      }
+    }
+  },
+  "claim_support_retrieval": null,
+  "citation_quality": {
+    "sample_count": 2,
+    "macro_mean": {
+      "citation_support_precision": 0.5,
+      "claim_citation_coverage": 1.0,
+      "grounded_claim_rate": 0.5
+    },
+    "interpretation": "Labelled citation support and coverage indicators; not a full automated ALCE score."
+  },
+  "passage_grounding": {
+    "claim_count": 3,
+    "grounded_claim_count": 2,
+    "grounded_claim_rate": 0.6666666666666666
+  },
+  "temporal_impact": {
+    "expected_count": 3,
+    "predicted_count": 2,
+    "true_positive": 2,
+    "false_positive": 0,
+    "false_negative": 1,
+    "precision": 1.0,
+    "recall": 0.6666666666666666,
+    "f1": 0.8
+  },
+  "temporal_impact_per_event": {
+    "sample_count": 2,
+    "macro_mean": {
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5
+    },
+    "pooled": {
+      "true_positive": 2,
+      "false_positive": 0,
+      "false_negative": 1,
+      "precision": 1.0,
+      "recall": 0.6666666666666666,
+      "f1": 0.8
+    },
+    "false_alarms_per_source_event": 0.0,
+    "total_false_alarms": 0,
+    "total_missed_impacts": 1
+  },
+  "high_severity_temporal_impact": null,
+  "dependency_retrieval": {
+    "expected_count": 1,
+    "predicted_count": 2,
+    "true_positive": 1,
+    "false_positive": 1,
+    "false_negative": 0,
+    "precision": 0.5,
+    "recall": 1.0,
+    "f1": 0.6666666666666666,
+    "false_dependency_rate": 0.5
+  },
+  "ranked_passage_retrieval": {
+    "sample_count": 2,
+    "macro_mean": {
+      "mrr": 0.5,
+      "precision_at_1": 0.5,
+      "recall_at_1": 0.5,
+      "ndcg_at_1": 0.5,
+      "precision_at_3": 0.16666666666666666,
+      "recall_at_3": 0.5,
+      "ndcg_at_3": 0.5,
+      "precision_at_5": 0.1,
+      "recall_at_5": 0.5,
+      "ndcg_at_5": 0.5,
+      "precision_at_10": 0.05,
+      "recall_at_10": 0.5,
+      "ndcg_at_10": 0.5
+    },
+    "cutoffs": [
+      1,
+      3,
+      5,
+      10
+    ]
+  },
+  "limitations": [
+    "Metrics require independently curated labels and a held-out split that was not used for model/prompt tuning.",
+    "Identifiers should be globally unique across records for pooled set metrics; per-event temporal metrics are also reported to reduce cross-event collisions.",
+    "Citation support and claim-grounding counts must be independently adjudicated; these indicators are not a complete automated ALCE benchmark implementation.",
+    "No performance result is reported unless labelled records supply the relevant expected/predicted fields."
+  ]
+}
