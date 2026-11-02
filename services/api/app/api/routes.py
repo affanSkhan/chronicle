@@ -121,6 +121,8 @@ def create_research_run(payload: ResearchRunCreate, background_tasks: Background
             "pipeline": "scholarly-metadata-discovery" if payload.execute else "request-only-demo",
             "max_sources": payload.max_sources,
             "source_paper_ids": source_paper_ids,
+            "evaluation_arm": payload.evaluation_arm or "D",
+            "evaluation_arm_explicitly_requested": payload.evaluation_arm is not None,
         },
     )
     db.add(run)
@@ -140,6 +142,7 @@ def create_research_run(payload: ResearchRunCreate, background_tasks: Background
             "max_sources": run.max_sources,
             "source_paper_ids": source_paper_ids,
             "execute": payload.execute,
+            "evaluation_arm": payload.evaluation_arm or "D",
         },
         reason="Research run submitted.",
     )

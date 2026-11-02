@@ -22,6 +22,7 @@ out/
 dist/
 .turbo/
 coverage/
+*.tsbuildinfo
 
 # editors / OS
 .DS_Store

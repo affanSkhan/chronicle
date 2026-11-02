@@ -15,6 +15,9 @@ def test_upgrade_existing_0005_database_preserves_run_data_and_adds_lifecycle_fi
         connection.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY)"))
         connection.execute(text("INSERT INTO alembic_version (version_num) VALUES ('0005_source_monitoring')"))
         connection.execute(text("CREATE TABLE paper_versions (id VARCHAR(36) PRIMARY KEY)"))
+        connection.execute(text("CREATE TABLE claims (id VARCHAR(36) PRIMARY KEY, run_id VARCHAR(36) NOT NULL)"))
+        connection.execute(text("CREATE TABLE passages (id VARCHAR(36) PRIMARY KEY, paper_version_id VARCHAR(36) NOT NULL)"))
+        connection.execute(text("CREATE TABLE report_versions (id VARCHAR(36) PRIMARY KEY, run_id VARCHAR(36) NOT NULL)"))
         connection.execute(text(
             "CREATE TABLE research_projects ("
             "id VARCHAR(36) PRIMARY KEY, owner_user_id VARCHAR(36), title VARCHAR(240) NOT NULL, "
@@ -55,10 +58,17 @@ def test_upgrade_existing_0005_database_preserves_run_data_and_adds_lifecycle_fi
     assert {"paper_version_id", "sha256", "data"} <= {
         column["name"] for column in inspector.get_columns("uploaded_pdf_blobs")
     }
+    assert {"conclusions", "conclusion_evidence_relations"} <= set(inspector.get_table_names())
+    assert {"run_id", "report_version_id", "statement", "reviewer_status", "provenance_basis"} <= {
+        column["name"] for column in inspector.get_columns("conclusions")
+    }
+    assert {"conclusion_id", "claim_id", "passage_id", "reviewer_status"} <= {
+        column["name"] for column in inspector.get_columns("conclusion_evidence_relations")
+    }
 
     with engine.connect() as connection:
         assert connection.execute(text("SELECT title FROM research_projects WHERE id='project-1'")).scalar_one() == "Existing workspace"
         row = connection.execute(text("SELECT question, status FROM research_runs WHERE id='run-1'")).one()
         assert row.question == "How should old run state be preserved?"
         assert row.status == "completed"
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0008_persistent_pdf_content"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0009_conclusion_evidence"

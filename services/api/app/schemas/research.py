@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -27,6 +28,8 @@ class ResearchRunCreate(BaseModel):
     max_sources: int = Field(default=10, ge=1, le=50)
     source_paper_ids: list[str] = Field(default_factory=list, max_length=5)
     execute: bool = False
+    # Optional controlled-experiment arm. Omitted for normal use (full lifecycle / D).
+    evaluation_arm: Literal["A", "B", "C", "D"] | None = None
 
 
 class ResearchRun(BaseModel):
@@ -43,6 +46,7 @@ class ResearchRun(BaseModel):
     cancel_requested_at: datetime | None = None
     cancelled_at: datetime | None = None
     retry_of_run_id: str | None = None
+    evaluation_arm: Literal["A", "B", "C", "D"] = "D"
 
 
 class ProjectCreate(BaseModel):

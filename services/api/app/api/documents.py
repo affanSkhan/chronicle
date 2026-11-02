@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.entities import AuditEvent, Claim, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage, ReportVersion, SourceEvent, SourceStatusCheck, Study, UploadedPdfBlob, User
+from app.models.entities import AuditEvent, Claim, Conclusion, ConclusionEvidenceRelation, EvidenceRelation, Paper, PaperDependency, PaperVersion, Passage, ReportVersion, SourceEvent, SourceStatusCheck, Study, UploadedPdfBlob, User
 from app.services.pdf_ingestion import extract_pdf
 from app.services.private_object_storage import delete_original_pdf, store_original_pdf
 from app.services.audit import record_audit_event
@@ -322,6 +322,27 @@ def permanently_delete_uploaded_pdf(
         report.change_summary = "Report content redacted after an owner-requested source deletion."
         report.review_required = True
         report_redaction_count += 1
+
+    # A redacted report must not leave a second, queryable copy of its conclusion text.
+    # Remove report-scoped conclusions and evidence edges for every run whose report
+    # was redacted; historical audit entries are retained below in redacted form.
+    impacted_report_ids = {report.id for report in reports if report.run_id in impacted_run_ids}
+    conclusions_to_delete = list(db.scalars(select(Conclusion).where(or_(
+        Conclusion.run_id.in_(impacted_run_ids) if impacted_run_ids else False,
+        Conclusion.report_version_id.in_(impacted_report_ids) if impacted_report_ids else False,
+    ))).all())
+    conclusion_ids_to_delete = {conclusion.id for conclusion in conclusions_to_delete}
+    conclusion_edges_to_delete = list(db.scalars(
+        select(ConclusionEvidenceRelation).where(
+            ConclusionEvidenceRelation.conclusion_id.in_(conclusion_ids_to_delete)
+        )
+    ).all()) if conclusion_ids_to_delete else []
+    for edge in conclusion_edges_to_delete:
+        sensitive_target_ids.add(edge.id)
+        db.delete(edge)
+    for conclusion in conclusions_to_delete:
+        sensitive_target_ids.add(conclusion.id)
+        db.delete(conclusion)
 
     for dependency in db.scalars(select(PaperDependency).where(or_(
         PaperDependency.dependent_paper_id == paper.id,

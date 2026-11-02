@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -62,6 +62,12 @@ class ResearchRun(Base):
     project: Mapped[ResearchProject | None] = relationship(back_populates="runs")
     claims: Mapped[list["Claim"]] = relationship(back_populates="run", cascade="all, delete-orphan")
     report_versions: Mapped[list["ReportVersion"]] = relationship(back_populates="run", cascade="all, delete-orphan")
+
+    @property
+    def evaluation_arm(self) -> str:
+        """Expose the run's persisted FF180 experiment arm without a schema migration."""
+        configuration = self.configuration if isinstance(self.configuration, dict) else {}
+        return str(configuration.get("evaluation_arm") or "D").upper()
 
 
 class Paper(Base):
@@ -240,6 +246,48 @@ class ReportVersion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     run: Mapped[ResearchRun] = relationship(back_populates="report_versions")
+
+
+class Conclusion(Base):
+    """Versioned, human-reviewable report-level synthesis finding."""
+
+    __tablename__ = "conclusions"
+    __table_args__ = (
+        UniqueConstraint("report_version_id", "statement", name="uq_conclusion_report_statement"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    run_id: Mapped[str] = mapped_column(ForeignKey("research_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    report_version_id: Mapped[str] = mapped_column(ForeignKey("report_versions.id", ondelete="CASCADE"), nullable=False, index=True)
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    relation_type: Mapped[str] = mapped_column(String(40), default="qualifies", nullable=False)
+    reviewer_status: Mapped[str] = mapped_column(String(40), default="needs_review", nullable=False, index=True)
+    provenance_basis: Mapped[str] = mapped_column(String(40), default="model_inferred", nullable=False)
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uncertainty_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_snapshot: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class ConclusionEvidenceRelation(Base):
+    """Provenance edge from an exact passage and/or claim to a report conclusion."""
+
+    __tablename__ = "conclusion_evidence_relations"
+    __table_args__ = (
+        CheckConstraint("claim_id IS NOT NULL OR passage_id IS NOT NULL", name="ck_conclusion_edge_has_source"),
+        UniqueConstraint("conclusion_id", "claim_id", "passage_id", "relation_type", name="uq_conclusion_evidence_edge"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    conclusion_id: Mapped[str] = mapped_column(ForeignKey("conclusions.id", ondelete="CASCADE"), nullable=False, index=True)
+    claim_id: Mapped[str | None] = mapped_column(ForeignKey("claims.id", ondelete="CASCADE"), nullable=True, index=True)
+    passage_id: Mapped[str | None] = mapped_column(ForeignKey("passages.id", ondelete="CASCADE"), nullable=True, index=True)
+    relation_type: Mapped[str] = mapped_column(String(40), default="supports", nullable=False)
+    provenance_basis: Mapped[str] = mapped_column(String(40), default="model_inferred", nullable=False)
+    reviewer_status: Mapped[str] = mapped_column(String(40), default="needs_review", nullable=False)
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
 class AuditEvent(Base):

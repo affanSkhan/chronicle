@@ -1,6 +1,8 @@
 from app.models.entities import (
     AuditEvent,
     Claim,
+    Conclusion,
+    ConclusionEvidenceRelation,
     EvidenceRelation,
     Paper,
     PaperDependency,
@@ -17,6 +19,6 @@ from app.models.entities import (
 
 __all__ = [
     "AuditEvent",
-    "Claim", "EvidenceRelation", "Paper", "PaperDependency", "PaperVersion",
+    "Claim", "Conclusion", "ConclusionEvidenceRelation", "EvidenceRelation", "Paper", "PaperDependency", "PaperVersion",
     "Passage", "ReportVersion", "ResearchProject", "ResearchRun", "SourceEvent", "SourceStatusCheck", "Study", "User"
 ]
