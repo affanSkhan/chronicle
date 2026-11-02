@@ -47,6 +47,7 @@ class ResearchRun(BaseModel):
     cancelled_at: datetime | None = None
     retry_of_run_id: str | None = None
     evaluation_arm: Literal["A", "B", "C", "D"] = "D"
+    execution_checkpoint: dict = Field(default_factory=dict)
 
 
 class ProjectCreate(BaseModel):

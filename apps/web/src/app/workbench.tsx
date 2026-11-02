@@ -16,7 +16,7 @@ import {
   listSourceStatusChecks, loginAccount, recordPaperStatusCheck, registerAccount,
   addPaperDependency, listDependencyCandidates,
   cancelResearchRun, retryResearchRun, reverifySourceEventImpactedClaims,
-  createResearchProject, listResearchProjects, updateResearchProject,
+  createResearchProject, deleteResearchProject, listResearchProjects, updateResearchProject,
   reviewEvidenceRelation, reviewConclusion as reviewConclusionRecord, compareClaimsContextually, saveAccessToken, searchAcademicSources, uploadPdf, deleteUploadedPdf,
   verifyClaimCitationSupport,
   type AcademicSearchResult, type AuthUser, type CitationVerificationResult, type DependencyCandidate, type EvidenceGraphResponse, type LibraryPaper,
@@ -534,6 +534,22 @@ export default function ChronicleWorkbench() {
       setNotice(archived ? "Workspace archived. Its historical runs remain available." : "Workspace restored.");
     } catch (error) {
       setWorkspaceError(error instanceof Error ? error.message : "Could not change workspace archive state.");
+    } finally {
+      setSavingProject(false);
+    }
+  }
+
+  async function permanentlyDeleteProject(project: ResearchProjectRecord) {
+    if (!window.confirm(`Permanently delete "${project.title}" and all of its research runs, evidence, and reports? Saved library papers will be kept.`)) return;
+    setSavingProject(true);
+    setWorkspaceError("");
+    try {
+      await deleteResearchProject(project.id);
+      if (activeProjectId === project.id) setActiveProjectId(null);
+      await refreshWorkspace();
+      setNotice("Workspace and its run-scoped records were permanently deleted. Saved library papers were kept.");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not delete the workspace.");
     } finally {
       setSavingProject(false);
     }
@@ -1080,6 +1096,7 @@ export default function ChronicleWorkbench() {
                   <div className="flex shrink-0 flex-wrap gap-2">
                     <button type="button" onClick={() => { setActiveProjectId(project.archived_at ? null : project.id); setView("Research workspace"); }} disabled={Boolean(project.archived_at)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">Open</button>
                     {!project.archived_at ? <><button type="button" onClick={() => beginEditProject(project)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Rename / edit</button><button type="button" disabled={savingProject} onClick={() => void setProjectArchived(project, true)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Archive</button></> : <button type="button" disabled={savingProject} onClick={() => void setProjectArchived(project, false)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">Restore</button>}
+                    <button type="button" disabled={savingProject} onClick={() => void permanentlyDeleteProject(project)} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Delete permanently</button>
                   </div>
                 </div>}
               </article>)}
@@ -1144,6 +1161,7 @@ export default function ChronicleWorkbench() {
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500"><span>{activeRun.mode} · up to {activeRun.max_sources} sources</span><span>{formatDate(activeRun.created_at)}</span><span className="font-mono">ID {activeRun.id.slice(0, 8)}</span></div>
+              {activeRun.execution_checkpoint?.stage ? <p className="mt-2 text-xs text-slate-500">Last recorded stage: <span className="font-medium text-slate-700">{activeRun.execution_checkpoint.stage.replaceAll("_", " ")}</span>{activeRun.execution_checkpoint.recorded_at ? ` · ${formatDate(activeRun.execution_checkpoint.recorded_at)}` : ""}. This is progress visibility, not a restart point.</p> : null}
               {activeRun.error_message ? <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{activeRun.error_message}</div> : null}
               {specialistRoles.length ? <div className="mt-5 rounded-xl border border-indigo-100 bg-indigo-50/60 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-indigo-950">Bounded specialist workflow</p><p className="mt-1 text-xs leading-5 text-indigo-800">These role contracts operate on saved artifacts; generated judgments remain subject to researcher review.</p></div><span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-700">{specialistRoles.length} roles</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2">{specialistRoles.map((role) => <div key={role.role} className="rounded-lg border border-indigo-100 bg-white p-3"><div className="flex items-center justify-between gap-2"><p className="text-xs font-semibold capitalize text-slate-900">{(role.role ?? "specialist").replaceAll("_", " ")}</p><span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Review required</span></div><p className="mt-1 text-[11px] leading-4 text-slate-500">Input: {role.input ?? "saved research artifacts"}</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Output: {role.output ?? "reviewable candidates"}</p></div>)}</div></div> : null}
               {activeRun.status === "queued" || activeRun.status === "running" ? <div role="status" aria-live="polite" className="mt-5 rounded-xl bg-indigo-50 px-4 py-3"><div className="flex items-center gap-2 text-sm font-medium text-indigo-800"><LoaderCircle size={16} className="animate-spin"/> Research is in progress</div><p className="mt-1 text-xs text-indigo-700">This panel updates automatically.</p></div> : null}

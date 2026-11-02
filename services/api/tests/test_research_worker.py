@@ -38,6 +38,7 @@ def test_worker_claims_queued_executable_run_once(monkeypatch, client) -> None:
         assert run.status == "running"
         assert run.configuration["execution_worker"] == "database-worker"
         assert run.configuration["worker_heartbeat_at"]
+        assert run.execution_checkpoint == {}
 
 
 def test_worker_does_not_claim_demo_request(monkeypatch, client) -> None:

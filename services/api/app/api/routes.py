@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -84,6 +84,43 @@ def update_project(
     db.commit()
     db.refresh(project)
     return project
+
+
+@router.delete("/projects/{project_id}", status_code=204)
+def delete_project(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    project = db.scalar(
+        select(ResearchProject).where(
+            ResearchProject.id == project_id,
+            ResearchProject.owner_user_id == current_user.id,
+        )
+    )
+    if project is None:
+        raise HTTPException(status_code=404, detail="Research project not found.")
+
+    run_count = len(project.runs)
+    record_audit_event(
+        db,
+        actor_user_id=current_user.id,
+        run_id=None,
+        target_entity_type="research_project",
+        target_entity_id=project.id,
+        action="research_project.deleted",
+        previous_value={
+            "title": project.title,
+            "research_question": project.research_question,
+            "run_count": run_count,
+            "archived_at": project.archived_at.isoformat() if project.archived_at else None,
+        },
+        new_value=None,
+        reason="Owner permanently deleted the workspace and its run-scoped research records.",
+    )
+    db.delete(project)
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.post("/research/runs", response_model=ResearchRunSchema, status_code=201)

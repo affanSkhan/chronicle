@@ -63,7 +63,7 @@ Status definitions:
 | FR-051 | Audit consequential changes | Audit events cover run/project, claims/edges, dependency links, source events and report versions | Implemented | Broader audit-export tests desirable |
 | FR-052 | Actionable errors | API structured errors and UI error state | Partial | Full failure-mode UX smoke suite is absent |
 | FR-053 | Safe diagnostic metadata | Errors are usually surfaced without raw provider payload | Partial | Secret-sentinel and log-redaction tests absent |
-| FR-054 | Delete workspace/data | Soft archive preserves records | Partial | Permanent delete/retention workflows are not implemented |
+| FR-054 | Delete workspace/data | Owner-scoped permanent workspace deletion removes run-scoped records and is audit-logged; reusable library papers are retained | Partial | Backup/retention erasure and provider-side deletion proof remain outside the application endpoint |
 
 ## Non-functional requirements and acceptance tests
 

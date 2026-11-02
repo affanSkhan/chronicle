@@ -69,6 +69,13 @@ class ResearchRun(Base):
         configuration = self.configuration if isinstance(self.configuration, dict) else {}
         return str(configuration.get("evaluation_arm") or "D").upper()
 
+    @property
+    def execution_checkpoint(self) -> dict:
+        """Expose coarse progress without making it look like a restart token."""
+        configuration = self.configuration if isinstance(self.configuration, dict) else {}
+        checkpoint = configuration.get("checkpoint")
+        return checkpoint if isinstance(checkpoint, dict) else {}
+
 
 class Paper(Base):
     __tablename__ = "papers"

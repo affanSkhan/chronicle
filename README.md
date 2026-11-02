@@ -39,6 +39,8 @@ Open the workspace at http://localhost:3000, API docs at http://localhost:8000/d
 
 Local Docker Compose enables scheduled source-status checks by default (`ENABLE_SCHEDULED_MONITORING=true`). Direct API runs default to disabled and can opt in via `.env`. The scheduler is single-process; do not enable it on multiple replicas until a distributed worker/leader lock is implemented.
 
+Queued worker runs expose their last coarse execution checkpoint in the run response. Checkpoints improve operational visibility but are not restart tokens; a worker lease expiry fails the run for an explicit owner retry rather than replaying provider or model stages implicitly.
+
 The default JWT and database secrets are for local development only. For any shared/public environment, set a strong random `JWT_SECRET_KEY` of at least 32 characters, a strong database password, HTTPS, and appropriate CORS origins. Uploaded files are stored in a local container volume and are not served directly by the API.
 
 ## Full Vercel deployment (frontend + API)
@@ -79,6 +81,7 @@ Legacy `OPENAI_API_KEY`, `OPENAI_API_BASE`, and `OPENAI_MODEL` variables remain 
 ## Main API surface
 - `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me`
 - `POST /api/v1/projects`, `GET /api/v1/projects`
+- `PATCH /api/v1/projects/{project_id}`, `DELETE /api/v1/projects/{project_id}` (permanent deletion of the workspace's run-scoped records; reusable library papers are retained)
 - `POST /api/v1/research/runs` with `execute=true`, `GET /api/v1/research/runs`
 - `GET /api/v1/sources/search?q=...`, `POST /api/v1/sources/papers`
 - `POST /api/v1/documents/upload`, `GET /api/v1/documents/papers/{paper_id}/passages`
