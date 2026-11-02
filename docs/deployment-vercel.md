@@ -70,6 +70,8 @@ Before release, require API CI, web CI, and container CI to pass for the exact b
 
 Use the actual production aliases (not preview URLs) to smoke-test registration/login, source search, workspace create/rename/archive/restore, all four research modes, selected-PDF-to-run retrieval, citation review, dependency review, persisted conclusion review, source-event impact propagation and conclusion re-versioning, report history, Markdown/JSON/PDF Evidence Passport downloads, and permanent PDF deletion/redaction. Test with a second account. The health endpoint is a liveness check only; successful health output does not prove database or optional AI-provider configuration is correct. Confirm the optional `HF_TOKEN` and `OBJECT_STORAGE_*` values are set only if you intend to enable dense retrieval and durable originals, respectively.
 
+For the repeatable minimum API acceptance flow, configure the GitHub Actions secrets `CHRONICLE_SMOKE_EMAIL` and `CHRONICLE_SMOKE_PASSWORD`, then run **Production Acceptance Smoke** with the exact production API origin. The workflow runs `services/api/scripts/acceptance_smoke.py`; it creates and removes a temporary workspace, but the smoke account itself remains for auditability and should be a dedicated account.
+
 ## B. Create the frontend project
 
 1. In https://vercel.com/new, import `affanSkhan/chronicle` again as a **second** project.

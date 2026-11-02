@@ -12,7 +12,7 @@ Status definitions:
 
 | SRS ID | Requirement area | Evidence in current branch | Status | Remaining work |
 |---|---|---|---|---|
-| FR-001 | Create, open, rename and archive workspaces | Project routes/UI, soft archive and restore, audit history; test_projects.py | Implemented | Run browser acceptance flow in a deployed environment |
+| FR-001 | Create, open, rename and archive workspaces | Project routes/UI, soft archive and restore, permanent deletion, audit history; test_projects.py and acceptance_smoke.py | Implemented | Run the production acceptance workflow |
 | FR-002 | Specify research question and execution parameters | ResearchRunCreate carries question, mode, source budget and optional project | Partial | Broader domain/date/document filters are not all exposed |
 | FR-003 | Four execution modes | Distinct query templates and stage policies in research_planner.py; test_research_planner.py | Implemented | Deterministic planner is not a learned autonomous multi-agent planner |
 | FR-004 | Persist bounded execution plan and stages | Plan/query trail saved before provider calls and in run/report snapshots; failed-run persistence test | Implemented | Cost/token budget and durable subtask progress remain incomplete |
@@ -73,7 +73,7 @@ Status definitions:
 | Privacy/data-flow disclosure | Research UI warns that queries go to metadata providers and passages may go to configured model provider | Implemented | Validate disclosure language/policies for production deployment |
 | Prompt-injection resistance | Claim extraction/synthesis/verifier prompts treat source text as untrusted; adversarial fixture tests | Partial | Run a larger red-team corpus; prompt instructions alone do not guarantee safety |
 | Bounded workload | Source budget capped at 50 and planned query budgets | Partial | Durable queue, cancellation, model token/cost budgets and rate limiting |
-| AT-01..AT-03 core workflow/PDF/citation | API integration/unit tests for research runs, PDF passages and citation checks | Partial | Complete acceptance run through a real deployment with external provider |
+| AT-01..AT-03 core workflow/PDF/citation | API integration/unit tests plus repeatable deployed acceptance smoke harness | Partial | Run the production workflow with configured deployment secrets and complete the extended browser/provider checklist |
 | AT-04 dependency precision/recall | Evaluation harness accepts expected/predicted dependency edges | Not measured | Curated labelled dependency set and recorded held-out results |
 | AT-05 relation classification | Per-class precision/recall/F1 helpers | Not measured | Freeze labelled context/contradiction test set before evaluation |
 | AT-06 temporal impact | Set-based temporal impact metrics, direct source-event tests, and new multi-hop regression | Not measured | Create an adjudicated labelled set; report precision, recall, F1, false alarms and missed high-impact entities |

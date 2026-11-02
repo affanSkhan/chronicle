@@ -23,6 +23,7 @@ This is an implementation audit, not a claim of full SRS compliance. The prior F
 - **UI improvements (completion branch):** PDF picker with a five-file limit, clear lexical/dense retrieval disclosure, private storage durability warning, and an irreversible-delete dialog explaining which dependent records are removed/redacted.
 - **Workspace deletion:** Owners can permanently delete a workspace and its run-scoped research records through an audited, owner-scoped endpoint and confirmation-gated UI action. Reusable library papers are intentionally retained.
 - **Testing and local deployment:** API unit/integration tests, SQLite migration tests, Next.js typecheck/lint/build, container validation/build, Docker Compose, Alembic, example environment files, GitHub Actions CI, and an evaluation metrics/protocol harness. Queue-worker runs now persist and expose coarse-grained planned/search/evidence/model/report checkpoints for operational visibility; these are not restart tokens.
+- **Acceptance automation:** `services/api/scripts/acceptance_smoke.py` and the manual `Production Acceptance Smoke` workflow exercise deployed health/readiness, security headers, authentication, workspace/run lifecycle, and cleanup. A successful run against the production aliases is still an environment acceptance result, not something repository tests can claim.
 
 ## Still partial or not implemented
 
