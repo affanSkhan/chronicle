@@ -237,16 +237,22 @@ def execute_specialist_role_contracts(
         "temporal_monitor": impacted_entity_count,
     }
     outputs = []
+    stage_enabled = {
+        "claim_synthesis": bool((plan.get("stages") or {}).get("claim_extraction") and (plan.get("stages") or {}).get("evidence_synthesis")),
+        "temporal_monitor": bool((plan.get("stages") or {}).get("dependency_candidate_scan")),
+    }
     for contract in plan.get("specialist_roles", []):
         role = str(contract.get("role") or "specialist")
+        enabled = stage_enabled.get(role, True)
         outputs.append({
             "role": role,
-            "status": "completed",
-            "input_count": counts.get(role, 0),
-            "candidate_count": counts.get(role, 0),
+            "status": "completed" if enabled else "skipped_by_profile",
+            "input_count": counts.get(role, 0) if enabled else 0,
+            "candidate_count": counts.get(role, 0) if enabled else 0,
             "human_review_required": True,
             "provenance_basis": "persisted_artifact_observation",
-            "note": "Stage output is a bounded candidate/observation record, not a scientific verdict.",
+            "note": ("Stage output is a bounded candidate/observation record, not a scientific verdict."
+                     if enabled else "Stage is intentionally disabled by the selected research profile."),
         })
     return outputs
 
