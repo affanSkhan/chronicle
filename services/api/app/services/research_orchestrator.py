@@ -217,6 +217,40 @@ def _specialist_role_agent(state: PlanningState) -> dict[str, Any]:
     return {"final_plan": plan, "specialist_roles": roles}
 
 
+def execute_specialist_role_contracts(
+    plan: dict[str, Any],
+    *,
+    source_count: int,
+    passage_count: int,
+    claim_count: int = 0,
+    impacted_entity_count: int = 0,
+) -> list[dict[str, Any]]:
+    """Record bounded specialist-stage execution over persisted artifacts.
+
+    The stages deliberately report observations and candidate counts only; they
+    never promote a model judgment or assert scientific truth.
+    """
+    counts = {
+        "discovery": source_count,
+        "study_appraisal": passage_count,
+        "claim_synthesis": claim_count,
+        "temporal_monitor": impacted_entity_count,
+    }
+    outputs = []
+    for contract in plan.get("specialist_roles", []):
+        role = str(contract.get("role") or "specialist")
+        outputs.append({
+            "role": role,
+            "status": "completed",
+            "input_count": counts.get(role, 0),
+            "candidate_count": counts.get(role, 0),
+            "human_review_required": True,
+            "provenance_basis": "persisted_artifact_observation",
+            "note": "Stage output is a bounded candidate/observation record, not a scientific verdict.",
+        })
+    return outputs
+
+
 if StateGraph is not None:
     _graph_builder = StateGraph(PlanningState)
     _graph_builder.add_node("query_planner_agent", _planner_agent)
