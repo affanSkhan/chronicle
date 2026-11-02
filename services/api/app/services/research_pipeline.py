@@ -22,7 +22,7 @@ from app.services.evidence_synthesis import synthesize_evidence
 from app.services.dependency_candidates import build_dependency_clusters, suggest_dependency_candidates
 from app.services.research_planner import build_research_plan, focus_for_mode
 from app.services.evaluation_arms import configure_evaluation_arm
-from app.services.research_orchestrator import build_agentic_research_plan
+from app.services.research_orchestrator import build_agentic_research_plan, execute_specialist_role_contracts
 from app.services.hybrid_passage_retrieval import rank_passages_hybrid
 
 
@@ -894,6 +894,14 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
             paper["passage_pages"] = {str(item["id"]): item.get("page_number") for item in source_passages}
             paper["selected_passage_count"] = len(source_passages)
 
+        dependency_candidates: list[dict] = []
+        specialist_role_outputs = execute_specialist_role_contracts(
+            execution_plan,
+            source_count=len(saved_papers),
+            passage_count=len(passages_for_extraction),
+        )
+        execution_plan["specialist_role_outputs"] = specialist_role_outputs
+
         # Phase 2: optional model-backed candidates; retrieval-only mode is valid.
         if _run_cancellation_requested(run_id):
             raise ResearchRunCancelled("Research run cancellation was requested.")
@@ -1043,12 +1051,20 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                     })
                     db.commit()
 
+        specialist_role_outputs = execute_specialist_role_contracts(
+            execution_plan,
+            source_count=len(saved_papers),
+            passage_count=len(passages_for_extraction),
+            claim_count=len(persisted_claims),
+            impacted_entity_count=len(dependency_candidates),
+        )
+        execution_plan["specialist_role_outputs"] = specialist_role_outputs
+
         record_checkpoint("model_stages_completed", details={
             "claim_count": len(extracted_claims),
             "synthesis_completed": synthesis_result is not None,
         })
 
-        dependency_candidates: list[dict] = []
         dependency_analysis: dict = {
             "status": "not_scanned",
             "raw_source_count": len(saved_papers),

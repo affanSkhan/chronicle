@@ -73,3 +73,15 @@ def test_query_critic_preserves_long_original_question():
     result = research_orchestrator._query_critic(state)
     assert result["final_plan"]["queries"][0] == long_question.strip()
     assert len(result["final_plan"]["queries"]) <= 3
+
+
+def test_specialist_role_contracts_record_bounded_reviewable_stage_outputs():
+    plan = asyncio.run(research_orchestrator.build_agentic_research_plan(
+        "How does retrieval practice affect long-term learning?", "deep", 3
+    ))
+    outputs = research_orchestrator.execute_specialist_role_contracts(
+        plan, source_count=3, passage_count=8, claim_count=2, impacted_entity_count=1
+    )
+    assert [item["role"] for item in outputs] == ["discovery", "study_appraisal", "claim_synthesis", "temporal_monitor"]
+    assert [item["candidate_count"] for item in outputs] == [3, 8, 2, 1]
+    assert all(item["human_review_required"] for item in outputs)
