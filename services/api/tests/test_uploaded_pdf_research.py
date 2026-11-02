@@ -199,6 +199,34 @@ def test_permanent_pdf_deletion_removes_passages_and_redacts_derived_reports(mon
     assert relation_response.status_code == 201, relation_response.text
 
     with TestingSessionLocal() as db:
+        from app.models.entities import Conclusion, ConclusionEvidenceRelation, ReportVersion
+        report = db.scalar(select(ReportVersion).where(ReportVersion.run_id == run_id))
+        assert report is not None
+        conclusion = Conclusion(
+            run_id=run_id,
+            report_version_id=report.id,
+            statement="The cobalt river source supports evidence traceability.",
+            relation_type="supports",
+            reviewer_status="needs_review",
+            provenance_basis="model_inferred",
+            rationale="Test-only synthetic conclusion derived from the uploaded PDF.",
+            metadata_snapshot={"source_passage_ids": [passage_id]},
+        )
+        db.add(conclusion)
+        db.flush()
+        db.add(ConclusionEvidenceRelation(
+            conclusion_id=conclusion.id,
+            claim_id=claim_id,
+            passage_id=passage_id,
+            relation_type="supports",
+            provenance_basis="model_inferred",
+            reviewer_status="needs_review",
+            rationale="Test-only evidence edge.",
+        ))
+        report.evidence_snapshot = {**(report.evidence_snapshot or {}), "conclusion_ids": [conclusion.id]}
+        db.commit()
+
+    with TestingSessionLocal() as db:
         from app.models.entities import Paper
         paper = db.get(Paper, paper_id)
         assert paper is not None
@@ -229,6 +257,7 @@ def test_permanent_pdf_deletion_removes_passages_and_redacts_derived_reports(mon
     assert passport.status_code == 200, passport.text
     assert all(item["id"] != paper_id for item in passport.json()["papers"])
     assert all(item["id"] != claim_id for item in passport.json()["claims"])
+    assert passport.json()["conclusions"] == []
     assert "cobalt river" not in passport.text.lower()
 
 

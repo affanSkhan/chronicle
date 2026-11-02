@@ -14,6 +14,11 @@ export interface ResearchRun {
   cancel_requested_at?: string | null;
   cancelled_at?: string | null;
   retry_of_run_id?: string | null;
+  execution_checkpoint?: {
+    stage?: string;
+    recorded_at?: string;
+    [key: string]: unknown;
+  };
 }
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -92,6 +97,7 @@ export async function createResearchRun(input: {
   project_id?: string | null;
   source_paper_ids?: string[];
   execute?: boolean;
+  evaluation_arm?: "A" | "B" | "C" | "D";
 }): Promise<ResearchRun> {
   const response = await apiFetch(`${API_BASE}/api/v1/research/runs`, {
     method: "POST",
@@ -178,6 +184,13 @@ export async function updateResearchProject(
   });
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<ResearchProjectRecord>;
+}
+
+export async function deleteResearchProject(projectId: string): Promise<void> {
+  const response = await apiFetch(`${API_BASE}/api/v1/projects/${encodeURIComponent(projectId)}`, {
+    method: "DELETE"
+  });
+  if (!response.ok) throw new Error(await readError(response));
 }
 
 
@@ -276,6 +289,10 @@ export interface EvidenceGraphNode {
   label: string;
   assessment?: string;
   review_required?: boolean;
+  reviewer_status?: string;
+  claim_ids?: string[];
+  uncertainty_notes?: string | null;
+  report_version_id?: string;
   page_number?: number | null;
   paper_version_id?: string;
   publication_status?: string;
@@ -308,6 +325,16 @@ export interface EvidenceGraphEdge {
   reviewer_status?: string;
   confidence?: number | null;
   rationale?: string | null;
+  contextual_comparison?: {
+    comparability_note?: string;
+    population_comparison?: string;
+    method_comparison?: string;
+    outcome_comparison?: string;
+    evidence_passage_ids?: string[];
+    uncertainty_notes?: string[];
+    model?: string;
+    requires_human_review?: boolean;
+  } | null;
 }
 
 export interface EvidenceGraphResponse {
@@ -506,7 +533,52 @@ export async function reviewEvidenceRelation(
   reviewerStatus: "accepted" | "rejected" | "needs_review",
   reviewerNotes?: string
 ): Promise<{ id: string; reviewer_status: string; provenance_basis: string; relation_type: string }> {
-  const response = await apiFetch(`${API_BASE}/api/v1/evidence/relations/${relationId}/review`, {
+  const response = await apiFetch(`${API_BASE}/api/v1/evidence/relations/${encodeURIComponent(relationId)}/review`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reviewer_status: reviewerStatus, reviewer_notes: reviewerNotes })
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json();
+}
+
+export interface ContextualRelationCheckResult {
+  relation_id: string;
+  claim_id: string;
+  related_claim_id: string;
+  relation_type: "supports" | "contradicts" | "qualifies" | "not_comparable";
+  rationale: string;
+  comparability_note: string;
+  population_comparison: string;
+  method_comparison: string;
+  outcome_comparison: string;
+  evidence_passage_ids: string[];
+  uncertainty_notes: string[];
+  reviewer_status: "unreviewed";
+  provenance_basis: "model_inferred";
+  model: string;
+  human_review_required: boolean;
+  notice: string;
+}
+
+export async function compareClaimsContextually(
+  claimId: string,
+  relatedClaimId: string
+): Promise<ContextualRelationCheckResult> {
+  const response = await apiFetch(
+    `${API_BASE}/api/v1/evidence/claims/${encodeURIComponent(claimId)}/compare/${encodeURIComponent(relatedClaimId)}`,
+    { method: "POST" }
+  );
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json();
+}
+
+export async function reviewConclusion(
+  conclusionId: string,
+  reviewerStatus: "accepted" | "rejected" | "needs_review",
+  reviewerNotes?: string
+): Promise<{ id: string; reviewer_status: string; provenance_basis: string; review_required: boolean }> {
+  const response = await apiFetch(`${API_BASE}/api/v1/evidence/conclusions/${encodeURIComponent(conclusionId)}/review`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ reviewer_status: reviewerStatus, reviewer_notes: reviewerNotes })

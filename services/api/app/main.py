@@ -1,7 +1,8 @@
 import asyncio
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,8 +17,10 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.schemas.common import HealthResponse
 from app.services.status_monitor import scheduled_monitor_loop
+from app.core.rate_limit import SlidingWindowLimiter
 
 settings = get_settings()
+_request_limiter = SlidingWindowLimiter(settings.rate_limit_requests_per_minute)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,6 +42,27 @@ app = FastAPI(
     description="Temporal evidence intelligence for scientific research.",
     lifespan=lifespan,
 )
+
+
+@app.middleware("http")
+async def abuse_rate_limit(request: Request, call_next):
+    if settings.rate_limit_enabled and request.url.path not in {"/", "/api/v1/health", "/api/v1/ready"}:
+        forwarded = request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
+        key = forwarded or (request.client.host if request.client else "unknown")
+        allowed, retry_after = _request_limiter.check(key)
+        if not allowed:
+            return JSONResponse({"detail": "Too many requests. Please retry later."}, status_code=429, headers={"Retry-After": str(retry_after)})
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    return response
 
 
 app.add_middleware(

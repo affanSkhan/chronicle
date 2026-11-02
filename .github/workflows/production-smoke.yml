@@ -1,0 +1,30 @@
+name: Production Acceptance Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: "HTTPS API origin, for example https://chronicle-affan-27c6.vercel.app"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CHRONICLE_API_BASE_URL: ${{ inputs.api_base_url }}
+      CHRONICLE_SMOKE_EMAIL: ${{ secrets.CHRONICLE_SMOKE_EMAIL }}
+      CHRONICLE_SMOKE_PASSWORD: ${{ secrets.CHRONICLE_SMOKE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/api/requirements.txt
+      - run: python -m pip install --disable-pip-version-check httpx
+      - run: python services/api/scripts/acceptance_smoke.py

@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     research_worker_poll_seconds: int = 3
     research_worker_heartbeat_seconds: int = 15
     research_worker_stale_after_seconds: int = 180
+    # Process-local abuse control; enable at the edge or API process in production.
+    rate_limit_enabled: bool = False
+    rate_limit_requests_per_minute: int = 600
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

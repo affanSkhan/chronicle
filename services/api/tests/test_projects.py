@@ -62,3 +62,44 @@ def test_project_update_rejects_empty_patch(client) -> None:
     assert created.status_code == 201, created.text
     response = client.patch(f"/api/v1/projects/{created.json()['id']}", json={})
     assert response.status_code == 422, response.text
+
+
+def test_project_can_be_permanently_deleted_with_owner_scope(client) -> None:
+    created = client.post("/api/v1/projects", json={
+        "title": "Disposable workspace",
+        "research_question": "Which records should be removed?",
+    })
+    assert created.status_code == 201, created.text
+    project_id = created.json()["id"]
+
+    run = client.post("/api/v1/research/runs", json={
+        "project_id": project_id,
+        "question": "What is retained after deletion?",
+        "mode": "quick",
+        "execute": False,
+    })
+    assert run.status_code == 201, run.text
+    run_id = run.json()["id"]
+
+    deleted = client.delete(f"/api/v1/projects/{project_id}")
+    assert deleted.status_code == 204, deleted.text
+    assert client.get(f"/api/v1/projects/{project_id}").status_code == 404
+    assert all(item["id"] != run_id for item in client.get("/api/v1/research/runs").json())
+
+
+def test_project_delete_is_owner_scoped(client) -> None:
+    created = client.post("/api/v1/projects", json={
+        "title": "Protected workspace",
+        "research_question": "Can another user delete it?",
+    })
+    assert created.status_code == 201, created.text
+    project_id = created.json()["id"]
+    original_authorization = client.headers["Authorization"]
+    second_account = client.post("/api/v1/auth/register", json={
+        "email": "delete-owner@example.test",
+        "password": "another-test-password-12",
+    })
+    assert second_account.status_code == 201, second_account.text
+    client.headers["Authorization"] = f"Bearer {second_account.json()['access_token']}"
+    assert client.delete(f"/api/v1/projects/{project_id}").status_code == 404
+    client.headers["Authorization"] = original_authorization
