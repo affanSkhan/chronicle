@@ -74,6 +74,18 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def preserve_cors_on_errors(request: Request, call_next):
+    """Ensure JSON 4xx/5xx responses retain CORS headers in serverless runtimes."""
+    response = await call_next(request)
+    origin = request.headers.get("origin")
+    if origin and origin in settings.allowed_origins:
+        response.headers.setdefault("Access-Control-Allow-Origin", origin)
+        response.headers.setdefault("Access-Control-Allow-Credentials", "true")
+        response.headers.setdefault("Vary", "Origin")
+    return response
+
+
 @app.get("/", tags=["system"])
 def root() -> dict[str, str]:
     return {"name": settings.app_name, "status": "ok", "docs": "/docs"}
