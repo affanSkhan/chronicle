@@ -632,9 +632,15 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
         select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number.asc())
     ).all())
     latest_report = report_versions[-1] if report_versions else None
-    persisted_conclusions = list(db.scalars(
-        select(Conclusion).where(Conclusion.run_id == run_id).order_by(Conclusion.created_at.asc())
-    ).all())
+    try:
+        persisted_conclusions = list(db.scalars(
+            select(Conclusion).where(Conclusion.run_id == run_id).order_by(Conclusion.created_at.asc())
+        ).all())
+    except SQLAlchemyError:
+        # Conclusion enrichment was added after the base graph. A deployment
+        # with an older schema must still be able to serve the core graph.
+        db.rollback()
+        persisted_conclusions = []
     persisted_conclusion_ids = {conclusion.id for conclusion in persisted_conclusions}
     # Conclusion provenance is an optional enrichment. Keep the source/passage
     # graph usable if a deployment is briefly behind on the conclusion-edge
@@ -724,7 +730,11 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
                     changed = True
 
     papers = list(db.scalars(select(Paper).where(Paper.id.in_(paper_ids), Paper.owner_user_id == current_user.id)).all()) if paper_ids else []
-    studies = list(db.scalars(select(Study).join(Paper, Study.paper_id == Paper.id).where(Study.paper_id.in_(paper_ids), Paper.owner_user_id == current_user.id).order_by(Study.created_at.asc())).all()) if paper_ids else []
+    try:
+        studies = list(db.scalars(select(Study).join(Paper, Study.paper_id == Paper.id).where(Study.paper_id.in_(paper_ids), Paper.owner_user_id == current_user.id).order_by(Study.created_at.asc())).all()) if paper_ids else []
+    except SQLAlchemyError:
+        db.rollback()
+        studies = []
 
     nodes: list[dict] = [{
         "id": f"claim:{c.id}", "type": "claim", "label": c.statement,
