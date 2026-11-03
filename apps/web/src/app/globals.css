@@ -4,7 +4,7 @@
 
 :root {
   color-scheme: light;
-  --background: #f7f8fc;
+  --background: #f8fafc;
   --foreground: #172033;
   --focus: #4f46e5;
 }
@@ -36,9 +36,13 @@ select:focus-visible {
 }
 
 @layer components {
-  .surface { @apply rounded-2xl border border-line bg-white shadow-soft; }
+  .surface { @apply rounded-xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]; }
   .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[0.16em] text-muted; }
   .field { @apply w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm outline-none transition focus:border-accent focus:ring-4 focus:ring-accent/10; }
   .nav-item { @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-600 transition hover:bg-slate-100; }
   .nav-item-active { @apply bg-accent-soft font-semibold text-accent; }
+  .page-shell { @apply mx-auto w-full max-w-[1280px] px-4 py-6 sm:px-7 sm:py-8 xl:px-10; }
+  .section-label { @apply text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400; }
+  .section-heading { @apply mt-1 text-base font-semibold tracking-tight text-slate-950; }
+  .quiet-card { @apply rounded-xl border border-slate-200/80 bg-white; }
 }

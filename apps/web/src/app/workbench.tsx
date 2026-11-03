@@ -1107,13 +1107,13 @@ export default function ChronicleWorkbench({ evaluationOnly = false }: { evaluat
     "Hypothesis lab": "Turn evidence gaps into candidate research questions."
   };
 
-  return <div className="min-h-screen bg-[#f7f8fc] text-slate-900">
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-200/80 bg-white/95 px-4 py-5 backdrop-blur lg:flex">
+  return <div className="min-h-screen bg-slate-50 text-slate-900">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200/80 bg-white px-4 py-5 lg:flex">
       <button onClick={() => setView("Overview")} className="flex items-center gap-3 rounded-xl px-2 py-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-white"><History size={20}/></span>
         <span><span className="block font-semibold tracking-tight">chronicle.</span><span className="block text-xs text-slate-500">Evidence intelligence</span></span>
       </button>
-      <div className="mt-9 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Research suite</div>
+      <div className="mt-10 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Workspace</div>
       <nav className="mt-3 space-y-1" aria-label="Main navigation">
         {NAV.map((item) => {
           const Icon = item.icon;
@@ -1126,16 +1126,16 @@ export default function ChronicleWorkbench({ evaluationOnly = false }: { evaluat
       </div>
     </aside>
 
-    <div className="lg:pl-64">
-      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
-        <div className="flex min-h-[72px] items-center justify-between gap-4 px-4 sm:px-6 xl:px-8">
+    <div className="lg:pl-60">
+      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex min-h-[68px] w-full max-w-[1280px] items-center justify-between gap-4 px-4 sm:px-7 xl:px-10">
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold tracking-tight">{view}</h1>
-            <p className="hidden text-xs text-slate-500 sm:block">{viewSubtitle[view]}</p>
+            <p className="section-label">{view}</p>
+            <h1 className="mt-1 truncate text-base font-semibold tracking-tight text-slate-950 sm:text-lg">{viewSubtitle[view]}</h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className="hidden max-w-48 truncate rounded-full bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600 xl:block">{authUser.email}</span>
-            <button onClick={() => { setView("Research workspace"); setQuestion(""); }} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"><Plus size={16}/><span className="hidden sm:inline">New research</span><span className="sm:hidden">New</span></button>
+            <span className="hidden max-w-48 truncate text-xs text-slate-500 xl:block">{authUser.email}</span>
+            <button onClick={() => { setView("Research workspace"); setQuestion(""); }} className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"><Plus size={16}/><span className="hidden sm:inline">New research</span><span className="sm:hidden">New</span></button>
           </div>
         </div>
         <nav className="flex gap-1 overflow-x-auto border-t border-slate-100 px-3 py-2 lg:hidden" aria-label="Mobile navigation">
@@ -1146,14 +1146,14 @@ export default function ChronicleWorkbench({ evaluationOnly = false }: { evaluat
         </nav>
       </header>
 
-      <main className="mx-auto max-w-[1500px] space-y-7 px-4 py-6 sm:px-6 xl:px-8">
+      <main className="page-shell space-y-8">
         {notice ? <div role="status" aria-live="polite" className="flex items-start justify-between gap-3 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-sm text-indigo-900"><span>{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice("")} className="shrink-0 rounded p-0.5 text-indigo-700 hover:bg-indigo-100"><X size={16}/></button></div> : null}
         {workspaceError ? <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"><AlertCircle size={17} className="mt-0.5 shrink-0"/><span>{workspaceError}</span></div> : null}
 
         {view === "Overview" ? <div className="space-y-6">
-          <section className="flex flex-col justify-between gap-4 rounded-3xl border border-indigo-100 bg-gradient-to-br from-white via-white to-indigo-50/80 p-6 shadow-sm shadow-indigo-100/40 sm:flex-row sm:items-end">
-            <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">Workspace</p><h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Your research, at a glance.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Start with an answerable question, keep its provenance visible, and review every generated interpretation against the saved evidence.</p></div>
-            <button onClick={refreshWorkspace} disabled={workspaceLoading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"><RefreshCw size={15} className={workspaceLoading ? "animate-spin" : ""}/>Refresh</button>
+          <section className="flex flex-col justify-between gap-5 rounded-2xl border border-slate-200/80 bg-white p-6 sm:flex-row sm:items-end">
+            <div><p className="section-label text-indigo-600">Research overview</p><h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">A clear place for every question.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Create a focused workspace, run a mode that fits the question, and inspect evidence only when you need it.</p></div>
+            <button onClick={refreshWorkspace} disabled={workspaceLoading} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"><RefreshCw size={15} className={workspaceLoading ? "animate-spin" : ""}/>Refresh</button>
           </section>
           <section className="grid gap-4 sm:grid-cols-3">
             {[
@@ -1162,7 +1162,7 @@ export default function ChronicleWorkbench({ evaluationOnly = false }: { evaluat
               { label: "Source events", value: sourceEvents.length, hint: "Updates recorded", icon: Clock3 }
             ].map((item) => {
               const Icon = item.icon;
-              return <article key={item.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><div className="flex items-center justify-between"><span className="text-sm font-medium text-slate-500">{item.label}</span><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Icon size={18}/></span></div><div className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">{item.value}</div><p className="mt-1 text-xs text-slate-500">{item.hint}</p></article>;
+              return <article key={item.label} className="rounded-xl border border-slate-200/80 bg-white p-4"><div className="flex items-center justify-between"><span className="text-xs font-medium text-slate-500">{item.label}</span><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Icon size={16}/></span></div><div className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">{item.value}</div><p className="mt-1 text-xs text-slate-500">{item.hint}</p></article>;
             })}
           </section>
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30">
