@@ -5,8 +5,9 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Activity, AlertCircle, ArrowRight, BookOpen, Check, ChevronDown, Clock3,
-  FileSearch, FlaskConical, History, LayoutDashboard, LoaderCircle, LogOut, Microscope,
-  Network, Plus, RefreshCw, ScanSearch, Search, ShieldCheck, Sparkles, Upload, X
+  FileSearch, FlaskConical, GitCompareArrows, History, LayoutDashboard, Layers3, Link2,
+  ListChecks, LoaderCircle, LogOut, Microscope, Network, Plus, Radar, RefreshCw, ScanSearch,
+  Search, ShieldAlert, ShieldCheck, Sparkles, TriangleAlert, Upload, X
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -64,6 +65,95 @@ function statusTone(status: string): string {
 
 function StatusPill({ children, status }: { children: React.ReactNode; status: string }) {
   return <span className={"inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ring-inset " + statusTone(status)}>{children}</span>;
+}
+
+type ModeResultPanelProps = {
+  mode: ResearchMode;
+  snapshot: Record<string, unknown>;
+  modelSynthesis: {
+    executive_summary?: string;
+    findings?: unknown[];
+    study_characterizations?: unknown[];
+    disagreements?: unknown[];
+    limitations?: string[];
+    research_opportunities?: unknown[];
+  } | null;
+};
+
+function ModeResultPanel({ mode, snapshot, modelSynthesis }: ModeResultPanelProps) {
+  const plan = snapshot.execution_plan && typeof snapshot.execution_plan === "object"
+    ? snapshot.execution_plan as { profile_label?: string; focus?: string; queries?: unknown[]; stages?: Record<string, boolean>; features?: Record<string, boolean> }
+    : {};
+  const papers = Array.isArray(snapshot.paper_ids) ? snapshot.paper_ids.length : 0;
+  const passages = Array.isArray(snapshot.passage_ids) ? snapshot.passage_ids.length : 0;
+  const claims = Array.isArray(snapshot.claim_ids) ? snapshot.claim_ids.length : 0;
+  const studies = Array.isArray(snapshot.study_ids) ? snapshot.study_ids.length : 0;
+  const findings = modelSynthesis?.findings?.length ?? 0;
+  const studyCharacterizations = Array.isArray(modelSynthesis?.study_characterizations)
+    ? modelSynthesis.study_characterizations as { passage_id?: string; study_type?: string | null; population?: string | null; method?: string | null; outcomes?: string[]; limitations?: string[] }[]
+    : [];
+  const disagreements = modelSynthesis?.disagreements?.length ?? 0;
+  const opportunities = modelSynthesis?.research_opportunities?.length ?? 0;
+  const dependencyCandidates = Array.isArray(snapshot.dependency_candidates) ? snapshot.dependency_candidates.length : 0;
+  const reviewSignals = disagreements + opportunities + dependencyCandidates;
+  const retrieval = snapshot.retrieval_metadata && typeof snapshot.retrieval_metadata === "object"
+    ? snapshot.retrieval_metadata as { method?: string; semantic_status?: string; selected_count?: number; candidate_count?: number }
+    : {};
+
+  const config: Record<ResearchMode, {
+    eyebrow: string; title: string; description: string; accent: string; icon: LucideIcon;
+    metricLabels: [string, string, string]; metricValues: [string, string, string];
+    checklist: string[]; action: string;
+  }> = {
+    quick: {
+      eyebrow: "Orientation desk", title: "Build a reliable shortlist first", description: "A compact map of the topic, designed to help you decide what deserves a deeper read.", accent: "from-sky-600 to-cyan-500", icon: FileSearch,
+      metricLabels: ["Sources to scan", "Passages ready", "Searches run"], metricValues: [String(papers), String(passages), String(plan.queries?.length ?? 0)],
+      checklist: ["Scan the strongest titles and abstracts", "Open the linked passages before citing", "Promote this question to Deep or Academic when comparison is needed"], action: "Next: shortlist sources"
+    },
+    deep: {
+      eyebrow: "Evidence landscape", title: "Trace patterns across the field", description: "A broader evidence pass that separates recurring methods and findings from isolated results.", accent: "from-indigo-600 to-violet-500", icon: Search,
+      metricLabels: ["Sources mapped", "Evidence passages", "Candidate findings"], metricValues: [String(papers), String(passages), String(findings || claims)],
+      checklist: ["Compare repeated findings across sources", "Read limitations beside each result", "Use open questions to define the next search"], action: "Next: compare recurring evidence"
+    },
+    academic: {
+      eyebrow: "Study comparison", title: "See which studies can be compared", description: "Organizes evidence around design, population, methods, outcomes, and the limits of direct comparison.", accent: "from-emerald-600 to-teal-500", icon: Microscope,
+      metricLabels: ["Studies extracted", "Sources reviewed", "Disagreements"], metricValues: [String(studies), String(papers), String(disagreements)],
+      checklist: ["Check whether populations and outcomes align", "Separate comparable from non-comparable evidence", "Inspect study limitations before combining results"], action: "Next: review study comparability"
+    },
+    forensic: {
+      eyebrow: "Signal investigation", title: "Find conflicts and source risk", description: "Prioritizes contradictions, corrections, retractions, shared datasets, and source lineage that need review.", accent: "from-rose-600 to-orange-500", icon: ScanSearch,
+      metricLabels: ["Sources screened", "Passages available", "Review leads"], metricValues: [String(papers), String(passages), String(opportunities || disagreements)],
+      checklist: ["Inspect conflicting or qualifying passages", "Review dependency and shared-dataset candidates", "Check source timelines before accepting a claim"], action: "Next: inspect review signals"
+    }
+  };
+  const selected = config[mode];
+  const Icon = selected.icon;
+  return <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30" aria-labelledby="mode-result-title">
+    <div className={`bg-gradient-to-r ${selected.accent} px-5 py-5 text-white sm:px-6`}>
+      <div className="flex items-start justify-between gap-4"><div><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">{selected.eyebrow}</p><h4 id="mode-result-title" className="mt-2 text-xl font-semibold tracking-tight">{selected.title}</h4><p className="mt-2 max-w-2xl text-sm leading-6 text-white/85">{selected.description}</p></div><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25"><Icon size={22}/></span></div>
+      <div className="mt-5 grid gap-2 sm:grid-cols-3">{selected.metricLabels.map((label, index) => <div key={label} className="rounded-xl bg-black/10 px-3 py-3 ring-1 ring-white/15"><p className="text-xl font-semibold">{selected.metricValues[index]}</p><p className="mt-1 text-[11px] text-white/75">{label}</p></div>)}</div>
+    </div>
+    <div className="space-y-5 p-5 sm:p-6">
+      {mode === "quick" ? <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-4 sm:p-5">
+        <div className="flex items-start gap-3"><Radar className="mt-0.5 shrink-0 text-sky-700" size={20}/><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-800">Shortlist radar</p><p className="mt-1 text-sm leading-6 text-sky-950">This is an orientation pass, not a synthesis. Use the strongest records below to decide what deserves a second run.</p></div></div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">{["Open the top abstracts", "Check missing metadata", "Promote promising leads"].map((item, index) => <div key={item} className="rounded-xl border border-sky-100 bg-white/80 p-3"><span className="text-lg font-semibold text-sky-700">0{index + 1}</span><p className="mt-1 text-xs font-medium text-slate-700">{item}</p></div>)}</div>
+      </div> : null}
+      {mode === "deep" ? <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 sm:p-5">
+        <div className="flex items-start gap-3"><Layers3 className="mt-0.5 shrink-0 text-indigo-700" size={20}/><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-800">Evidence landscape</p><p className="mt-1 text-sm leading-6 text-indigo-950">This pass is designed to reveal recurring patterns, methodological differences, and evidence gaps across the retrieved field.</p></div></div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-white/85 p-3"><p className="text-xl font-semibold text-indigo-900">{findings || claims}</p><p className="text-xs text-slate-600">candidate findings</p></div><div className="rounded-xl bg-white/85 p-3"><p className="text-xl font-semibold text-indigo-900">{retrieval.selected_count ?? passages}</p><p className="text-xs text-slate-600">passages in context</p></div><div className="rounded-xl bg-white/85 p-3"><p className="text-xl font-semibold text-indigo-900">{plan.queries?.length ?? 0}</p><p className="text-xs text-slate-600">evidence angles</p></div></div>
+      </div> : null}
+      {mode === "academic" ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 sm:p-5">
+        <div className="flex items-start gap-3"><GitCompareArrows className="mt-0.5 shrink-0 text-emerald-700" size={20}/><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">Comparability desk</p><p className="mt-1 text-sm leading-6 text-emerald-950">Read this result as a study matrix: align population, method, intervention, and outcome before treating results as comparable.</p></div></div>
+        <div className="mt-4 overflow-hidden rounded-xl border border-emerald-100 bg-white/85"><div className="grid grid-cols-[1.1fr_1fr_1fr] border-b border-emerald-100 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-emerald-800"><span>Study lens</span><span>Captured</span><span>Review cue</span></div>{[["Design / population", studyCharacterizations.length ? `${studyCharacterizations.length} studies` : "Not extracted", "Do contexts align?"], ["Method / outcome", studyCharacterizations.filter((item) => item.method || item.outcomes?.length).length ? "Available" : "Needs review", "Compare definitions"], ["Limitations", studyCharacterizations.filter((item) => item.limitations?.length).length ? "Flagged" : "Not captured", "Do not over-combine"]].map(([label, value, cue]) => <div key={label} className="grid grid-cols-[1.1fr_1fr_1fr] border-b border-slate-100 px-3 py-2.5 text-xs last:border-0"><span className="font-medium text-slate-700">{label}</span><span className="text-slate-600">{value}</span><span className="text-emerald-800">{cue}</span></div>)}</div>
+      </div> : null}
+      {mode === "forensic" ? <div className="rounded-2xl border border-rose-100 bg-rose-50/70 p-4 sm:p-5">
+        <div className="flex items-start gap-3"><ShieldAlert className="mt-0.5 shrink-0 text-rose-700" size={20}/><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-800">Signal investigation board</p><p className="mt-1 text-sm leading-6 text-rose-950">These are review leads—not automatic verdicts. Inspect conflicts, source lineage, and post-publication events before accepting a claim.</p></div></div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl border border-rose-100 bg-white/85 p-3"><TriangleAlert size={16} className="text-rose-600"/><p className="mt-2 text-xl font-semibold text-rose-900">{disagreements}</p><p className="text-xs text-slate-600">conflict signals</p></div><div className="rounded-xl border border-rose-100 bg-white/85 p-3"><Link2 size={16} className="text-violet-600"/><p className="mt-2 text-xl font-semibold text-rose-900">{dependencyCandidates}</p><p className="text-xs text-slate-600">lineage candidates</p></div><div className="rounded-xl border border-rose-100 bg-white/85 p-3"><ShieldCheck size={16} className="text-amber-600"/><p className="mt-2 text-xl font-semibold text-rose-900">{reviewSignals}</p><p className="text-xs text-slate-600">items needing review</p></div></div>
+      </div> : null}
+      <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_220px]"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">How to use this result</p><div className="mt-3 space-y-2">{selected.checklist.map((item, index) => <div key={item} className="flex gap-3 text-sm leading-5 text-slate-700"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">{index + 1}</span><span>{item}</span></div>)}</div></div><div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Mode signal</p><p className="mt-2 text-sm font-semibold text-slate-900">{selected.action}</p><p className="mt-2 text-xs leading-5 text-slate-600">{plan.focus ?? "This run follows the selected research profile."}</p></div></div>
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500"><ListChecks size={14} className="text-slate-400"/><span>{plan.queries?.length ?? 0} bounded search angles</span><span>·</span><span>{retrieval.method ?? "retrieval metadata unavailable"}</span><span>·</span><span>{retrieval.semantic_status ?? "semantic status unavailable"}</span></div>
+    </div>
+  </section>;
 }
 
 function formatDate(value?: string): string {
@@ -1190,6 +1280,7 @@ export default function ChronicleWorkbench({ evaluationOnly = false }: { evaluat
               {activeRun.status === "completed" || activeRun.status === "completed_with_limitations" ? <div className="mt-5 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4"><div><p className="text-sm font-semibold text-slate-900">Research report</p><p className="mt-0.5 text-xs text-slate-500">{reportLoading ? "Loading latest report…" : activeReport ? "Latest saved version" : "No report version found for this run."}</p></div><div className="flex flex-wrap gap-2"><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("markdown")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "markdown" ? "Exporting…" : "Export .md"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("json")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "json" ? "Exporting…" : "Export .json"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("pdf")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "pdf" ? "Exporting…" : "Export .pdf"}</button></div></div>
                 {activeReport ? <>
+                  <ModeResultPanel mode={activeRun.mode} snapshot={activeReport.evidence_snapshot ?? {}} modelSynthesis={modelSynthesis} />
                   <section className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5" aria-labelledby="report-at-a-glance">
                     <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><div><h4 id="report-at-a-glance" className="text-sm font-semibold text-slate-900">At a glance</h4><p className="mt-1 text-xs leading-5 text-slate-600">Start with the sources and limitations below. Open the full report when you are ready to inspect the evidence record.</p></div><StatusPill status={activeRun.status}>{activeRun.status.replaceAll("_", " ")}</StatusPill></div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-3">
