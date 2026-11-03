@@ -20,6 +20,77 @@ from app.schemas.evidence import (
 
 router = APIRouter(prefix="/evidence", tags=["evidence"], dependencies=[Depends(get_current_user)])
 
+# The evidence graph runs in a serverless request. Bound every collection and
+# traverse only paper dependencies connected to this research run.
+MAX_GRAPH_CLAIMS = 250
+MAX_GRAPH_RELATIONS = 1000
+MAX_GRAPH_REPORT_VERSIONS = 20
+MAX_GRAPH_CONCLUSIONS = 250
+MAX_GRAPH_CONCLUSION_EDGES = 1000
+MAX_GRAPH_PAPERS = 250
+MAX_GRAPH_PAPER_VERSIONS = 350
+MAX_GRAPH_PASSAGES = 300
+MAX_GRAPH_STUDIES = 250
+MAX_GRAPH_DEPENDENCIES = 500
+MAX_GRAPH_NODES = 1800
+MAX_GRAPH_EDGES = 3000
+
+
+def _load_run_dependency_neighborhood(
+    db: Session,
+    owner_user_id: str,
+    seed_paper_ids: set[str],
+) -> tuple[list[PaperDependency], set[str], bool]:
+    """Load a bounded dependency component touching this run's seed papers."""
+    if not seed_paper_ids:
+        return [], set(), False
+
+    truncated = len(seed_paper_ids) > MAX_GRAPH_PAPERS
+    reachable_paper_ids = set(sorted(seed_paper_ids)[:MAX_GRAPH_PAPERS])
+    frontier = set(reachable_paper_ids)
+    owned_paper_ids = select(Paper.id).where(Paper.owner_user_id == owner_user_id)
+    dependencies: list[PaperDependency] = []
+    seen_dependency_ids: set[str] = set()
+
+    while frontier:
+        remaining_edges = MAX_GRAPH_DEPENDENCIES - len(dependencies)
+        if remaining_edges <= 0:
+            truncated = True
+            break
+
+        query = select(PaperDependency).where(
+            or_(
+                PaperDependency.dependent_paper_id.in_(frontier),
+                PaperDependency.depends_on_paper_id.in_(frontier),
+            ),
+            PaperDependency.dependent_paper_id.in_(owned_paper_ids),
+            PaperDependency.depends_on_paper_id.in_(owned_paper_ids),
+        )
+        if seen_dependency_ids:
+            query = query.where(~PaperDependency.id.in_(seen_dependency_ids))
+        rows = list(db.scalars(
+            query.order_by(PaperDependency.created_at.asc()).limit(remaining_edges)
+        ).all())
+        if len(rows) >= remaining_edges:
+            truncated = True
+
+        next_frontier: set[str] = set()
+        for dependency in rows:
+            if dependency.id in seen_dependency_ids:
+                continue
+            seen_dependency_ids.add(dependency.id)
+            dependencies.append(dependency)
+            for paper_id in (dependency.dependent_paper_id, dependency.depends_on_paper_id):
+                if paper_id not in reachable_paper_ids:
+                    if len(reachable_paper_ids) >= MAX_GRAPH_PAPERS:
+                        truncated = True
+                        continue
+                    reachable_paper_ids.add(paper_id)
+                    next_frontier.add(paper_id)
+        frontier = next_frontier
+
+    return dependencies, reachable_paper_ids, truncated
+
 
 @router.post("/claims", response_model=ClaimRead, status_code=201)
 def create_claim(payload: ClaimCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Claim:
@@ -621,101 +692,181 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
     run = db.scalar(select(ResearchRun).where(ResearchRun.id == run_id, ResearchRun.owner_user_id == current_user.id))
     if run is None:
         raise HTTPException(status_code=404, detail="Research run not found.")
-    claims = list(db.scalars(select(Claim).where(Claim.run_id == run_id)).all())
+    claims = list(db.scalars(
+        select(Claim)
+        .where(Claim.run_id == run_id)
+        .order_by(Claim.created_at.asc())
+        .limit(MAX_GRAPH_CLAIMS)
+    ).all())
+    graph_truncated = len(claims) >= MAX_GRAPH_CLAIMS
     claim_ids = {claim.id for claim in claims}
-    relations = list(db.scalars(select(EvidenceRelation).where(
-        or_(EvidenceRelation.claim_id.in_(claim_ids), EvidenceRelation.related_claim_id.in_(claim_ids))
-    )).all()) if claim_ids else []
+    # A relationship is represented by the claim that owns it. Restricting this
+    # to claims in the selected run avoids cross-run/dangling related-claim edges.
+    relations = list(db.scalars(
+        select(EvidenceRelation)
+        .where(EvidenceRelation.claim_id.in_(claim_ids))
+        .order_by(EvidenceRelation.created_at.asc())
+        .limit(MAX_GRAPH_RELATIONS)
+    ).all()) if claim_ids else []
+    graph_truncated = graph_truncated or len(relations) >= MAX_GRAPH_RELATIONS
 
     report_versions = list(db.scalars(
-        select(ReportVersion).where(ReportVersion.run_id == run_id).order_by(ReportVersion.version_number.asc())
+        select(ReportVersion)
+        .where(ReportVersion.run_id == run_id)
+        .order_by(ReportVersion.version_number.desc())
+        .limit(MAX_GRAPH_REPORT_VERSIONS)
     ).all())
+    report_versions.reverse()
     latest_report = report_versions[-1] if report_versions else None
+    graph_truncated = graph_truncated or len(report_versions) >= MAX_GRAPH_REPORT_VERSIONS
+
     persisted_conclusions = list(db.scalars(
-        select(Conclusion).where(Conclusion.run_id == run_id).order_by(Conclusion.created_at.asc())
+        select(Conclusion)
+        .where(Conclusion.run_id == run_id)
+        .order_by(Conclusion.created_at.asc())
+        .limit(MAX_GRAPH_CONCLUSIONS)
     ).all())
+    graph_truncated = graph_truncated or len(persisted_conclusions) >= MAX_GRAPH_CONCLUSIONS
     persisted_conclusion_ids = {conclusion.id for conclusion in persisted_conclusions}
     conclusion_relations = list(db.scalars(
         select(ConclusionEvidenceRelation)
         .where(ConclusionEvidenceRelation.conclusion_id.in_(persisted_conclusion_ids))
         .order_by(ConclusionEvidenceRelation.created_at.asc())
+        .limit(MAX_GRAPH_CONCLUSION_EDGES)
     ).all()) if persisted_conclusion_ids else []
+    graph_truncated = graph_truncated or len(conclusion_relations) >= MAX_GRAPH_CONCLUSION_EDGES
     conclusion_relations_by_id: dict[str, list[ConclusionEvidenceRelation]] = {}
     for conclusion_relation in conclusion_relations:
         conclusion_relations_by_id.setdefault(conclusion_relation.conclusion_id, []).append(conclusion_relation)
 
-    # All report versions may have different source sets after temporal updates.
+    # Seed retrieval from source IDs already stored in this run's report snapshot.
+    # An empty/new run produces an empty graph without reading the account library.
     paper_ids: set[str] = set()
+    requested_passage_ids: list[str] = [
+        relation.passage_id for relation in relations if relation.passage_id
+    ]
     for report in report_versions:
         snapshot = report.evidence_snapshot if isinstance(report.evidence_snapshot, dict) else {}
-        snapshot_paper_ids = snapshot.get("paper_ids", [])
-        if isinstance(snapshot_paper_ids, list):
-            paper_ids.update(item for item in snapshot_paper_ids if isinstance(item, str))
+        raw_paper_ids = snapshot.get("paper_ids", [])
+        if isinstance(raw_paper_ids, list):
+            paper_ids.update(item for item in raw_paper_ids if isinstance(item, str))
+        for key in ("selected_context_passage_ids", "passage_ids"):
+            raw_ids = snapshot.get(key, [])
+            if isinstance(raw_ids, list):
+                requested_passage_ids.extend(item for item in raw_ids if isinstance(item, str))
 
-    passage_ids = {rel.passage_id for rel in relations if rel.passage_id}
+    if len(paper_ids) > MAX_GRAPH_PAPERS:
+        paper_ids = set(sorted(paper_ids)[:MAX_GRAPH_PAPERS])
+        graph_truncated = True
+
+    requested_passage_ids = list(dict.fromkeys(requested_passage_ids))
+    if len(requested_passage_ids) > MAX_GRAPH_PASSAGES:
+        requested_passage_ids = requested_passage_ids[:MAX_GRAPH_PASSAGES]
+        graph_truncated = True
+
     passages = list(db.scalars(
         select(Passage)
         .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
         .join(Paper, PaperVersion.paper_id == Paper.id)
-        .where(Passage.id.in_(passage_ids), Paper.owner_user_id == current_user.id)
-    ).all()) if passage_ids else []
+        .where(
+            Passage.id.in_(requested_passage_ids),
+            Paper.owner_user_id == current_user.id,
+        )
+        .order_by(Passage.created_at.asc())
+        .limit(MAX_GRAPH_PASSAGES)
+    ).all()) if requested_passage_ids else []
+    # Invalid, stale or cross-tenant snapshot pointers are ignored.
     owned_passage_ids = {passage.id for passage in passages}
-    # A malformed or stale cross-tenant relation should not create a dangling edge or expose a source.
-    relations = [relation for relation in relations if not relation.passage_id or relation.passage_id in owned_passage_ids]
-    version_ids = {passage.paper_version_id for passage in passages}
-    versions = list(db.scalars(select(PaperVersion).where(PaperVersion.id.in_(version_ids))).all()) if version_ids else []
-    paper_ids.update(version.paper_id for version in versions)
+    relations = [
+        relation for relation in relations
+        if not relation.passage_id or relation.passage_id in owned_passage_ids
+    ]
+    if len(passages) < len(requested_passage_ids):
+        requested_passage_ids = [passage.id for passage in passages]
 
-    # Include every retrieved paper version and abstract passage from this run,
-    # even before claims have been extracted and human-reviewed.
-    if paper_ids:
-        versions = list(db.scalars(
+    # Legacy snapshots may omit passage IDs. Add a bounded fallback set only
+    # from this run's paper IDs, never from all papers owned by the account.
+    remaining_passages = MAX_GRAPH_PASSAGES - len(passages)
+    if remaining_passages > 0 and paper_ids:
+        existing_passage_ids = {passage.id for passage in passages}
+        fallback_query = (
+            select(Passage)
+            .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
+            .join(Paper, PaperVersion.paper_id == Paper.id)
+            .where(
+                Paper.id.in_(paper_ids),
+                Paper.owner_user_id == current_user.id,
+            )
+        )
+        if existing_passage_ids:
+            fallback_query = fallback_query.where(~Passage.id.in_(existing_passage_ids))
+        fallback_passages = list(db.scalars(
+            fallback_query.order_by(Passage.created_at.asc()).limit(remaining_passages)
+        ).all())
+        passages.extend(fallback_passages)
+        if len(fallback_passages) >= remaining_passages and remaining_passages > 0:
+            graph_truncated = True
+
+    # Resolve only versions that contain selected passages, plus a bounded
+    # recent set of other versions for papers in this run.
+    selected_version_ids = {passage.paper_version_id for passage in passages}
+    versions: list[PaperVersion] = []
+    if selected_version_ids:
+        versions.extend(db.scalars(
             select(PaperVersion)
             .join(Paper, PaperVersion.paper_id == Paper.id)
-            .where(PaperVersion.paper_id.in_(paper_ids), Paper.owner_user_id == current_user.id)
+            .where(
+                PaperVersion.id.in_(selected_version_ids),
+                Paper.owner_user_id == current_user.id,
+            )
+            .limit(MAX_GRAPH_PAPER_VERSIONS)
         ).all())
-        version_ids = {version.id for version in versions}
-        known_passage_ids = {passage.id for passage in passages}
-        if version_ids:
-            stored_passages = list(db.scalars(
-                select(Passage)
-                .join(PaperVersion, Passage.paper_version_id == PaperVersion.id)
-                .join(Paper, PaperVersion.paper_id == Paper.id)
-                .where(Passage.paper_version_id.in_(version_ids), Paper.owner_user_id == current_user.id)
-            ).all())
-            for passage in stored_passages:
-                if passage.id not in known_passage_ids:
-                    passages.append(passage)
-                    known_passage_ids.add(passage.id)
-
-    # Include the transitive paper-dependency neighborhood for the papers
-    # referenced by this run's evidence. The relationship basis stays visible.
-    owned_paper_ids = set(db.scalars(
-        select(Paper.id).where(Paper.owner_user_id == current_user.id)
-    ).all())
-    all_dependencies = list(db.scalars(
-        select(PaperDependency).where(
-            PaperDependency.dependent_paper_id.in_(owned_paper_ids),
-            PaperDependency.depends_on_paper_id.in_(owned_paper_ids),
+    version_ids = {version.id for version in versions}
+    if paper_ids and len(versions) < MAX_GRAPH_PAPER_VERSIONS:
+        remaining_versions = MAX_GRAPH_PAPER_VERSIONS - len(versions)
+        version_query = (
+            select(PaperVersion)
+            .join(Paper, PaperVersion.paper_id == Paper.id)
+            .where(
+                PaperVersion.paper_id.in_(paper_ids),
+                Paper.owner_user_id == current_user.id,
+            )
         )
-    ).all()) if owned_paper_ids else []
-    relevant_dependencies: list[PaperDependency] = []
-    changed = True
-    while changed:
-        changed = False
-        for dependency in all_dependencies:
-            if dependency in relevant_dependencies:
-                continue
-            if dependency.dependent_paper_id in paper_ids or dependency.depends_on_paper_id in paper_ids:
-                relevant_dependencies.append(dependency)
-                before = len(paper_ids)
-                paper_ids.add(dependency.dependent_paper_id)
-                paper_ids.add(dependency.depends_on_paper_id)
-                if len(paper_ids) != before:
-                    changed = True
+        if version_ids:
+            version_query = version_query.where(~PaperVersion.id.in_(version_ids))
+        additional_versions = list(db.scalars(
+            version_query.order_by(PaperVersion.retrieved_at.desc()).limit(remaining_versions)
+        ).all())
+        versions.extend(additional_versions)
+        if len(additional_versions) >= remaining_versions and remaining_versions > 0:
+            graph_truncated = True
+    elif paper_ids:
+        graph_truncated = True
+    version_ids = {version.id for version in versions}
+    paper_ids.update(version.paper_id for version in versions)
 
-    papers = list(db.scalars(select(Paper).where(Paper.id.in_(paper_ids), Paper.owner_user_id == current_user.id)).all()) if paper_ids else []
-    studies = list(db.scalars(select(Study).join(Paper, Study.paper_id == Paper.id).where(Study.paper_id.in_(paper_ids), Paper.owner_user_id == current_user.id).order_by(Study.created_at.asc())).all()) if paper_ids else []
+    relevant_dependencies, paper_ids, dependencies_truncated = (
+        _load_run_dependency_neighborhood(db, current_user.id, paper_ids)
+    )
+    graph_truncated = graph_truncated or dependencies_truncated
+
+    papers = list(db.scalars(
+        select(Paper)
+        .where(Paper.id.in_(paper_ids), Paper.owner_user_id == current_user.id)
+        .order_by(Paper.created_at.asc())
+        .limit(MAX_GRAPH_PAPERS)
+    ).all()) if paper_ids else []
+    if len(papers) >= MAX_GRAPH_PAPERS:
+        graph_truncated = True
+    studies = list(db.scalars(
+        select(Study)
+        .join(Paper, Study.paper_id == Paper.id)
+        .where(Study.paper_id.in_(paper_ids), Paper.owner_user_id == current_user.id)
+        .order_by(Study.created_at.asc())
+        .limit(MAX_GRAPH_STUDIES)
+    ).all()) if paper_ids else []
+    if len(studies) >= MAX_GRAPH_STUDIES:
+        graph_truncated = True
 
     nodes: list[dict] = [{
         "id": f"claim:{c.id}", "type": "claim", "label": c.statement,
@@ -1011,9 +1162,22 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
                     "reviewer_status": "needs_review",
                 })
 
+    if len(nodes) > MAX_GRAPH_NODES:
+        nodes = nodes[:MAX_GRAPH_NODES]
+        graph_truncated = True
+    if len(edges) > MAX_GRAPH_EDGES:
+        edges = edges[:MAX_GRAPH_EDGES]
+        graph_truncated = True
     return {
-        "run_id": run_id, "nodes": nodes, "edges": edges,
-        "note": "Only persisted relationships are shown. Missing edges are not evidence that a relationship does not exist.",
+        "run_id": run_id,
+        "nodes": nodes,
+        "edges": edges,
+        "truncated": graph_truncated,
+        "note": (
+            "This graph is bounded for responsiveness. Some lower-priority passages or dependency neighbors may be omitted; open the source records for the full library."
+            if graph_truncated
+            else "Only persisted relationships are shown. Missing edges are not evidence that a relationship does not exist."
+        ),
     }
 
 
