@@ -46,12 +46,12 @@ def _load_run_dependency_neighborhood(
     if not seed_paper_ids:
         return [], set(), False
 
+    truncated = len(seed_paper_ids) > MAX_GRAPH_PAPERS
+    reachable_paper_ids = set(sorted(seed_paper_ids)[:MAX_GRAPH_PAPERS])
     owned_paper_ids = select(Paper.id).where(Paper.owner_user_id == owner_user_id)
-    reachable_paper_ids = set(seed_paper_ids)
     frontier = set(seed_paper_ids)
     dependencies: list[PaperDependency] = []
     seen_dependency_ids: set[str] = set()
-    truncated = False
 
     while frontier:
         remaining_edges = MAX_GRAPH_DEPENDENCIES - len(dependencies)
@@ -496,9 +496,15 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
     ).all())
     graph_truncated = len(claims) >= MAX_GRAPH_CLAIMS
     claim_ids = {claim.id for claim in claims}
-    relations = list(db.scalars(select(EvidenceRelation).where(
-        or_(EvidenceRelation.claim_id.in_(claim_ids), EvidenceRelation.related_claim_id.in_(claim_ids))
-    ).order_by(EvidenceRelation.created_at.asc()).limit(MAX_GRAPH_RELATIONS)).all()) if claim_ids else []
+    # The graph only displays relations owned by claims in this run. Restricting
+    # the predicate to claim_id prevents a related-claim pointer from another run
+    # (including malformed legacy data) from introducing foreign graph edges.
+    relations = list(db.scalars(
+        select(EvidenceRelation)
+        .where(EvidenceRelation.claim_id.in_(claim_ids))
+        .order_by(EvidenceRelation.created_at.asc())
+        .limit(MAX_GRAPH_RELATIONS)
+    ).all()) if claim_ids else []
     graph_truncated = graph_truncated or len(relations) >= MAX_GRAPH_RELATIONS
 
     report_versions = list(db.scalars(
