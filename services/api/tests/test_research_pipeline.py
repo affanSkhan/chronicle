@@ -75,7 +75,7 @@ def test_research_pipeline_persists_metadata_report_and_evidence(monkeypatch, cl
     reports = reports_response.json()
     assert len(reports) == 1
     report = reports[0]
-    assert report["title"] == "Academic Discovery Snapshot"
+    assert report["title"] == "Academic Review Snapshot"
     assert "Evidence Provenance in Scientific Workflows" in report["content_markdown"]
     assert "Model synthesis skipped" in report["content_markdown"]
     assert report["evidence_snapshot"]["claim_verification_completed"] is False

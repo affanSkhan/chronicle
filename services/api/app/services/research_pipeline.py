@@ -113,8 +113,15 @@ def _markdown_report(
     dependency_analysis: dict | None = None,
     retrieval_metadata: dict | None = None,
 ) -> str:
+    report_titles = {
+        "quick": "Quick Discovery Snapshot",
+        "deep": "Deep Research Report",
+        "academic": "Academic Review Snapshot",
+        "forensic": "Forensic Evidence Report",
+    }
+    normalized_mode = str(mode or "deep").lower()
     lines = [
-        "# Academic Discovery Snapshot",
+        f"# {report_titles.get(normalized_mode, 'Research Discovery Snapshot')}",
         "",
         f"**Research question:** {question}",
         f"**Mode:** {mode}",
@@ -152,7 +159,7 @@ def _markdown_report(
             f"- **Profile:** {execution_plan.get('profile_label', mode)}",
             f"- **Planner version:** {execution_plan.get('version', '1.0')}",
             f"- **Source budget:** {execution_plan.get('source_budget', len(papers))}",
-            f"- **Evaluation arm:** {(execution_plan.get('evaluation') or {}).get('arm', execution_plan.get('evaluation_arm', 'D'))}",
+            f"- **Evaluation configuration:** {((execution_plan.get('evaluation') or {}).get('arm', execution_plan.get('evaluation_arm', 'D')) if (execution_plan.get('evaluation') or {}).get('controlled_experiment') else 'Standard product workflow')}",
             f"- **Execution type:** {'controlled A–D experiment' if (execution_plan.get('evaluation') or {}).get('controlled_experiment') else 'normal product run'}",
             "- **Search subqueries actually executed:**",
         ]
@@ -1109,7 +1116,12 @@ async def execute_research_run(run_id: str, *, claimed_by_worker: bool = False) 
                 run_id=run_id,
                 version_number=(latest.version_number + 1) if latest else 1,
                 parent_version_id=latest.id if latest else None,
-                title="Academic Discovery Snapshot",
+                title={
+                    "quick": "Quick Discovery Snapshot",
+                    "deep": "Deep Research Report",
+                    "academic": "Academic Review Snapshot",
+                    "forensic": "Forensic Evidence Report",
+                }.get(str(mode or "deep").lower(), "Research Discovery Snapshot"),
                 content_markdown=_markdown_report(
                     question, mode, saved_papers, provider_result.get("provider_errors", {}),
                     generated_at, persisted_claims, llm_note, synthesis_result, synthesis_note, persisted_studies,
