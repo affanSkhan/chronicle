@@ -259,6 +259,7 @@ export default function ChronicleWorkbench() {
   const [monitorIntervalMinutes, setMonitorIntervalMinutes] = useState(1440);
   const [updatingMonitoring, setUpdatingMonitoring] = useState(false);
   const [showAdvancedSourceSearch, setShowAdvancedSourceSearch] = useState(false);
+  const [showEvaluationSettings, setShowEvaluationSettings] = useState(false);
   const [showPdfUpload, setShowPdfUpload] = useState(false);
   const [reviewingRelationId, setReviewingRelationId] = useState<string | null>(null);
   const [reviewingConclusionId, setReviewingConclusionId] = useState<string | null>(null);
@@ -1148,7 +1149,12 @@ export default function ChronicleWorkbench() {
                   </div>
                 </fieldset>
                 <label className="block max-w-xs text-sm font-medium text-slate-700">Source limit<select value={maxSources} onChange={(event) => setMaxSources(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500"><option value={5}>5 sources</option><option value={10}>10 sources</option><option value={20}>20 sources</option><option value={30}>30 sources</option></select><span className="mt-1.5 block text-xs font-normal leading-5 text-slate-500">Higher limits expand coverage but may take longer and still require review.</span></label>
-                <label className="block text-sm font-medium text-slate-700">FF180 evaluation arm (optional)
+                <section className="rounded-2xl border border-slate-200 bg-slate-50/70">
+                  <button type="button" onClick={() => setShowEvaluationSettings((value) => !value)} aria-expanded={showEvaluationSettings} className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-slate-100/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600">
+                    <span><span className="block text-sm font-semibold text-slate-800">Advanced evaluation settings</span><span className="mt-0.5 block text-xs text-slate-500">For project experiments only. Normal research is selected by default.</span></span>
+                    <ChevronDown size={17} className={"shrink-0 text-slate-400 transition " + (showEvaluationSettings ? "rotate-180" : "")}/>
+                  </button>
+                  {showEvaluationSettings ? <div className="border-t border-slate-200 px-4 py-4"><label className="block text-sm font-medium text-slate-700">Experiment configuration
                   <select value={evaluationArm} onChange={(event) => setEvaluationArm(event.target.value as "default" | "A" | "B" | "C" | "D")} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                     <option value="default">Normal research mode (recommended)</option>
                     <option value="A">A — Standard RAG baseline</option>
@@ -1157,7 +1163,9 @@ export default function ChronicleWorkbench() {
                     <option value="D">D — Full lifecycle with temporal impact</option>
                   </select>
                   <span className="mt-2 block text-xs leading-5 text-slate-500">For controlled comparisons, keep the question, source limit, selected PDFs, model/provider and evaluation dataset constant across A–D. A uses one query; B–D permit up to two bounded follow-up searches. Arm C disables temporal propagation; D enables it. These arms support experiments but do not themselves constitute benchmark results.</span>
-                </label>
+                  <span className="mt-2 block text-xs leading-5 text-slate-500">Use this only when comparing the same question and evidence set across configurations. It supports the project evaluation and does not replace human evidence review.</span>
+                  </label></div> : null}
+                </section>
                 <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900">Provider disclosure: Chronicle sends the research query to scholarly metadata providers. When model-backed extraction or verification is run, selected source passages may be sent to the model provider configured by the server. Do not upload or process confidential or restricted material unless authorized.</p>
                 <div className="flex flex-col-reverse justify-between gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center"><p className="text-xs leading-5 text-slate-500">Results remain reviewable; missing evidence is not proof of absence.</p><button disabled={creatingRun} className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60">{creatingRun ? <LoaderCircle size={16} className="animate-spin"/> : <Sparkles size={16}/>} {creatingRun ? "Starting…" : "Start research"}</button></div>
               </form>
