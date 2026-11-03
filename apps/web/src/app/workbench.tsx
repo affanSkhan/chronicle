@@ -5,8 +5,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Activity, AlertCircle, ArrowRight, BookOpen, Check, ChevronDown, Clock3,
-  FlaskConical, History, LayoutDashboard, LoaderCircle, LogOut, Network, Plus,
-  RefreshCw, Search, ShieldCheck, Sparkles, Upload, X
+  FileSearch, FlaskConical, History, LayoutDashboard, LoaderCircle, LogOut, Microscope,
+  Network, Plus, RefreshCw, ScanSearch, Search, ShieldCheck, Sparkles, Upload, X
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -38,11 +38,11 @@ const NAV: { label: View; icon: LucideIcon }[] = [
   { label: "Hypothesis lab", icon: FlaskConical }
 ];
 
-const MODES: { value: ResearchMode; label: string }[] = [
-  { value: "quick", label: "Quick discovery" },
-  { value: "deep", label: "Deep research" },
-  { value: "academic", label: "Academic review" },
-  { value: "forensic", label: "Forensic analysis" }
+const MODES: { value: ResearchMode; label: string; description: string; icon: LucideIcon }[] = [
+  { value: "quick", label: "Quick discovery", description: "Fast orientation with a compact, retrieval-first evidence snapshot.", icon: FileSearch },
+  { value: "deep", label: "Deep research", description: "Broader coverage across methods, findings, limits, and open questions.", icon: Search },
+  { value: "academic", label: "Academic review", description: "Compare study design, outcomes, context, and non-comparable evidence.", icon: Microscope },
+  { value: "forensic", label: "Forensic analysis", description: "Surface conflicts, corrections, dependency signals, and source lineage.", icon: ScanSearch }
 ];
 
 const EVENT_TYPES: { value: EventKind; label: string }[] = [
@@ -1016,13 +1016,13 @@ export default function ChronicleWorkbench() {
     "Hypothesis lab": "Turn evidence gaps into candidate research questions."
   };
 
-  return <div className="min-h-screen bg-slate-50 text-slate-900">
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-200 bg-white px-4 py-5 lg:flex">
+  return <div className="min-h-screen bg-[#f7f8fc] text-slate-900">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-200/80 bg-white/95 px-4 py-5 backdrop-blur lg:flex">
       <button onClick={() => setView("Overview")} className="flex items-center gap-3 rounded-xl px-2 py-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-white"><History size={20}/></span>
         <span><span className="block font-semibold tracking-tight">chronicle.</span><span className="block text-xs text-slate-500">Evidence intelligence</span></span>
       </button>
-      <div className="mt-9 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Workspace</div>
+      <div className="mt-9 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Research suite</div>
       <nav className="mt-3 space-y-1" aria-label="Main navigation">
         {NAV.map((item) => {
           const Icon = item.icon;
@@ -1036,7 +1036,7 @@ export default function ChronicleWorkbench() {
     </aside>
 
     <div className="lg:pl-64">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
         <div className="flex min-h-[72px] items-center justify-between gap-4 px-4 sm:px-6 xl:px-8">
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold tracking-tight">{view}</h1>
@@ -1055,13 +1055,13 @@ export default function ChronicleWorkbench() {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-[1500px] space-y-6 px-4 py-6 sm:px-6 xl:px-8">
+      <main className="mx-auto max-w-[1500px] space-y-7 px-4 py-6 sm:px-6 xl:px-8">
         {notice ? <div role="status" aria-live="polite" className="flex items-start justify-between gap-3 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-sm text-indigo-900"><span>{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice("")} className="shrink-0 rounded p-0.5 text-indigo-700 hover:bg-indigo-100"><X size={16}/></button></div> : null}
         {workspaceError ? <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"><AlertCircle size={17} className="mt-0.5 shrink-0"/><span>{workspaceError}</span></div> : null}
 
         {view === "Overview" ? <div className="space-y-6">
-          <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">Workspace</p><h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Your research, at a glance.</h2></div>
+          <section className="flex flex-col justify-between gap-4 rounded-3xl border border-indigo-100 bg-gradient-to-br from-white via-white to-indigo-50/80 p-6 shadow-sm shadow-indigo-100/40 sm:flex-row sm:items-end">
+            <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">Workspace</p><h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Your research, at a glance.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Start with an answerable question, keep its provenance visible, and review every generated interpretation against the saved evidence.</p></div>
             <button onClick={refreshWorkspace} disabled={workspaceLoading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"><RefreshCw size={15} className={workspaceLoading ? "animate-spin" : ""}/>Refresh</button>
           </section>
           <section className="grid gap-4 sm:grid-cols-3">
@@ -1132,10 +1132,22 @@ export default function ChronicleWorkbench() {
                   })}</div> : <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-white px-3.5 py-3"><p className="text-xs leading-5 text-slate-500">No uploaded PDFs yet. Add a paper to use its extracted passages alongside scholarly search results.</p><button type="button" onClick={() => setShowPdfUpload(true)} className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Add a PDF</button></div>}
                   {selectedPdfPaperIds.length ? <p className="mt-3 flex items-start gap-2 text-[11px] leading-5 text-indigo-800"><Check size={13} className="mt-0.5 shrink-0"/>Attached PDFs are retrieved alongside scholarly abstracts. Ranking uses lexical BM25 and optional Hugging Face dense reranking; it falls back to BM25 if embeddings are disabled or unavailable. Scores are not evidence-confidence estimates.</p> : null}
                 </fieldset>
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px]">
-                  <label className="block text-sm font-medium text-slate-700">Research mode<select value={researchMode} onChange={(event) => setResearchMode(event.target.value as ResearchMode)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">{MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-                  <label className="block text-sm font-medium text-slate-700">Source limit<select value={maxSources} onChange={(event) => setMaxSources(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value={5}>5 sources</option><option value={10}>10 sources</option><option value={20}>20 sources</option><option value={30}>30 sources</option></select></label>
-                </div>
+                <fieldset>
+                  <legend className="text-sm font-semibold text-slate-900">Research profile</legend>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">Each profile changes the retrieval plan and which reviewable stages are enabled. It never promotes an automated finding to scientific truth.</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {MODES.map((option) => {
+                      const Icon = option.icon;
+                      const selected = researchMode === option.value;
+                      return <label key={option.value} className={"group relative flex cursor-pointer gap-3 rounded-2xl border p-4 transition focus-within:ring-2 focus-within:ring-indigo-500 " + (selected ? "border-indigo-400 bg-indigo-50/70 shadow-sm shadow-indigo-100" : "border-slate-200 bg-white hover:border-indigo-200 hover:bg-slate-50")}>
+                        <input className="sr-only" type="radio" name="research-mode" value={option.value} checked={selected} onChange={() => setResearchMode(option.value)} />
+                        <span className={"flex h-10 w-10 shrink-0 items-center justify-center rounded-xl " + (selected ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-indigo-100 group-hover:text-indigo-700")}><Icon size={18}/></span>
+                        <span className="min-w-0"><span className="flex items-center gap-2 text-sm font-semibold text-slate-900">{option.label}{selected ? <Check size={15} className="text-indigo-600"/> : null}</span><span className="mt-1 block text-xs leading-5 text-slate-600">{option.description}</span></span>
+                      </label>;
+                    })}
+                  </div>
+                </fieldset>
+                <label className="block max-w-xs text-sm font-medium text-slate-700">Source limit<select value={maxSources} onChange={(event) => setMaxSources(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500"><option value={5}>5 sources</option><option value={10}>10 sources</option><option value={20}>20 sources</option><option value={30}>30 sources</option></select><span className="mt-1.5 block text-xs font-normal leading-5 text-slate-500">Higher limits expand coverage but may take longer and still require review.</span></label>
                 <label className="block text-sm font-medium text-slate-700">FF180 evaluation arm (optional)
                   <select value={evaluationArm} onChange={(event) => setEvaluationArm(event.target.value as "default" | "A" | "B" | "C" | "D")} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                     <option value="default">Normal research mode (recommended)</option>
