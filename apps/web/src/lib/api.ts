@@ -341,6 +341,7 @@ export interface EvidenceGraphResponse {
   run_id: string;
   nodes: EvidenceGraphNode[];
   edges: EvidenceGraphEdge[];
+  truncated?: boolean;
   note: string;
 }
 
