@@ -1189,7 +1189,21 @@ export default function ChronicleWorkbench({ evaluationOnly = false }: { evaluat
               {activeRun.status === "cancelled" ? <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-sm font-semibold text-slate-800">Run cancelled</p><p className="mt-1 text-xs leading-5 text-slate-600">A new retry can be launched without changing the original run history.</p></div> : null}
               {activeRun.status === "completed" || activeRun.status === "completed_with_limitations" ? <div className="mt-5 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4"><div><p className="text-sm font-semibold text-slate-900">Research report</p><p className="mt-0.5 text-xs text-slate-500">{reportLoading ? "Loading latest report…" : activeReport ? "Latest saved version" : "No report version found for this run."}</p></div><div className="flex flex-wrap gap-2"><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("markdown")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "markdown" ? "Exporting…" : "Export .md"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("json")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "json" ? "Exporting…" : "Export .json"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("pdf")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "pdf" ? "Exporting…" : "Export .pdf"}</button></div></div>
-                {activeReport ? <div className="max-h-[460px] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/70 p-4 sm:p-5"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                {activeReport ? <>
+                  <section className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5" aria-labelledby="report-at-a-glance">
+                    <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><div><h4 id="report-at-a-glance" className="text-sm font-semibold text-slate-900">At a glance</h4><p className="mt-1 text-xs leading-5 text-slate-600">Start with the sources and limitations below. Open the full report when you are ready to inspect the evidence record.</p></div><StatusPill status={activeRun.status}>{activeRun.status.replaceAll("_", " ")}</StatusPill></div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                      {[
+                        { label: "Sources found", value: String((activeReport.evidence_snapshot as { paper_ids?: unknown[] }).paper_ids?.length ?? "—"), hint: "Saved literature records" },
+                        { label: "Evidence passages", value: String((activeReport.evidence_snapshot as { passage_ids?: unknown[] }).passage_ids?.length ?? "—"), hint: "Passages available to inspect" },
+                        { label: "Review status", value: activeRun.status === "completed" ? "Ready to review" : "Has limitations", hint: "Results are not final conclusions" }
+                      ].map((item) => <div key={item.label} className="rounded-xl border border-slate-200 bg-white p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.label}</p><p className="mt-1 text-lg font-semibold text-slate-900">{item.value}</p><p className="mt-1 text-[11px] leading-4 text-slate-500">{item.hint}</p></div>)}
+                    </div>
+                    <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-slate-600"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-indigo-600"/>Treat this as a traceable starting point: inspect the linked source passages before relying on any interpretation.</p>
+                  </section>
+                  <details className="group rounded-2xl border border-slate-200 bg-white">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-800"><span>Open full report and technical details</span><ChevronDown size={16} className="text-slate-400 transition group-open:rotate-180"/></summary>
+                    <div className="max-h-[460px] overflow-y-auto border-t border-slate-100 bg-slate-50/70 p-4 sm:p-5"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
                   h1: ({ children }) => <h1 className="mb-3 mt-5 text-xl font-semibold text-slate-900 first:mt-0">{children}</h1>,
                   h2: ({ children }) => <h2 className="mb-2 mt-5 text-lg font-semibold text-slate-900">{children}</h2>,
                   h3: ({ children }) => <h3 className="mb-2 mt-4 text-base font-semibold text-slate-900">{children}</h3>,
@@ -1198,7 +1212,9 @@ export default function ChronicleWorkbench({ evaluationOnly = false }: { evaluat
                   ol: ({ children }) => <ol className="mb-4 list-decimal space-y-1 pl-5 text-sm leading-6 text-slate-700">{children}</ol>,
                   a: ({ children, href }) => <a className="text-indigo-600 underline underline-offset-2" href={href} target="_blank" rel="noreferrer">{children}</a>,
                   blockquote: ({ children }) => <blockquote className="my-4 border-l-2 border-indigo-300 pl-4 text-sm text-slate-600">{children}</blockquote>
-                }}>{activeReport.content_markdown}</ReactMarkdown></div> : <p className="text-sm text-slate-500">The run completed, but no report is available yet.</p>}
+                    }}>{activeReport.content_markdown}</ReactMarkdown></div>
+                  </details>
+                </> : <p className="text-sm text-slate-500">The run completed, but no report is available yet.</p>}
               </div> : null}
               <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-100 pt-4"><button onClick={() => setView("Evidence graph")} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"><Network size={15}/>Open evidence graph</button><button onClick={() => setView("Hypothesis lab")} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><FlaskConical size={15}/>Hypothesis lab</button></div>
             </section> : <EmptyState icon={BookOpen} title="No selected research run" description="Start a question above or select a run from the list."/>}
