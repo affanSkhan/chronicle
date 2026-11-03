@@ -21,7 +21,10 @@ export interface ResearchRun {
   };
 }
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
+// Keep deployed builds functional even when the Vercel project does not expose
+// a public build-time variable. Local development can still override this with
+// NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 in apps/web/.env.local.
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://chronicle-alpha-five.vercel.app").replace(/\/$/, "");
 
 const SESSION_TOKEN_KEY = "chronicle.access-token";
 
