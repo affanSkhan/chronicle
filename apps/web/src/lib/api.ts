@@ -348,9 +348,21 @@ export interface EvidenceGraphResponse {
 }
 
 export async function getEvidenceGraph(runId: string): Promise<EvidenceGraphResponse> {
-  const response = await apiFetch(`${API_BASE}/api/v1/evidence/runs/${runId}/graph`, { cache: "no-store" });
-  if (!response.ok) throw new Error(await readError(response));
-  return response.json() as Promise<EvidenceGraphResponse>;
+  // Keep graph loading resilient while deployments roll forward. A saved run can
+  // outlive the API deployment that created it, so retry the legacy API origin
+  // when the primary request is unavailable or returns an auth/server error.
+  const origins = Array.from(new Set([API_BASE, "https://chronicle-affan-27c6.vercel.app"]));
+  let lastError = "Unable to load the evidence graph.";
+  for (const origin of origins) {
+    try {
+      const response = await apiFetch(`${origin}/api/v1/evidence/runs/${encodeURIComponent(runId)}/graph`, { cache: "no-store" });
+      if (response.ok) return response.json() as Promise<EvidenceGraphResponse>;
+      lastError = await readError(response);
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+  }
+  throw new Error(lastError);
 }
 
 
