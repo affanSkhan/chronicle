@@ -132,6 +132,12 @@ def _markdown_report(
         "",
         "This is a research discovery snapshot, not a completed systematic review. Metadata abstracts and selected uploaded-PDF excerpts may both appear in the evidence context. Dense retrieval is optional and falls back to lexical ranking if the embedding provider is not configured or unavailable. Ranking signals are not calibrated evidence confidence. Page location and extraction quality still require inspection. Any model-generated claim below is unreviewed and must be checked by a researcher.",
         "",
+        *( [
+            "## Recommended next step",
+            "",
+            "Use this snapshot to shortlist relevant sources, inspect the linked abstracts or uploaded passages, and then rerun the question in Deep Research or Academic Review when you need comparison, claim extraction, or study-context analysis.",
+            "",
+        ] if normalized_mode == "quick" else [] ),
         "## Retrieved literature",
         "",
     ]
