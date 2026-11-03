@@ -1,5 +1,1284 @@
-YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éíãÍ¼å:-jZ.¶›­–)Þ³R'W6R6Æ–VçB#°Ð Ð¦–×÷'B²W6TVffV7BÂW6TÖVÖòÂW6U7FFRÒg&öÒ'&V7B#°Ð¦–×÷'B&V7DÖ&¶F÷vâg&öÒ'&V7BÖÖ&¶F÷vâ#°Ð¦–×÷'B&VÖ&´vfÒg&öÒ'&VÖ&²ÖvfÒ#°Ð¦–×÷'B°Ð¢7F—f—G’ÂÆW'D6—&6ÆRÂ'&÷u&–v‡BÂ&öö´÷VâÂ6†V6²Â6†Wg&öäF÷vâÂ6Æö6³2ÀÐ¢f–ÆU6V&6‚ÂfÆ6´6öæ–6ÂÂ†—7F÷'’ÂÆ–÷WDF6†&ö&BÂÆöFW$6—&6ÆRÂÆöt÷WBÂÖ–7&÷66÷RÀÐ¢æWGv÷&²ÂÇW2Â&Vg&W6„7rÂ66å6V&6‚Â6V&6‚Â6†–VÆD6†V6²Â7&¶ÆW2ÂWÆöBÂ€Ð§Òg&öÒ&ÇV6–FR×&V7B#°Ð¦–×÷'BG—R²ÇV6–FT–6öâÒg&öÒ&ÇV6–FR×&V7B#°Ð¦–×÷'B°Ð¢6ÆV$66W75Fö¶VâÂ6öæf–wW&UW$Ööæ—F÷&–ærÂ7&VFU&W6V&6…'VâÂ7&VFU6÷W&6TWfVçBÀÐ¢F÷væÆöDWf–FVæ6U77÷'BÂfWF6„7W'&VçEW6W"ÂvWDWf–FVæ6Tw&‚Â†56fVD66W75Fö¶VâÀÐ¢–×÷'EW"ÂÆ—7DÆ–'&'•W'2ÂÆ—7E&W÷'EfW'6–öç2ÂÆ—7E&W6V&6…'Vç2ÂÆ—7E6÷W&6TWfVçG2ÀÐ¢Æ—7E6÷W&6U7FGW46†V6·2ÂÆöv–ä66÷VçBÂ&V6÷&EW%7FGW46†V6²Â&Vv—7FW$66÷VçBÀÐ¢FEW$FWVæFVæ7’ÂÆ—7DFWVæFVæ7”6æF–FFW2ÀÐ¢6æ6VÅ&W6V&6…'VâÂ&WG'•&W6V&6…'VâÂ&WfW&–g•6÷W&6TWfVçD–×7FVD6Æ–×2ÀÐ¢7&VFU&W6V&6…&ö¦V7BÂFVÆWFU&W6V&6…&ö¦V7BÂÆ—7E&W6V&6…&ö¦V7G2ÂWFFU&W6V&6…&ö¦V7BÀÐ¢&Wf–WtWf–FVæ6U&VÆF–öâÂ&Wf–Wt6öæ6ÇW6–öâ2&Wf–Wt6öæ6ÇW6–öå&V6÷&BÂ6ö×&T6Æ–×46öçFW‡GVÆÇ’Â6fT66W75Fö¶VâÂ6V&6„6FVÖ–56÷W&6W2ÂWÆöEFbÂFVÆWFUWÆöFVEFbÀÐ¢fW&–g”6Æ–Ô6—FF–öå7W÷'BÀÐ¢G—R6FVÖ–56V&6…&W7VÇBÂG—RWF…W6W"ÂG—R6—FF–öåfW&–f–6F–öå&W7VÇBÂG—RFWVæFVæ7”6æF–FFRÂG—RWf–FVæ6Tw&…&W7öç6RÂG—RÆ–'&'•W"ÀÐ¢G—RW%7FGW46†V6²ÂG—R&W÷'EfW'6–öå7VÖÖ'’ÂG—R&W6V&6„ÖöFRÂG—R&W6V&6…&ö¦V7E&V6÷&BÂG—R&W6V&6…'VâÀÐ¢G—R6÷W&6TWfVçE&V6÷&BÂG—R6÷W&6TWfVçE&WfW&–f–6F–öå&W7öç6RÂG—R6÷W&6U7FGW46†V6µ&V6÷&@Ð§Òg&öÒ$öÆ–"ö’#°Ð Ð§G—Rf–WrÒ$÷fW'f–Wr"Â%&W6V&6‚v÷&·76R"Â$Wf–FVæ6Rw&‚"Â%6÷W&6RF–ÖVÆ–æR"Â$‡—÷F†W6—2Æ"#°Ð§G—Rw&„æöFRÒWf–FVæ6Tw&…&W7öç6U²&æöFW2%Õ¶çVÖ&W%Ó°Ð§G—Rw&„VFvRÒWf–FVæ6Tw&…&W7öç6U²&VFvW2%Õ¶çVÖ&W%Ó°Ð§G—RWfVçD¶–æBÒ&6÷'&V7F–öâ"Â'&WG&7F–öâ"Â&W‡&W76–öåööeö6öæ6W&â"Â&æWu÷fW'6–öâ"Â&ÖWFFFö6†ævR"Â&6öæfÆ–7F–æu÷7GVG’#°Ð§G—RfW&–f–6F–öâÒ'VçfW&–f–VB"Â&ÖWFFFö6öæf—&ÖVB"Â&‡VÖå÷fW&–f–VB#°Ð Ð¦6öç7Bäc¢²Æ&VÃ¢f–Ws²–6öã¢ÇV6–FT–6öâÕµÒÒ°Ð¢²Æ&VÃ¢$÷fW'f–Wr"Â–6öã¢Æ–÷WDF6†&ö&BÒÀÐ¢²Æ&VÃ¢%&W6V&6‚v÷&·76R"Â–6öã¢&öö´÷VâÒÀÐ¢²Æ&VÃ¢$Wf–FVæ6Rw&‚"Â–6öã¢æWGv÷&²ÒÀÐ¢²Æ&VÃ¢%6÷W&6RF–ÖVÆ–æR"Â–6öã¢†—7F÷'’ÒÀÐ¢²Æ&VÃ¢$‡—÷F†W6—2Æ""Â–6öã¢fÆ6´6öæ–6ÂÐÐ¥Ó°Ð Ð¦6öç7BÔôDU3¢²fÇVS¢&W6V&6„ÖöFS²Æ&VÃ¢7G&–æs²FW67&—F–öã¢7G&–æs²–6öã¢ÇV6–FT–6öâÕµÒÒ°Ð¢²fÇVS¢'V–6²"ÂÆ&VÃ¢%V–6²F—66÷fW'’"ÂFW67&—F–öã¢$f7B÷&–VçFF–öâv—F‚6ö×7BÂ&WG&–WfÂÖf—'7BWf–FVæ6R6æ6†÷Bâ"Â–6öã¢f–ÆU6V&6‚ÒÀÐ¢²fÇVS¢&FVW"ÂÆ&VÃ¢$FVW&W6V&6‚"ÂFW67&—F–öã¢$'&öFW"6÷fW&vR7&÷72ÖWF†öG2Âf–æF–æw2ÂÆ–Ö—G2ÂæB÷VâVW7F–öç2â"Â–6öã¢6V&6‚ÒÀÐ¢²fÇVS¢&6FVÖ–2"ÂÆ&VÃ¢$6FVÖ–2&Wf–Wr"ÂFW67&—F–öã¢$6ö×&R7GVG’FW6–vâÂ÷WF6öÖW2Â6öçFW‡BÂæBæöâÖ6ö×&&ÆRWf–FVæ6Râ"Â–6öã¢Ö–7&÷66÷RÒÀÐ¢²fÇVS¢&f÷&Vç6–2"ÂÆ&VÃ¢$f÷&Vç6–2æÇ—6—2"ÂFW67&—F–öã¢%7W&f6R6öæfÆ–7G2Â6÷'&V7F–öç2ÂFWVæFVæ7’6–væÇ2ÂæB6÷W&6RÆ–æVvRâ"Â–6öã¢66å6V&6‚ÐÐ¥Ó°Ð Ð¦6öç7BUdTåEõE•U3¢²fÇVS¢WfVçD¶–æC²Æ&VÃ¢7G&–ærÕµÒÒ°Ð¢²fÇVS¢&6÷'&V7F–öâ"ÂÆ&VÃ¢$6÷'&V7F–öâ"ÒÀÐ¢²fÇVS¢'&WG&7F–öâ"ÂÆ&VÃ¢%&WG&7F–öâ"ÒÀÐ¢²fÇVS¢&W‡&W76–öåööeö6öæ6W&â"ÂÆ&VÃ¢$W‡&W76–öâöb6öæ6W&â"ÒÀÐ¢²fÇVS¢&æWu÷fW'6–öâ"ÂÆ&VÃ¢$æWrfW'6–öâ"ÒÀÐ¢²fÇVS¢&ÖWFFFö6†ævR"ÂÆ&VÃ¢$ÖWFFF6†ævR"ÒÀÐ¢²fÇVS¢&6öæfÆ–7F–æu÷7GVG’"ÂÆ&VÃ¢$6öæfÆ–7F–ær7GVG’"ÐÐ¥Ó°Ð Ð¦gVæ7F–öâ7FGW5FöæR‡7FGW3¢7G&–ær“¢7G&–ær°Ð¢–b‡7FGW2ÓÓÒ&6ö×ÆWFVE÷v—F…öÆ–Ö—FF–öç2"’&WGW&â&&rÖÖ&W"ÓSFW‡BÖÖ&W"Óƒ&–ærÖÖ&W"ÓcóR#°Ð¢–b‡7FGW2ÓÓÒ&6ö×ÆWFVB"ÇÂ7FGW2ÓÓÒ'7W÷'FVB"ÇÂ7FGW2ÓÓÒ&‡VÖå÷fW&–f–VB"ÇÂ7FGW2ÓÓÒ&66WFVB"’&WGW&â&&rÖVÖW&ÆBÓSFW‡BÖVÖW&ÆBÓs&–ærÖVÖW&ÆBÓcóR#°Ð¢–b‡7FGW2ÓÓÒ&f–ÆVB"ÇÂ7FGW2ÓÓÒ'&V¦V7FVB"ÇÂ7FGW2ÓÓÒ&6öçG&F–7FVB"’&WGW&â&&r×&÷6RÓSFW‡B×&÷6RÓs&–ær×&÷6RÓcóR#°Ð¢–b‡7FGW2ÓÓÒ''Vææ–ær"ÇÂ7FGW2ÓÓÒ'VWVVB"ÇÂ7FGW2ÓÓÒ'VçfW&–f–VB"ÇÂ7FGW2ÓÓÒ&æVVG5÷&Wf–Wr"ÇÂ7FGW2ÓÓÒ'VÆ–f–VB"’&WGW&â&&rÖÖ&W"ÓSFW‡BÖÖ&W"Óƒ&–ærÖÖ&W"ÓcóR#°Ð¢&WGW&â&&r×6ÆFRÓFW‡B×6ÆFRÓc&–ær×6ÆFRÓSó#°Ð§ÐÐ Ð¦gVæ7F–öâ7FGW5–ÆÂ‡²6†–ÆG&VâÂ7FGW2Ó¢²6†–ÆG&Vã¢&V7Bå&V7DæöFS²7FGW3¢7G&–ærÒ’°Ð¢&WGW&âÇ7â6Æ74æÖS×²&–æÆ–æRÖfÆW‚—FV×2Ö6VçFW"&÷VæFVBÖgVÆÂ‚Ó"ãR’ÓFW‡BÕ³…ÒföçBÖÖVF—VÒ&–ærÓ&–ærÖ–ç6WB"²7FGW5FöæR‡7FGW2—Óç¶6†–ÆG&VçÓÂ÷7ãã°Ð§ÐÐ Ð¦gVæ7F–öâf÷&ÖDFFR‡fÇVSó¢7G&–ær“¢7G&–ær°Ð¢–b‚fÇVR’&WGW&â.(	B#°Ð¢6öç7BFFRÒæWrFFR‡fÇVR“°Ð¢–b„çVÖ&W"æ—4æâ†FFRævWEF–ÖR‚’’’&WGW&âfÇVS°Ð¢&WGW&âFFRçFôÆö6ÆTFFU7G&–ær‡VæFVf–æVBÂ²F“¢&çVÖW&–2"ÂÖöçFƒ¢'6†÷'B"Â–V#¢&çVÖW&–2"Ò“°Ð§ÐÐ Ð¦gVæ7F–öâ6†÷'FVâ‡fÇVS¢7G&–ærÂÖ‚Ò#“¢7G&–ær°Ð¢6öç7B6ÆVæVBÒfÇVRçG&–Ò‚“°Ð¢&WGW&â6ÆVæVBæÆVæwF‚âÖ‚ò6ÆVæVBç6Æ–6RƒÂÖ‚Ò’çG&–ÔVæB‚’².(
-b"¢6ÆVæVC°Ð§ÐÐ Ð¦gVæ7F–öâw&7ftÆ&VÂ‡fÇVS¢7G&–ærÂÆ–æTÆVæwF‚Ò#B“¢7G&–æuµÒ°Ð¢6öç7Bv÷&G2ÒfÇVRç7Æ—B‚õÇ2²ò’æf–ÇFW"„&ööÆVâ“°Ð¢6öç7BÆ–æW3¢7G&–æuµÒÒµÓ°Ð¢ÆWBÆ–æRÒ"#°Ð¢f÷"†6öç7Bv÷&Böbv÷&G2’°Ð¢–b‚†Æ–æR²""²v÷&B’çG&–Ò‚’æÆVæwF‚âÆ–æTÆVæwF‚bbÆ–æR’°Ð¢Æ–æW2çW6‚†Æ–æR“°Ð¢Æ–æRÒv÷&C°Ð¢ÒVÇ6R°Ð¢Æ–æRÒ†Æ–æR²""²v÷&B’çG&–Ò‚“°Ð¢ÐÐ¢ÐÐ¢–b†Æ–æR’Æ–æW2çW6‚†Æ–æR“°Ð¢&WGW&âÆ–æW2ç6Æ–6RƒÂ"“°Ð§ÐÐ Ð¦gVæ7F–öâw&„Æ–W"‡G—S¢7G&–ær“¢çVÖ&W"°Ð¢–b‡G—RÓÓÒ'W""’&WGW&â°Ð¢–b‡G—RÓÓÒ'W%÷fW'6–öâ"’&WGW&â°Ð¢–b‡G—RÓÓÒ'76vR"ÇÂG—RÓÓÒ'7GVG’"’&WGW&â#°Ð¢–b‡G—RÓÓÒ&6Æ–Ò"ÇÂG—RÓÓÒ&6öæ6ÇW6–öâ"’&WGW&â3°Ð¢–b‡G—RÓÓÒ'&W÷'E÷fW'6–öâ"ÇÂG—RÓÓÒ'&V6öÖÖVæFF–öâ"’&WGW&âC°Ð¢&WGW&â#°Ð§ÐÐ Ð¦gVæ7F–öâVFvT6öÆ÷"‡G—S¢7G&–ær“¢7G&–ær°Ð¢–b‡G—RÓÓÒ'7W÷'G2"’&WGW&â"3c–cƒ"#°Ð¢–b‡G—RÓÓÒ&6öçG&F–7G2"’&WGW&â"6SCV3cb#°Ð¢–b‡G—RÓÓÒ'VÆ–f–W2"ÇÂG—RÓÓÒ&æ÷Eö6ö×&&ÆR"ÇÂG—RÓÓÒ&–ç7Vff–6–VçEöWf–FVæ6R"’&WGW&â"6C“–&"#°Ð¢–b‡G—RÓÓÒ&FWVæG5ööâ"ÇÂG—RÓÓÒ&FW&—fVEög&öÒ"ÇÂG—RÓÓÒ'6ÖUöFF6WB"ÇÂG—RÓÓÒ&GWÆ–6FUö÷%ö÷fW&Æ"’&WGW&â"3v3s6Sb#°Ð¢&WGW&â"6F&b#°Ð§ÐÐ Ð¦gVæ7F–öâW6Tw&„Æ–÷WB†æöFW3¢w&„æöFUµÒÂVFvW3¢w&„VFvUµÒ’°Ð¢&WGW&âW6TÖVÖò‚‚’Óâ°Ð¢6öç7Bw&÷WVC¢w&„æöFUµÕµÒÒµµÒÂµÒÂµÒÂµÒÂµÕÓ°Ð¢æöFW2æf÷$V6‚‚†æöFR’Óâw&÷WVE¶w&„Æ–W"†æöFRçG—R•ÒçW6‚†æöFR’“°Ð¢w&÷WVBæf÷$V6‚‚†Æ–W"’ÓâÆ–W"ç6÷'B‚†Â"’ÓâæÆ&VÂæÆö6ÆT6ö×&R†"æÆ&VÂ’’“°Ð¢6öç7B6öÇVÖå‚Ò³#BÂ#c"ÂSÂs3‚Â“seÓ°Ð¢6öç7BæöFUv–GF‚Ò“ƒ°Ð¢6öç7BæöFT†V–v‡BÒƒC°Ð¢6öç7B&÷tvÒ3#°Ð¢6öç7B&÷t6÷VçBÒÖF‚æÖ‚ƒÂââæw&÷WVBæÖ‚†Æ–W"’ÓâÆ–W"æÆVæwF‚’“°Ð¢6öç7B†V–v‡BÒÖF‚æÖ‚ƒC#Âs²&÷t6÷VçB¢†æöFT†V–v‡B²&÷tv’“°Ð¢6öç7BÆ6VC¢²æöFS¢w&„æöFS²ƒ¢çVÖ&W#²“¢çVÖ&W"ÕµÒÒµÓ°Ð¢w&÷WVBæf÷$V6‚‚†Æ–W"ÂÆ–W$–æFW‚’Óâ°Ð¢Æ–W"æf÷$V6‚‚†æöFRÂ–æFW‚’Óâ°Ð¢Æ6VBçW6‚‡°Ð¢æöFRÀÐ¢ƒ¢6öÇVÖå…¶Æ–W$–æFW…ÒÀÐ¢“¢Sb²–æFW‚¢†æöFT†V–v‡B²&÷tvÐ¢Ò“°Ð¢Ò“°Ð¢Ò“°Ð¢6öç7B÷6—F–öç2ÒæWrÖ‡Æ6VBæÖ‚†—FVÒ’Óâ¶—FVÒææöFRæ–BÂ—FVÕÒ’“°Ð¢6öç7BÆ–æW2ÒVFvW2æf–ÇFW"‚†VFvR’Óâ÷6—F–öç2æ†2†VFvRç6÷W&6R’bb÷6—F–öç2æ†2†VFvRçF&vWB’’æÖ‚†VFvR’Óâ°Ð¢6öç7B6÷W&6RÒ÷6—F–öç2ævWB†VFvRç6÷W&6R’°Ð¢6öç7BF&vWBÒ÷6—F–öç2ævWB†VFvRçF&vWB’°Ð¢ÆWB7‚Ò6÷W&6Rç‚²æöFUv–GFƒ°Ð¢ÆWB7’Ò6÷W&6Rç’²æöFT†V–v‡Bò#°Ð¢ÆWBG‚ÒF&vWBçƒ°Ð¢ÆWBG’ÒF&vWBç’²æöFT†V–v‡Bò#°Ð¢ÆWBFƒ¢7G&–æs°Ð¢–b‡F&vWBç‚â6÷W&6Rç‚’°Ð¢6öç7BÖ–BÒ‡7‚²G‚’ò#°Ð¢F‚Ò$Ò"²7‚²""²7’²"2"²Ö–B²""²7’²"Â"²Ö–B²""²G’²"Â"²G‚²""²G“°Ð¢ÒVÇ6R–b‡F&vWBç‚Â6÷W&6Rç‚’°Ð¢7‚Ò6÷W&6Rçƒ°Ð¢G‚ÒF&vWBç‚²æöFUv–GFƒ°Ð¢6öç7BÖ–BÒ‡7‚²G‚’ò#°Ð¢F‚Ò$Ò"²7‚²""²7’²"2"²Ö–B²""²7’²"Â"²Ö–B²""²G’²"Â"²G‚²""²G“°Ð¢ÒVÇ6R–b‡F&vWBç’ãÒ6÷W&6Rç’’°Ð¢7‚Ò6÷W&6Rç‚²æöFUv–GF‚ò#°Ð¢G‚ÒF&vWBç‚²æöFUv–GF‚ò#°Ð¢7’Ò6÷W&6Rç’²æöFT†V–v‡C°Ð¢G’ÒF&vWBç“°Ð¢6öç7BÖ–BÒ‡7’²G’’ò#°Ð¢F‚Ò$Ò"²7‚²""²7’²"2"²‡7‚²3‚’²""²Ö–B²"Â"²‡G‚²3‚’²""²Ö–B²"Â"²G‚²""²G“°Ð¢ÒVÇ6R°Ð¢7‚Ò6÷W&6Rç‚²æöFUv–GF‚ò#°Ð¢G‚ÒF&vWBç‚²æöFUv–GF‚ò#°Ð¢7’Ò6÷W&6Rç“°Ð¢G’ÒF&vWBç’²æöFT†V–v‡C°Ð¢6öç7BÖ–BÒ‡7’²G’’ò#°Ð¢F‚Ò$Ò"²7‚²""²7’²"2"²‡7‚²3‚’²""²Ö–B²"Â"²‡G‚²3‚’²""²Ö–B²"Â"²G‚²""²G“°Ð¢ÐÐ¢&WGW&â²VFvRÂF‚ÂÆ&VÅƒ¢‡7‚²G‚’ò"ÂÆ&VÅ“¢‡7’²G’’ò"ÒbÓ°Ð¢Ò“°Ð¢&WGW&â²Æ6VBÂ÷6—F–öç2ÂÆ–æW2Â†V–v‡BÂæöFUv–GF‚ÂæöFT†V–v‡BÓ°Ð¢ÒÂ¶æöFW2ÂVFvW5Ò“°Ð§ÐÐ Ð¦gVæ7F–öâV×G•7FFR‡²–6öã¢–6öâÂF—FÆRÂFW67&—F–öâÂ7F–öâÓ¢°Ð¢–6öã¢ÇV6–FT–6öã°Ð¢F—FÆS¢7G&–æs°Ð¢FW67&—F–öã¢7G&–æs°Ð¢7F–öãó¢&V7Bå&V7DæöFS°Ð§Ò’°Ð¢&WGW&âÆF—b6Æ74æÖSÒ&fÆW‚Ö–âÖ‚ÓSbfÆW‚Ö6öÂ—FV×2Ö6VçFW"§W7F–g’Ö6VçFW"&÷VæFVBÓ'†Â&÷&FW"&÷&FW"ÖF6†VB&÷&FW"×6ÆFRÓ3&r×v†—FR‚Ób’ÓFW‡BÖ6VçFW"#àÐ¢Ç7â6Æ74æÖSÒ&Ö"ÓBfÆW‚‚ÓrÓ—FV×2Ö6VçFW"§W7F–g’Ö6VçFW"&÷VæFVBÓ'†Â&rÖ–æF–vòÓSFW‡BÖ–æF–vòÓc#ãÄ–6öâ6—¦S×³#ÒóãÂ÷7ãàÐ¢Æƒ"6Æ74æÖSÒ'FW‡BÖ&6RföçB×6VÖ–&öÆBFW‡B×6ÆFRÓ“#ç·F—FÆWÓÂöƒ#àÐ¢Ç6Æ74æÖSÒ&×BÓ"Ö‚×rÖÖBFW‡B×6ÒÆVF–ærÓbFW‡B×6ÆFRÓS#ç¶FW67&—F–öçÓÂ÷àÐ¢¶7F–öâòÆF—b6Æ74æÖSÒ&×BÓR#ç¶7F–öçÓÂöF—câ¢çVÆÇÐÐ¢ÂöF—cã°Ð§ÐÐ Ð¦W‡÷'BFVfVÇBgVæ7F–öâ6‡&öæ–6ÆUv÷&¶&Væ6‚‚’°Ð¢6öç7B·f–WrÂ6WEf–WuÒÒW6U7FFSÅf–Wsâ‚$÷fW'f–Wr"“°Ð¢6öç7B¶WF…W6W"Â6WDWF…W6W%ÒÒW6U7FFSÄWF…W6W"ÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B¶WF„ÆöF–ærÂ6WDWF„ÆöF–æuÒÒW6U7FFR‡G'VR“°Ð¢6öç7B¶WF„ÖöFRÂ6WDWF„ÖöFUÒÒW6U7FFSÂ&Æöv–â"Â'&Vv—7FW"#â‚&Æöv–â"“°Ð¢6öç7B¶WF„VÖ–ÂÂ6WDWF„VÖ–ÅÒÒW6U7FFR‚""“°Ð¢6öç7B¶WF…77v÷&BÂ6WDWF…77v÷&EÒÒW6U7FFR‚""“°Ð¢6öç7B¶WF„W'&÷"Â6WDWF„W'&÷%ÒÒW6U7FFR‚""“°Ð¢6öç7B¶WF…7V&Ö—GF–ærÂ6WDWF…7V&Ö—GF–æuÒÒW6U7FFR†fÇ6R“°Ð Ð¢6öç7B¶æ÷F–6RÂ6WDæ÷F–6UÒÒW6U7FFR‚""“°Ð¢6öç7B·'Vç2Â6WE'Vç5ÒÒW6U7FFSÅ&W6V&6…'VåµÓâ…µÒ“°Ð¢6öç7B·W'2Â6WEW'5ÒÒW6U7FFSÄÆ–'&'•W%µÓâ…µÒ“°Ð¢6öç7B·6÷W&6TWfVçG2Â6WE6÷W&6TWfVçG5ÒÒW6U7FFSÅ6÷W&6TWfVçE&V6÷&EµÓâ…µÒ“°Ð¢6öç7B·6÷W&6U&WfW&–f–6F–öâÂ6WE6÷W&6U&WfW&–f–6F–öåÒÒW6U7FFSÅ&V6÷&CÇ7G&–ærÂ6÷W&6TWfVçE&WfW&–f–6F–öå&W7öç6Sãâ‡·Ò“°Ð¢6öç7B·&WfW&–g––æu6÷W&6TWfVçD–BÂ6WE&WfW&–g––æu6÷W&6TWfVçD–EÒÒW6U7FFSÇ7G&–ærÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B·7FGW46†V6·2Â6WE7FGW46†V6·5ÒÒW6U7FFSÅ6÷W&6U7FGW46†V6µ&V6÷&EµÓâ…µÒ“°Ð¢6öç7B·v÷&·76TÆöF–ærÂ6WEv÷&·76TÆöF–æuÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B·v÷&·76TW'&÷"Â6WEv÷&·76TW'&÷%ÒÒW6U7FFR‚""“°Ð¢6öç7B¶7F—fU'Vä–BÂ6WD7F—fU'Vä–EÒÒW6U7FFSÇ7G&–ærÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B·&ö¦V7G2Â6WE&ö¦V7G5ÒÒW6U7FFSÅ&W6V&6…&ö¦V7E&V6÷&EµÓâ…µÒ“°Ð¢6öç7B¶7F—fU&ö¦V7D–BÂ6WD7F—fU&ö¦V7D–EÒÒW6U7FFSÇ7G&–ærÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B·6†÷t&6†—fVE&ö¦V7G2Â6WE6†÷t&6†—fVE&ö¦V7G5ÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B¶æWu&ö¦V7EF—FÆRÂ6WDæWu&ö¦V7EF—FÆUÒÒW6U7FFR‚""“°Ð¢6öç7B¶æWu&ö¦V7EVW7F–öâÂ6WDæWu&ö¦V7EVW7F–öåÒÒW6U7FFR‚""“°Ð¢6öç7B¶7&VF–æu&ö¦V7BÂ6WD7&VF–æu&ö¦V7EÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B¶VF—F–æu&ö¦V7D–BÂ6WDVF—F–æu&ö¦V7D–EÒÒW6U7FFSÇ7G&–ærÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B¶VF—F–æu&ö¦V7EF—FÆRÂ6WDVF—F–æu&ö¦V7EF—FÆUÒÒW6U7FFR‚""“°Ð¢6öç7B¶VF—F–æu&ö¦V7EVW7F–öâÂ6WDVF—F–æu&ö¦V7EVW7F–öåÒÒW6U7FFR‚""“°Ð¢6öç7B·6f–æu&ö¦V7BÂ6WE6f–æu&ö¦V7EÒÒW6U7FFR†fÇ6R“°Ð Ð¢6öç7B·VW7F–öâÂ6WEVW7F–öåÒÒW6U7FFR‚""“°Ð¢6öç7B·&W6V&6„ÖöFRÂ6WE&W6V&6„ÖöFUÒÒW6U7FFSÅ&W6V&6„ÖöFSâ‚&FVW"“°Ð¢6öç7B¶Ö…6÷W&6W2Â6WDÖ…6÷W&6W5ÒÒW6U7FFRƒ“°Ð¢6öç7B¶WfÇVF–öä&ÒÂ6WDWfÇVF–öä&ÕÒÒW6U7FFSÂ&FVfVÇB"Â$"Â$""Â$2"Â$B#â‚&FVfVÇB"“°Ð¢6öç7B·6VÆV7FVEFeW$–G2Â6WE6VÆV7FVEFeW$–G5ÒÒW6U7FFSÇ7G&–æuµÓâ…µÒ“°Ð¢6öç7B¶7&VF–æu'VâÂ6WD7&VF–æu'VåÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B·'Vä7F–öä–BÂ6WE'Vä7F–öä–EÒÒW6U7FFSÇ7G&–ærÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B·&W÷'EfW'6–öç2Â6WE&W÷'EfW'6–öç5ÒÒW6U7FFSÅ&W÷'EfW'6–öå7VÖÖ'•µÓâ…µÒ“°Ð¢6öç7B·&W÷'DÆöF–ærÂ6WE&W÷'DÆöF–æuÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B¶W‡÷'F–ærÂ6WDW‡÷'F–æuÒÒW6U7FFSÂ&Ö&¶F÷vâ"Â&§6öâ"Â'Fb"ÂçVÆÃâ†çVÆÂ“°Ð Ð¢6öç7B¶w&„FFÂ6WDw&„FFÒÒW6U7FFSÄWf–FVæ6Tw&…&W7öç6RÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B¶w&„ÆöF–ærÂ6WDw&„ÆöF–æuÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B¶w&„W'&÷"Â6WDw&„W'&÷%ÒÒW6U7FFR‚""“°Ð¢6öç7B¶w&…&Vg&W6„¶W’Â6WDw&…&Vg&W6„¶W•ÒÒW6U7FFRƒ“°Ð¢6öç7B¶w&…VW'’Â6WDw&…VW'•ÒÒW6U7FFR‚""“°Ð¢6öç7B¶w&…G—RÂ6WDw&…G—UÒÒW6U7FFR‚&ÆÂ"“°Ð¢6öç7B¶w&„6Æ–Õ7FGW2Â6WDw&„6Æ–Õ7FGW5ÒÒW6U7FFR‚&ÆÂ"“°Ð¢6öç7B¶w&…&VÆF–öåG—RÂ6WDw&…&VÆF–öåG—UÒÒW6U7FFR‚&ÆÂ"“°Ð¢6öç7B¶w&„÷Vä—77VW4öæÇ’Â6WDw&„÷Vä—77VW4öæÇ•ÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B·6VÆV7FVDw&„æöFT–BÂ6WE6VÆV7FVDw&„æöFT–EÒÒW6U7FFSÇ7G&–ærÂçVÆÃâ†çVÆÂ“°Ð Ð¢6öç7B·6÷W&6UVW'’Â6WE6÷W&6UVW'•ÒÒW6U7FFR‚""“°Ð¢6öç7B·6÷W&6U&W7VÇG2Â6WE6÷W&6U&W7VÇG5ÒÒW6U7FFSÄ6FVÖ–56V&6…&W7VÇEµÓâ…µÒ“°Ð¢6öç7B·6÷W&6TÆöF–ærÂ6WE6÷W&6TÆöF–æuÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B·6÷W&6TW'&÷"Â6WE6÷W&6TW'&÷%ÒÒW6U7FFR‚""“°Ð¢6öç7B·6fVEW$¶W—2Â6WE6fVEW$¶W—5ÒÒW6U7FFSÇ7G&–æuµÓâ…µÒ“°Ð¢6öç7B·WÆöF–æuFbÂ6WEWÆöF–æuFeÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B·WÆöDÖW76vRÂ6WEWÆöDÖW76vUÒÒW6U7FFR‚""“°Ð¢6öç7B·FeVæF–ætFVÆWFRÂ6WEFeVæF–ætFVÆWFUÒÒW6U7FFSÄÆ–'&'•W"ÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B¶FVÆWF–æuFd–BÂ6WDFVÆWF–æuFd–EÒÒW6U7FFSÇ7G&–ærÂçVÆÃâ†çVÆÂ“°Ð Ð¢6öç7B¶WfVçDf÷&Ô÷VâÂ6WDWfVçDf÷&Ô÷VåÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B¶WfVçEW$–BÂ6WDWfVçEW$–EÒÒW6U7FFR‚""“°Ð¢6öç7B¶WfVçEG—RÂ6WDWfVçEG—UÒÒW6U7FFSÄWfVçD¶–æCâ‚'&WG&7F–öâ"“°Ð¢6öç7B¶WfVçDFW67&—F–öâÂ6WDWfVçDFW67&—F–öåÒÒW6U7FFR‚""“°Ð¢6öç7B¶WfVçE6÷W&6UW&ÂÂ6WDWfVçE6÷W&6UW&ÅÒÒW6U7FFR‚""“°Ð¢6öç7B¶WfVçEfW&–f–6F–öâÂ6WDWfVçEfW&–f–6F–öåÒÒW6U7FFSÅfW&–f–6F–öãâ‚'VçfW&–f–VB"“°Ð¢6öç7B·&V6÷&F–ætWfVçBÂ6WE&V6÷&F–ætWfVçEÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B¶6†V6¶–æu7FGW2Â6WD6†V6¶–æu7FGW5ÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B·7FGW46†V6²Â6WE7FGW46†V6µÒÒW6U7FFSÅW%7FGW46†V6²ÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B¶Ööæ—F÷$–çFW'fÄÖ–çWFW2Â6WDÖöæ—F÷$–çFW'fÄÖ–çWFW5ÒÒW6U7FFRƒCC“°Ð¢6öç7B·WFF–ætÖöæ—F÷&–ærÂ6WEWFF–ætÖöæ—F÷&–æuÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B·6†÷tGfæ6VE6÷W&6U6V&6‚Â6WE6†÷tGfæ6VE6÷W&6U6V&6…ÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B·6†÷uFeWÆöBÂ6WE6†÷uFeWÆöEÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B·&Wf–Wv–æu&VÆF–öä–BÂ6WE&Wf–Wv–æu&VÆF–öä–EÒÒW6U7FFSÇ7G&–ærÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B·&Wf–Wv–æt6öæ6ÇW6–öä–BÂ6WE&Wf–Wv–æt6öæ6ÇW6–öä–EÒÒW6U7FFSÇ7G&–ærÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B·fW&–g––æt6Æ–Ô–BÂ6WEfW&–g––æt6Æ–Ô–EÒÒW6U7FFSÇ7G&–ærÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B¶6ö×&—6öåF&vWD6Æ–Ô–BÂ6WD6ö×&—6öåF&vWD6Æ–Ô–EÒÒW6U7FFR‚""“°Ð¢6öç7B¶6ö×&–æt6Æ–×2Â6WD6ö×&–æt6Æ–×5ÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B·fW&–f–6F–öä'”6Æ–ÒÂ6WEfW&–f–6F–öä'”6Æ–ÕÒÒW6U7FFSÅ&V6÷&CÇ7G&–ærÂ6—FF–öåfW&–f–6F–öå&W7VÇCãâ‡·Ò“°Ð¢6öç7B¶FWVæFVæ7”6æF–FFW2Â6WDFWVæFVæ7”6æF–FFW5ÒÒW6U7FFSÄFWVæFVæ7”6æF–FFUµÓâ…µÒ“°Ð¢6öç7B¶FWVæFVæ7”6æF–FFW4ÆöF–ærÂ6WDFWVæFVæ7”6æF–FFW4ÆöF–æuÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B¶FWVæFVæ7”6æF–FFW4ÆöFVBÂ6WDFWVæFVæ7”6æF–FFW4ÆöFVEÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B¶FWVæFVæ7”6æF–FFTW'&÷"Â6WDFWVæFVæ7”6æF–FFTW'&÷%ÒÒW6U7FFR‚""“°Ð¢6öç7B·6f–ætFWVæFVæ7”6æF–FFT–BÂ6WE6f–ætFWVæFVæ7”6æF–FFT–EÒÒW6U7FFSÇ7G&–ærÂçVÆÃâ†çVÆÂ“°Ð Ð¢6öç7B7F—fU'VâÒW6TÖVÖò‚‚’Óâ'Vç2æf–æB‚‡'Vâ’Óâ'Vâæ–BÓÓÒ7F—fU'Vä–B’óòçVÆÂÂ·'Vç2Â7F—fU'Vä–EÒ“°Ð¢6öç7B7F—fU&W÷'BÒ&W÷'EfW'6–öç5³ÒóòçVÆÃ°Ð¢6öç7BW†V7WF–öåÆâÒ7F—fU&W÷'CòæWf–FVæ6U÷6æ6†÷CòæW†V7WF–öå÷Æã°Ð¢6öç7B7V6–Æ—7E&öÆW2ÒW†V7WF–öåÆâbbG—VöbW†V7WF–öåÆâÓÓÒ&ö&¦V7B"bb'&’æ—4'&’‚†W†V7WF–öåÆâ2²7V6–Æ—7E÷&öÆW3ó¢Væ¶æ÷vâÒ’ç7V6–Æ—7E÷&öÆW2Ð¢ò†W†V7WF–öåÆâ2²7V6–Æ—7E÷&öÆW3¢²&öÆSó¢7G&–æs²–çWCó¢7G&–æs²÷WGWCó¢7G&–æs²‡VÖå÷&Wf–Wu÷&WV—&VCó¢&ööÆVâÕµÒÒ’ç7V6–Æ—7E÷&öÆW0Ð¢¢µÓ°Ð¢6öç7B6VÆV7FVEW"ÒW'2æf–æB‚‡W"’ÓâW"æ–BÓÓÒWfVçEW$–B’óòçVÆÃ°Ð¢6öç7B7–çF†W6—2Ò7F—fU&W÷'CòæWf–FVæ6U÷6æ6†÷CòæÖöFVÅ÷7–çF†W6—3°Ð¢6öç7BÖöFVÅ7–çF†W6—2Ò7–çF†W6—2bbG—Vöb7–çF†W6—2ÓÓÒ&ö&¦V7B"ò7–çF†W6—22°Ð¢W†V7WF—fU÷7VÖÖ'“ó¢7G&–æs°Ð¢f–æF–æw3ó¢²7FFVÖVçC¢7G&–æs²Wf–FVæ6U÷76vUö–G3ó¢7G&–æuµÓ²&VÆF–öå÷G—Só¢7G&–æs²6öçFW‡Eöæ÷FSó¢7G&–ærÂçVÆÂÕµÓ°Ð¢F—6w&VVÖVçG3ó¢²FW67&—F–öã¢7G&–æs²Wf–FVæ6U÷76vUö–G3ó¢7G&–æuµÓ²6ö×&&–Æ—G•öæ÷FSó¢7G&–ærÂçVÆÂÕµÓ°Ð¢Æ–Ö—FF–öç3ó¢7G&–æuµÓ°Ð¢6æF–FFU÷&W6V&6…÷VW7F–öç3ó¢7G&–æuµÓ°Ð¢&W6V&6…ö÷÷'GVæ—F–W3ó¢²VW7F–öã¢7G&–æs²&F–öæÆS¢7G&–æs²Wf–FVæ6U÷76vUö–G3ó¢7G&–æuµÓ²&–÷%ö'E÷6V&6…÷VW&–W3ó¢7G&–æuµÓ²ÇFW&æF—fUöW‡ÆæF–öç3ó¢7G&–æuµÓ²fÇ6–f–6F–öå÷Æã¢7G&–æs²&Wf–Wu÷7FGW3ó¢7G&–ærÕµÓ°Ð¢Væ6W'F–çG•÷7FFVÖVçCó¢7G&–æs°Ð¢‡VÖå÷&Wf–Wu÷&WV—&VCó¢&ööÆVã°Ð¢Ò¢çVÆÃ°Ð Ð¢W6TVffV7B‚‚’Óâ°Ð¢ÆWB6æ6VÆÆVBÒfÇ6S°Ð¢7–æ2gVæ7F–öâ&W7F÷&U6W76–öâ‚’°Ð¢–b‚†56fVD66W75Fö¶Vâ‚’’°Ð¢6WDWF„ÆöF–ær†fÇ6R“°Ð¢&WGW&ã°Ð¢ÐÐ¢G'’°Ð¢6öç7BW6W"Òv—BfWF6„7W'&VçEW6W"‚“°Ð¢–b‚6æ6VÆÆVB’6WDWF…W6W"‡W6W"“°Ð¢Ò6F6‚°Ð¢6ÆV$66W75Fö¶Vâ‚“°Ð¢–b‚6æ6VÆÆVB’6WDWF…W6W"†çVÆÂ“°Ð¢Òf–æÆÇ’°Ð¢–b‚6æ6VÆÆVB’6WDWF„ÆöF–ær†fÇ6R“°Ð¢ÐÐ¢ÐÐ¢fö–B&W7F÷&U6W76–öâ‚“°Ð¢&WGW&â‚’Óâ²6æ6VÆÆVBÒG'VS²Ó°Ð¢ÒÂµÒ“°Ð Ð¢W6TVffV7B‚‚’Óâ°Ð¢–b‚WF…W6W"’°Ð¢6WE'Vç2…µÒ“°Ð¢6WEW'2…µÒ“°Ð¢6WE6÷W&6TWfVçG2…µÒ“°Ð¢6WE7FGW46†V6·2…µÒ“°Ð¢6WD7F—fU'Vä–B†çVÆÂ“°Ð¢6WE&W÷'EfW'6–öç2…µÒ“°Ð¢6WDw&„FF†çVÆÂ“°Ð¢&WGW&ã°Ð¢ÐÐ¢ÆWB6æ6VÆÆVBÒfÇ6S°Ð¢7–æ2gVæ7F–öâÆöEv÷&·76R‚’°Ð¢6WEv÷&·76TÆöF–ær‡G'VR“°Ð¢6WEv÷&·76TW'&÷"‚""“°Ð¢G'’°Ð¢6öç7B&W7VÇG2Òv—B&öÖ—6RæÆÂ…°Ð¢Æ—7E&W6V&6…'Vç2‚’ÀÐ¢Æ—7DÆ–'&'•W'2ƒ’ÀÐ¢Æ—7E6÷W&6TWfVçG2ƒS’ÀÐ¢Æ—7E6÷W&6U7FGW46†V6·2ƒSÂfÇ6R’ÀÐ¢Æ—7E&W6V&6…&ö¦V7G2‡G'VRÐ¢Ò“°Ð¢–b†6æ6VÆÆVB’&WGW&ã°Ð¢6öç7BæW‡E'Vç2Ò&W7VÇG5³Ò2&W6V&6…'VåµÓ°Ð¢6öç7BæW‡EW'2Ò&W7VÇG5³Ò2Æ–'&'•W%µÓ°Ð¢6öç7BæW‡E&ö¦V7G2Ò&W7VÇG5³EÒ2&W6V&6…&ö¦V7E&V6÷&EµÓ°Ð¢6WE'Vç2†æW‡E'Vç2“°Ð¢6WEW'2†æW‡EW'2“°Ð¢6WE&ö¦V7G2†æW‡E&ö¦V7G2“°Ð¢6WE6÷W&6TWfVçG2‡&W7VÇG5³%Ò26÷W&6TWfVçE&V6÷&EµÒ“°Ð¢6WE7FGW46†V6·2‡&W7VÇG5³5Ò26÷W&6U7FGW46†V6µ&V6÷&EµÒ“°Ð¢6WD7F—fU'Vä–B‚†7W'&VçB’Óâ7W'&VçBbbæW‡E'Vç2ç6öÖR‚‡'Vâ’Óâ'Vâæ–BÓÓÒ7W'&VçB’ò7W'&VçB¢†æW‡E'Vç5³Óòæ–BóòçVÆÂ’“°Ð¢6WDWfVçEW$–B‚†7W'&VçB’Óâ7W'&VçBbbæW‡EW'2ç6öÖR‚‡W"’ÓâW"æ–BÓÓÒ7W'&VçB’ò7W'&VçB¢†æW‡EW'5³Óòæ–Bóò""’“°Ð¢6WD7F—fU&ö¦V7D–B‚†7W'&VçB’Óâ7W'&VçBbbæW‡E&ö¦V7G2ç6öÖR‚‡&ö¦V7B’Óâ&ö¦V7Bæ–BÓÓÒ7W'&VçBbb&ö¦V7Bæ&6†—fVEöB’ò7W'&VçB¢†æW‡E&ö¦V7G2æf–æB‚‡&ö¦V7B’Óâ&ö¦V7Bæ&6†—fVEöB“òæ–BóòçVÆÂ’“°Ð¢Ò6F6‚†W'&÷"’°Ð¢–b‚6æ6VÆÆVB’6WEv÷&·76TW'&÷"†W'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢$6÷VÆBæ÷BÆöB–÷W"v÷&·76Râ"“°Ð¢Òf–æÆÇ’°Ð¢–b‚6æ6VÆÆVB’6WEv÷&·76TÆöF–ær†fÇ6R“°Ð¢ÐÐ¢ÐÐ¢fö–BÆöEv÷&·76R‚“°Ð¢&WGW&â‚’Óâ²6æ6VÆÆVBÒG'VS²Ó°Ð¢ÒÂ¶WF…W6W%Ò“°Ð Ð¢W6TVffV7B‚‚’Óâ°Ð¢–b‚WF…W6W"ÇÂ7F—fU'Vä–BÇÂ²'VWVVB"Â''Vææ–ær"Â&6æ6VÅ÷&WVW7FVB%Òæ–æ6ÇVFW2†7F—fU'Vãòç7FGW2óò""’’&WGW&ã°Ð¢ÆWB6æ6VÆÆVBÒfÇ6S°Ð¢6öç7BF–ÖW"Ò6WD–çFW'fÂ†7–æ2‚’Óâ°Ð¢G'’°Ð¢6öç7BæW‡E'Vç2Òv—BÆ—7E&W6V&6…'Vç2‚“°Ð¢–b‚6æ6VÆÆVB’6WE'Vç2†æW‡E'Vç2“°Ð¢Ò6F6‚°Ð¢òòF†R7W'&VçB7FGW27F—2f—6–&ÆS²F†RW6W"6â&Vg&W6‚ÖçVÆÇ’àÐ¢ÐÐ¢ÒÂ3S“°Ð¢&WGW&â‚’Óâ°Ð¢6æ6VÆÆVBÒG'VS°Ð¢6ÆV$–çFW'fÂ‡F–ÖW"“°Ð¢Ó°Ð¢ÒÂ¶WF…W6W"Â7F—fU'Vä–BÂ7F—fU'Vãòç7FGW5Ò“°Ð Ð¢W6TVffV7B‚‚’Óâ°Ð¢–b‚WF…W6W"ÇÂ7F—fU'Vä–BÇÂ†7F—fU'Vãòç7FGW2ÓÒ&6ö×ÆWFVB"bb7F—fU'Vãòç7FGW2ÓÒ&6ö×ÆWFVE÷v—F…öÆ–Ö—FF–öç2"’’°Ð¢6WE&W÷'EfW'6–öç2…µÒ“°Ð¢&WGW&ã°Ð¢ÐÐ¢ÆWB6æ6VÆÆVBÒfÇ6S°Ð¢6WE&W÷'DÆöF–ær‡G'VR“°Ð¢Æ—7E&W÷'EfW'6–öç2†7F—fU'Vä–B’çF†Vâ‚‡&W÷'G2’Óâ°Ð¢–b‚6æ6VÆÆVB’6WE&W÷'EfW'6–öç2‡&W÷'G2“°Ð¢Ò’æ6F6‚‚‚’Óâ°Ð¢–b‚6æ6VÆÆVB’6WE&W÷'EfW'6–öç2…µÒ“°Ð¢Ò’æf–æÆÇ’‚‚’Óâ°Ð¢–b‚6æ6VÆÆVB’6WE&W÷'DÆöF–ær†fÇ6R“°Ð¢Ò“°Ð¢&WGW&â‚’Óâ²6æ6VÆÆVBÒG'VS²Ó°Ð¢ÒÂ¶WF…W6W"Â7F—fU'Vä–BÂ7F—fU'Vãòç7FGW5Ò“°Ð Ð¢W6TVffV7B‚‚’Óâ°Ð¢–b‚WF…W6W"ÇÂf–WrÓÒ$Wf–FVæ6Rw&‚"ÇÂ7F—fU'Vä–B’&WGW&ã°Ð¢ÆWB6æ6VÆÆVBÒfÇ6S°Ð¢6WDw&„ÆöF–ær‡G'VR“°Ð¢6WDw&„W'&÷"‚""“°Ð¢vWDWf–FVæ6Tw&‚†7F—fU'Vä–B’çF†Vâ‚†w&‚’Óâ°Ð¢–b†6æ6VÆÆVB’&WGW&ã°Ð¢6WDw&„FF†w&‚“°Ð¢6WE6VÆV7FVDw&„æöFT–B‚†7W'&VçB’Óâ7W'&VçBbbw&‚ææöFW2ç6öÖR‚†æöFR’ÓâæöFRæ–BÓÓÒ7W'&VçB’ò7W'&VçB¢†w&‚ææöFW5³Óòæ–BóòçVÆÂ’“°Ð¢Ò’æ6F6‚‚†W'&÷"’Óâ°Ð¢–b‚6æ6VÆÆVB’6WDw&„W'&÷"†W'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢$6÷VÆBæ÷BÆöBWf–FVæ6Rf÷"F†—2'Vââ"“°Ð¢Ò’æf–æÆÇ’‚‚’Óâ°Ð¢–b‚6æ6VÆÆVB’6WDw&„ÆöF–ær†fÇ6R“°Ð¢Ò“°Ð¢&WGW&â‚’Óâ²6æ6VÆÆVBÒG'VS²Ó°Ð¢ÒÂ¶WF…W6W"Âf–WrÂ7F—fU'Vä–BÂw&…&Vg&W6„¶W•Ò“°Ð Ð¢W6TVffV7B‚‚’Óâ°Ð¢6öç7B6VÆV7FVBÒW'2æf–æB‚‡W"’ÓâW"æ–BÓÓÒWfVçEW$–B“°Ð¢–b‡6VÆV7FVB’6WDÖöæ—F÷$–çFW'fÄÖ–çWFW2‡6VÆV7FVBæÖöæ—F÷%ö–çFW'fÅöÖ–çWFW2“°Ð¢ÒÂ¶WfVçEW$–BÂW'5Ò“°Ð Ð¢7–æ2gVæ7F–öâ7V&Ö—DWF†VçF–6F–öâ†WfVçC¢&V7Bäf÷&ÔWfVçCÄ…DÔÄf÷&ÔVÆVÖVçCâ’°Ð¢WfVçBç&WfVçDFVfVÇB‚“°Ð¢6WDWF…7V&Ö—GF–ær‡G'VR“°Ð¢6WDWF„W'&÷"‚""“°Ð¢G'’°Ð¢6öç7B&W7VÇBÒWF„ÖöFRÓÓÒ'&Vv—7FW" Ð¢òv—B&Vv—7FW$66÷VçB†WF„VÖ–ÂçG&–Ò‚’ÂWF…77v÷&BÐ¢¢v—BÆöv–ä66÷VçB†WF„VÖ–ÂçG&–Ò‚’ÂWF…77v÷&B“°Ð¢6fT66W75Fö¶Vâ‡&W7VÇBæ66W75÷Fö¶Vâ“°Ð¢6WDWF…W6W"‡&W7VÇBçW6W"“°Ð¢6WDWF…77v÷&B‚""“°Ð¢6WDæ÷F–6R†WF„ÖöFRÓÓÒ'&Vv—7FW""ò$66÷VçB7&VFVBâ"¢%6–væVB–ââ"“°Ð¢Ò6F6‚†W'&÷"’°Ð¢6WDWF„W'&÷"†W'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢$WF†VçF–6F–öâf–ÆVBâ6†V6²–÷W"6öææV7F–öâæB7&VFVçF–Ç2â"“°Ð¢Òf–æÆÇ’°Ð¢6WDWF…7V&Ö—GF–ær†fÇ6R“°Ð¢6WDWF„ÆöF–ær†fÇ6R“°Ð¢ÐÐ¢ÐÐ Ð¢gVæ7F–öâ6–vä÷WB‚’°Ð¢6ÆV$66W75Fö¶Vâ‚“°Ð¢6WDWF…W6W"†çVÆÂ“°Ð¢6WEf–Wr‚$÷fW'f–Wr"“°Ð¢6WE'Vç2…µÒ“°Ð¢6WE&ö¦V7G2…µÒ“°Ð¢6WD7F—fU&ö¦V7D–B†çVÆÂ“°Ð¢6WEW'2…µÒ“°Ð¢6WE6÷W&6TWfVçG2…µÒ“°Ð¢6WE&W÷'EfW'6–öç2…µÒ“°Ð¢6WDw&„FF†çVÆÂ“°Ð¢6WE7FGW46†V6²†çVÆÂ“°Ð¢6WDæ÷F–6R‚%6–væVB÷WBâ"“°Ð¢ÐÐ Ð¢7–æ2gVæ7F–öâ&Vg&W6…v÷&·76R‚’°Ð¢6WEv÷&·76TÆöF–ær‡G'VR“°Ð¢6WEv÷&·76TW'&÷"‚""“°Ð¢G'’°Ð¢6öç7B&W7VÇG2Òv—B&öÖ—6RæÆÂ…°Ð¢Æ—7E&W6V&6…'Vç2‚’ÂÆ—7DÆ–'&'•W'2ƒ’ÂÆ—7E6÷W&6TWfVçG2ƒS’ÂÆ—7E6÷W&6U7FGW46†V6·2ƒSÂfÇ6R’ÂÆ—7E&W6V&6…&ö¦V7G2‡G'VRÐ¢Ò“°Ð¢6öç7BæW‡E'Vç2Ò&W7VÇG5³Ò2&W6V&6…'VåµÓ°Ð¢6öç7BæW‡E&ö¦V7G2Ò&W7VÇG5³EÒ2&W6V&6…&ö¦V7E&V6÷&EµÓ°Ð¢6WE'Vç2†æW‡E'Vç2“°Ð¢6WE&ö¦V7G2†æW‡E&ö¦V7G2“°Ð¢6WD7F—fU&ö¦V7D–B‚†7W'&VçB’Óâ7W'&VçBbbæW‡E&ö¦V7G2ç6öÖR‚‡&ö¦V7B’Óâ&ö¦V7Bæ–BÓÓÒ7W'&VçBbb&ö¦V7Bæ&6†—fVEöB’ò7W'&VçB¢†æW‡E&ö¦V7G2æf–æB‚‡&ö¦V7B’Óâ&ö¦V7Bæ&6†—fVEöB“òæ–BóòçVÆÂ’“°Ð¢6WEW'2‡&W7VÇG5³Ò2Æ–'&'•W%µÒ“°Ð¢6WE6÷W&6TWfVçG2‡&W7VÇG5³%Ò26÷W&6TWfVçE&V6÷&EµÒ“°Ð¢6WE7FGW46†V6·2‡&W7VÇG5³5Ò26÷W&6U7FGW46†V6µ&V6÷&EµÒ“°Ð¢6WD7F—fU'Vä–B‚†7W'&VçB’Óâ7W'&VçBbbæW‡E'Vç2ç6öÖR‚‡'Vâ’Óâ'Vâæ–BÓÓÒ7W'&VçB’ò7W'&VçB¢†æW‡E'Vç5³Óòæ–BóòçVÆÂ’“°Ð¢Ò6F6‚†W'&÷"’°Ð¢6WEv÷&·76TW'&÷"†W'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢$6÷VÆBæ÷B&Vg&W6‚–÷W"v÷&·76Râ"“°Ð¢Òf–æÆÇ’°Ð¢6WEv÷&·76TÆöF–ær†fÇ6R“°Ð¢ÐÐ¢ÐÐ Ð¢7–æ2gVæ7F–öâ7V&Ö—DæWu&ö¦V7B†WfVçC¢&V7Bäf÷&ÔWfVçCÄ…DÔÄf÷&ÔVÆVÖVçCâ’°Ð¢WfVçBç&WfVçDFVfVÇB‚“°Ð¢–b†æWu&ö¦V7EF—FÆRçG&–Ò‚’æÆVæwF‚Â"ÇÂæWu&ö¦V7EVW7F–öâçG&–Ò‚’æÆVæwF‚Â‚’°Ð¢6WDæ÷F–6R‚%v÷&·76RF—FÆRæVVG2"6†&7FW'2æB—G2&W6V&6‚VW7F–öâæVVG2‚â"“°Ð¢&WGW&ã°Ð¢ÐÐ¢6WD7&VF–æu&ö¦V7B‡G'VR“°Ð¢6WEv÷&·76TW'&÷"‚""“°Ð¢G'’°Ð¢6öç7B&ö¦V7BÒv—B7&VFU&W6V&6…&ö¦V7B‡°Ð¢F—FÆS¢æWu&ö¦V7EF—FÆRçG&–Ò‚’ÀÐ¢&W6V&6…÷VW7F–öã¢æWu&ö¦V7EVW7F–öâçG&–Ò‚’ÀÐ¢Ò“°Ð¢6WE&ö¦V7G2‚†7W'&VçB’Óâ·&ö¦V7BÂââæ7W'&VçBæf–ÇFW"‚†—FVÒ’Óâ—FVÒæ–BÓÒ&ö¦V7Bæ–B•Ò“°Ð¢6WD7F—fU&ö¦V7D–B‡&ö¦V7Bæ–B“°Ð¢6WDæWu&ö¦V7EF—FÆR‚""“°Ð¢6WDæWu&ö¦V7EVW7F–öâ‚""“°Ð¢6WDæ÷F–6R‚%&W6V&6‚v÷&·76R7&VFVBâ"“°Ð¢Ò6F6‚†W'&÷"’°Ð¢6WEv÷&·76TW'&÷"†W'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢$6÷VÆBæ÷B7&VFRF†Rv÷&·76Râ"“°Ð¢Òf–æÆÇ’°Ð¢6WD7&VF–æu&ö¦V7B†fÇ6R“°Ð¢ÐÐ¢ÐÐ Ð¢gVæ7F–öâ&Vv–äVF—E&ö¦V7B‡&ö¦V7C¢&W6V&6…&ö¦V7E&V6÷&B’°Ð¢6WDVF—F–æu&ö¦V7D–B‡&ö¦V7Bæ–B“°Ð¢6WDVF—F–æu&ö¦V7EF—FÆR‡&ö¦V7BçF—FÆR“°Ð¢6WDVF—F–æu&ö¦V7EVW7F–öâ‡&ö¦V7Bç&W6V&6…÷VW7F–öâ“°Ð¢ÐÐ Ð¢7–æ2gVæ7F–öâ6fTVF—FVE&ö¦V7B†WfVçC¢&V7Bäf÷&ÔWfVçCÄ…DÔÄf÷&ÔVÆVÖVçCâ’°Ð¢WfVçBç&WfVçDFVfVÇB‚“°Ð¢–b‚VF—F–æu&ö¦V7D–B’&WGW&ã°Ð¢6WE6f–æu&ö¦V7B‡G'VR“°Ð¢6WEv÷&·76TW'&÷"‚""“°Ð¢G'’°Ð¢6öç7BWFFVBÒv—BWFFU&W6V&6…&ö¦V7B†VF—F–æu&ö¦V7D–BÂ°Ð¢F—FÆS¢VF—F–æu&ö¦V7EF—FÆRçG&–Ò‚’ÀÐ¢&W6V&6…÷VW7F–öã¢VF—F–æu&ö¦V7EVW7F–öâçG&–Ò‚’ÀÐ¢Ò“°Ð¢6WE&ö¦V7G2‚†7W'&VçB’Óâ7W'&VçBæÖ‚†—FVÒ’Óâ—FVÒæ–BÓÓÒWFFVBæ–BòWFFVB¢—FVÒ’“°Ð¢6WDVF—F–æu&ö¦V7D–B†çVÆÂ“°Ð¢6WDæ÷F–6R‚%v÷&·76RFWF–Ç2WFFVBâ"“°Ð¢Ò6F6‚†W'&÷"’°Ð¢6WEv÷&·76TW'&÷"†W'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢$6÷VÆBæ÷BWFFRF†Rv÷&·76Râ"“°Ð¢Òf–æÆÇ’°Ð¢6WE6f–æu&ö¦V7B†fÇ6R“°Ð¢ÐÐ¢ÐÐ Ð¢7–æ2gVæ7F–öâ6WE&ö¦V7D&6†—fVB‡&ö¦V7C¢&W6V&6…&ö¦V7E&V6÷&BÂ&6†—fVC¢&ööÆVâ’°Ð¢6WE6f–æu&ö¦V7B‡G'VR“°Ð¢6WEv÷&·76TW'&÷"‚""“°Ð¢G'’°Ð¢6öç7BWFFVBÒv—BWFFU&W6V&6…&ö¦V7B‡&ö¦V7Bæ–BÂ²&6†—fVBÒ“°Ð¢6WE&ö¦V7G2‚†7W'&VçB’Óâ7W'&VçBæÖ‚†—FVÒ’Óâ—FVÒæ–BÓÓÒWFFVBæ–BòWFFVB¢—FVÒ’“°Ð¢–b†&6†—fVBbb7F—fU&ö¦V7D–BÓÓÒ&ö¦V7Bæ–B’6WD7F—fU&ö¦V7D–B†çVÆÂ“°Ð¢–b‚&6†—fVB’6WD7F—fU&ö¦V7D–B‡&ö¦V7Bæ–B“°Ð¢–b†VF—F–æu&ö¦V7D–BÓÓÒ&ö¦V7Bæ–B’6WDVF—F–æu&ö¦V7D–B†çVÆÂ“°Ð¢6WDæ÷F–6R†&6†—fVBò%v÷&·76R&6†—fVBâ—G2†—7F÷&–6Â'Vç2&VÖ–âf–Æ&ÆRâ"¢%v÷&·76R&W7F÷&VBâ"“°Ð¢Ò6F6‚†W'&÷"’°Ð¢6WEv÷&·76TW'&÷"†W'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢$6÷VÆBæ÷B6†ævRv÷&·76R&6†—fR7FFRâ"“°Ð¢Òf–æÆÇ’°Ð¢6WE6f–æu&ö¦V7B†fÇ6R“°Ð¢ÐÐ¢ÐÐ Ð¢7–æ2gVæ7F–öâW&ÖæVçFÇ”FVÆWFU&ö¦V7B‡&ö¦V7C¢&W6V&6…&ö¦V7E&V6÷&B’°Ð¢–b‚v–æF÷ræ6öæf—&Ò†W&ÖæVçFÇ’FVÆWFR"G·&ö¦V7BçF—FÆWÒ"æBÆÂöb—G2&W6V&6‚'Vç2ÂWf–FVæ6RÂæB&W÷'G3ò6fVBÆ–'&'’W'2v–ÆÂ&R¶WBæ’’&WGW&ã°Ð¢6WE6f–æu&ö¦V7B‡G'VR“°Ð¢6WEv÷&·76TW'&÷"‚""“°Ð¢G'’°Ð¢v—BFVÆWFU&W6V&6…&ö¦V7B‡&ö¦V7Bæ–B“°Ð¢–b†7F—fU&ö¦V7D–BÓÓÒ&ö¦V7Bæ–B’6WD7F—fU&ö¦V7D–B†çVÆÂ“°Ð¢v—B&Vg&W6…v÷&·76R‚“°Ð¢6WDæ÷F–6R‚%v÷&·76RæB—G2'Vâ×66÷VB&V6÷&G2vW&RW&ÖæVçFÇ’FVÆWFVBâ6fVBÆ–'&'’W'2vW&R¶WBâ"“°Ð¢Ò6F6‚†W'&÷"’°Ð¢6WEv÷&·76TW'&÷"†W'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢$6÷VÆBæ÷BFVÆWFRF†Rv÷&·76Râ"“°Ð¢Òf–æÆÇ’°Ð¢6WE6f–æu&ö¦V7B†fÇ6R“°Ð¢ÐÐ¢ÐÐ Ð¢7–æ2gVæ7F–öâ6æ6VÅ'Vâ‡'Vä–C¢7G&–ær’°Ð¢6WE'Vä7F–öä–B‡'Vä–B“°Ð¢6WEv÷&·76TW'&÷"‚""“°Ð¢G'’°Ð¢6öç7BWFFVBÒv—B6æ6VÅ&W6V&6…'Vâ‡'Vä–B“°Ð¢6WE'Vç2‚†7W'&VçB’Óâ7W'&VçBæÖ‚‡'Vâ’Óâ'Vâæ–BÓÓÒWFFVBæ–BòWFFVB¢'Vâ’“°Ð¢6WDæ÷F–6R‡WFFVBç7FGW2ÓÓÒ&6æ6VÅ÷&WVW7FVB Ð¢ò$6æ6VÆÆF–öâ&WVW7FVBâ6‡&öæ–6ÆRv–ÆÂ7F÷gFW"—B&V6†W26fR—VÆ–æR&÷VæF'’â Ð¢¢%VWVVB'Vâ6æ6VÆÆVBâF†R'Vâ&V6÷&BæBVF—B†—7F÷'’&R&W6W'fVBâ"“°Ð¢Ò6F6‚†W'&÷"’°Ð¢6WEv÷&·76TW'&÷"†W'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢$6÷VÆBæ÷B6æ6VÂF†—2&W6V&6‚'Vââ"“°Ð¢Òf–æÆÇ’°Ð¢6WE'Vä7F–öä–B†çVÆÂ“°Ð¢ÐÐ¢ÐÐ Ð¢7–æ2gVæ7F–öâ&WG'•'Vâ‡'Vä–C¢7G&–ær’°Ð¢6WE'Vä7F–öä–B‡'Vä–B“°Ð¢6WEv÷&·76TW'&÷"‚""“°Ð¢G'’°Ð¢6öç7B&WG'’Òv—B&WG'•&W6V&6…'Vâ‡'Vä–B“°Ð¢6WE'Vç2‚†7W'&VçB’Óâ·&WG'’Âââæ7W'&VçBæf–ÇFW"‚‡'Vâ’Óâ'Vâæ–BÓÒ&WG'’æ–B•Ò“°Ð¢6WD7F—fU'Vä–B‡&WG'’æ–B“°Ð¢6WDæ÷F–6R‚$æWr&WG'’'Vâ†2&VVâVWVVBâF†R÷&–v–æÂ'VâæB—G2Wf–FVæ6R†—7F÷'’&VÖ–âVæ6†ævVBâ"“°Ð¢6WEf–Wr‚%&W6V&6‚v÷&·76R"“°Ð¢Ò6F6‚†W'&÷"’°Ð¢6WEv÷&·76TW'&÷"†W'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢$6÷VÆBæ÷B&WG'’F†—2&W6V&6‚'Vââ"“°Ð¢Òf–æÆÇ’°Ð¢6WE'Vä7F–öä–B†çVÆÂ“°Ð¢ÐÐ¢ÐÐ Ð¢7–æ2gVæ7F–öâ7V&Ö—E&W6V&6‚†WfVçC¢&V7Bäf÷&ÔWfVçCÄ…DÔÄf÷&ÔVÆVÖVçCâ’°Ð¢WfVçBç&WfVçDFVfVÇB‚“°Ð¢–b‡VW7F–öâçG&–Ò‚’æÆVæwF‚Â‚’°Ð¢6WDæ÷F–6R‚$VçFW"&W6V&6‚VW7F–öâöbBÆV7B‚6†&7FW'2â"“°Ð¢&WGW&ã°Ð¢ÐÐ¢6WD7&VF–æu'Vâ‡G'VR“°Ð¢6WDæ÷F–6R‚""“°Ð¢G'’°Ð¢6öç7B7&VFVBÒv—B7&VFU&W6V&6…'Vâ‡°Ð¢VW7F–öã¢VW7F–öâçG&–Ò‚’ÀÐ¢ÖöFS¢&W6V&6„ÖöFRÀÐ¢Ö…÷6÷W&6W3¢Ö…6÷W&6W2ÀÐ¢&ö¦V7Eö–C¢7F—fU&ö¦V7D–BÀÐ¢6÷W&6U÷W%ö–G3¢6VÆV7FVEFeW$–G2ÀÐ¢âââ†WfÇVF–öä&ÒÓÓÒ&FVfVÇB"ò·Ò¢²WfÇVF–öåö&Ó¢WfÇVF–öä&ÒÒ’ÀÐ¢W†V7WFS¢G'VPÐ¢Ò“°Ð¢6WE'Vç2‚†7W'&VçB’Óâ¶7&VFVBÂââæ7W'&VçBæf–ÇFW"‚‡'Vâ’Óâ'Vâæ–BÓÒ7&VFVBæ–B•Ò“°Ð¢6WD7F—fU'Vä–B†7&VFVBæ–B“°Ð¢6WEVW7F–öâ‚""“°Ð¢6WEf–Wr‚%&W6V&6‚v÷&·76R"“°Ð¢6WDæ÷F–6R‚%&W6V&6‚'Vâ7F'FVBâ"“°Ð¢Ò6F6‚†W'&÷"’°Ð¢6WDæ÷F–6R†W'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢$6÷VÆBæ÷B7F'BF†R&W6V&6‚'Vââ"“°Ð¢Òf–æÆÇ’°Ð¢6WD7&VF–æu'Vâ†fÇ6R“°Ð¢ÐÐ¢ÐÐ Ð¢7–æ2gVæ7F–öâ&Vg&W6„w&‚‚’°Ð¢–b‚7F—fU'Vä–B’&WGW&ã°Ð¢6WDw&…&Vg&W6„¶W’‚‡fÇVR’ÓâfÇVR²“°Ð¢ÐÐ Ð¢7–æ2gVæ7F–öâ&Wf–Wu&VÆF–öâ‡&VÆF–öä–C¢7G&–ærÂ&Wf–WvW%7FGW3¢&66WFVB"Â'&V¦V7FVB"Â&æVVG5÷&Wf–Wr"’°Ð¢6WE&Wf–Wv–æu&VÆF–öä–B‡&VÆF–öä–B“°Ð¢6WDw&„W'&÷"‚""“°Ð¢G'’°Ð¢v—B&Wf–WtWf–FVæ6U&VÆF–öâ€Ð¢&VÆF–ý¼ÛÎm¢G§²ÚîÆ­yÒ>Uncertainty notes</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{verificationByClaim[selectedGraphNode.id].uncertainty_notes.map((item, index) => <li key={index}>{item}</li>)}</ul></div> : null}
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import {
+  Activity, AlertCircle, ArrowRight, BookOpen, Check, ChevronDown, Clock3,
+  FlaskConical, History, LayoutDashboard, LoaderCircle, LogOut, Network, Plus,
+  RefreshCw, Search, ShieldCheck, Sparkles, Upload, X
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import {
+  clearAccessToken, configurePaperMonitoring, createResearchRun, createSourceEvent,
+  downloadEvidencePassport, fetchCurrentUser, getEvidenceGraph, hasSavedAccessToken,
+  importPaper, listLibraryPapers, listReportVersions, listResearchRuns, listSourceEvents,
+  listSourceStatusChecks, loginAccount, recordPaperStatusCheck, registerAccount,
+  addPaperDependency, listDependencyCandidates,
+  cancelResearchRun, retryResearchRun, reverifySourceEventImpactedClaims,
+  createResearchProject, listResearchProjects, updateResearchProject,
+  reviewEvidenceRelation, reviewConclusion as reviewConclusionRecord, compareClaimsContextually, saveAccessToken, searchAcademicSources, uploadPdf, deleteUploadedPdf,
+  verifyClaimCitationSupport,
+  type AcademicSearchResult, type AuthUser, type CitationVerificationResult, type DependencyCandidate, type EvidenceGraphResponse, type LibraryPaper,
+  type PaperStatusCheck, type ReportVersionSummary, type ResearchMode, type ResearchProjectRecord, type ResearchRun,
+  type SourceEventRecord, type SourceEventReverificationResponse, type SourceStatusCheckRecord
+} from "@/lib/api";
+
+type View = "Overview" | "Research workspace" | "Evidence graph" | "Source timeline" | "Hypothesis lab";
+type GraphNode = EvidenceGraphResponse["nodes"][number];
+type GraphEdge = EvidenceGraphResponse["edges"][number];
+type EventKind = "correction" | "retraction" | "expression_of_concern" | "new_version" | "metadata_change" | "conflicting_study";
+type Verification = "unverified" | "metadata_confirmed" | "human_verified";
+
+const NAV: { label: View; icon: LucideIcon }[] = [
+  { label: "Overview", icon: LayoutDashboard },
+  { label: "Research workspace", icon: BookOpen },
+  { label: "Evidence graph", icon: Network },
+  { label: "Source timeline", icon: History },
+  { label: "Hypothesis lab", icon: FlaskConical }
+];
+
+const MODES: { value: ResearchMode; label: string }[] = [
+  { value: "quick", label: "Quick discovery" },
+  { value: "deep", label: "Deep research" },
+  { value: "academic", label: "Academic review" },
+  { value: "forensic", label: "Forensic analysis" }
+];
+
+const EVENT_TYPES: { value: EventKind; label: string }[] = [
+  { value: "correction", label: "Correction" },
+  { value: "retraction", label: "Retraction" },
+  { value: "expression_of_concern", label: "Expression of concern" },
+  { value: "new_version", label: "New version" },
+  { value: "metadata_change", label: "Metadata change" },
+  { value: "conflicting_study", label: "Conflicting study" }
+];
+
+function statusTone(status: string): string {
+  if (status === "completed_with_limitations") return "bg-amber-50 text-amber-800 ring-amber-600/15";
+  if (status === "completed" || status === "supported" || status === "human_verified" || status === "accepted") return "bg-emerald-50 text-emerald-700 ring-emerald-600/15";
+  if (status === "failed" || status === "rejected" || status === "contradicted") return "bg-rose-50 text-rose-700 ring-rose-600/15";
+  if (status === "running" || status === "queued" || status === "unverified" || status === "needs_review" || status === "qualified") return "bg-amber-50 text-amber-800 ring-amber-600/15";
+  return "bg-slate-100 text-slate-600 ring-slate-500/10";
+}
+
+function StatusPill({ children, status }: { children: React.ReactNode; status: string }) {
+  return <span className={"inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ring-inset " + statusTone(status)}>{children}</span>;
+}
+
+function formatDate(value?: string): string {
+  if (!value) return "â€”";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+function shorten(value: string, max = 120): string {
+  const cleaned = value.trim();
+  return cleaned.length > max ? cleaned.slice(0, max - 1).trimEnd() + "â€¦" : cleaned;
+}
+
+function wrapSvgLabel(value: string, lineLength = 24): string[] {
+  const words = value.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    if ((line + " " + word).trim().length > lineLength && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = (line + " " + word).trim();
+    }
+  }
+  if (line) lines.push(line);
+  return lines.slice(0, 2);
+}
+
+function graphLayer(type: string): number {
+  if (type === "paper") return 0;
+  if (type === "paper_version") return 1;
+  if (type === "passage" || type === "study") return 2;
+  if (type === "claim" || type === "conclusion") return 3;
+  if (type === "report_version" || type === "recommendation") return 4;
+  return 2;
+}
+
+function edgeColor(type: string): string {
+  if (type === "supports") return "#0f9f82";
+  if (type === "contradicts") return "#e45c66";
+  if (type === "qualifies" || type === "not_comparable" || type === "insufficient_evidence") return "#d99a2b";
+  if (type === "depends_on" || type === "derived_from" || type === "same_dataset" || type === "duplicate_or_overlap") return "#7c73e6";
+  return "#a1adbf";
+}
+
+function useGraphLayout(nodes: GraphNode[], edges: GraphEdge[]) {
+  return useMemo(() => {
+    const grouped: GraphNode[][] = [[], [], [], [], []];
+    nodes.forEach((node) => grouped[graphLayer(node.type)].push(node));
+    grouped.forEach((layer) => layer.sort((a, b) => a.label.localeCompare(b.label)));
+    const columnX = [24, 262, 500, 738, 976];
+    const nodeWidth = 198;
+    const nodeHeight = 84;
+    const rowGap = 32;
+    const rowCount = Math.max(1, ...grouped.map((layer) => layer.length));
+    const height = Math.max(420, 70 + rowCount * (nodeHeight + rowGap));
+    const placed: { node: GraphNode; x: number; y: number }[] = [];
+    grouped.forEach((layer, layerIndex) => {
+      layer.forEach((node, index) => {
+        placed.push({
+          node,
+          x: columnX[layerIndex],
+          y: 56 + index * (nodeHeight + rowGap)
+        });
+      });
+    });
+    const positions = new Map(placed.map((item) => [item.node.id, item]));
+    const lines = edges.filter((edge) => positions.has(edge.source) && positions.has(edge.target)).map((edge) => {
+      const source = positions.get(edge.source)!;
+      const target = positions.get(edge.target)!;
+      let sx = source.x + nodeWidth;
+      let sy = source.y + nodeHeight / 2;
+      let tx = target.x;
+      let ty = target.y + nodeHeight / 2;
+      let path: string;
+      if (target.x > source.x) {
+        const mid = (sx + tx) / 2;
+        path = "M " + sx + " " + sy + " C " + mid + " " + sy + ", " + mid + " " + ty + ", " + tx + " " + ty;
+      } else if (target.x < source.x) {
+        sx = source.x;
+        tx = target.x + nodeWidth;
+        const mid = (sx + tx) / 2;
+        path = "M " + sx + " " + sy + " C " + mid + " " + sy + ", " + mid + " " + ty + ", " + tx + " " + ty;
+      } else if (target.y >= source.y) {
+        sx = source.x + nodeWidth / 2;
+        tx = target.x + nodeWidth / 2;
+        sy = source.y + nodeHeight;
+        ty = target.y;
+        const mid = (sy + ty) / 2;
+        path = "M " + sx + " " + sy + " C " + (sx + 38) + " " + mid + ", " + (tx + 38) + " " + mid + ", " + tx + " " + ty;
+      } else {
+        sx = source.x + nodeWidth / 2;
+        tx = target.x + nodeWidth / 2;
+        sy = source.y;
+        ty = target.y + nodeHeight;
+        const mid = (sy + ty) / 2;
+        path = "M " + sx + " " + sy + " C " + (sx + 38) + " " + mid + ", " + (tx + 38) + " " + mid + ", " + tx + " " + ty;
+      }
+      return { edge, path, labelX: (sx + tx) / 2, labelY: (sy + ty) / 2 - 6 };
+    });
+    return { placed, positions, lines, height, nodeWidth, nodeHeight };
+  }, [nodes, edges]);
+}
+
+function EmptyState({ icon: Icon, title, description, action }: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}) {
+  return <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+    <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600"><Icon size={20}/></span>
+    <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+    <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">{description}</p>
+    {action ? <div className="mt-5">{action}</div> : null}
+  </div>;
+}
+
+export default function ChronicleWorkbench() {
+  const [view, setView] = useState<View>("Overview");
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+
+  const [notice, setNotice] = useState("");
+  const [runs, setRuns] = useState<ResearchRun[]>([]);
+  const [papers, setPapers] = useState<LibraryPaper[]>([]);
+  const [sourceEvents, setSourceEvents] = useState<SourceEventRecord[]>([]);
+  const [sourceReverification, setSourceReverification] = useState<Record<string, SourceEventReverificationResponse>>({});
+  const [reverifyingSourceEventId, setReverifyingSourceEventId] = useState<string | null>(null);
+  const [statusChecks, setStatusChecks] = useState<SourceStatusCheckRecord[]>([]);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState("");
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ResearchProjectRecord[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [showArchivedProjects, setShowArchivedProjects] = useState(false);
+  const [newProjectTitle, setNewProjectTitle] = useState("");
+  const [newProjectQuestion, setNewProjectQuestion] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingProjectTitle, setEditingProjectTitle] = useState("");
+  const [editingProjectQuestion, setEditingProjectQuestion] = useState("");
+  const [savingProject, setSavingProject] = useState(false);
+
+  const [question, setQuestion] = useState("");
+  const [researchMode, setResearchMode] = useState<ResearchMode>("deep");
+  const [maxSources, setMaxSources] = useState(10);
+  const [evaluationArm, setEvaluationArm] = useState<"default" | "A" | "B" | "C" | "D">("default");
+  const [selectedPdfPaperIds, setSelectedPdfPaperIds] = useState<string[]>([]);
+  const [creatingRun, setCreatingRun] = useState(false);
+  const [runActionId, setRunActionId] = useState<string | null>(null);
+  const [reportVersions, setReportVersions] = useState<ReportVersionSummary[]>([]);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [exporting, setExporting] = useState<"markdown" | "json" | "pdf" | null>(null);
+
+  const [graphData, setGraphData] = useState<EvidenceGraphResponse | null>(null);
+  const [graphLoading, setGraphLoading] = useState(false);
+  const [graphError, setGraphError] = useState("");
+  const [graphRefreshKey, setGraphRefreshKey] = useState(0);
+  const [graphQuery, setGraphQuery] = useState("");
+  const [graphType, setGraphType] = useState("all");
+  const [graphClaimStatus, setGraphClaimStatus] = useState("all");
+  const [graphRelationType, setGraphRelationType] = useState("all");
+  const [graphOpenIssuesOnly, setGraphOpenIssuesOnly] = useState(false);
+  const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null);
+
+  const [sourceQuery, setSourceQuery] = useState("");
+  const [sourceResults, setSourceResults] = useState<AcademicSearchResult[]>([]);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [sourceError, setSourceError] = useState("");
+  const [savedPaperKeys, setSavedPaperKeys] = useState<string[]>([]);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState("");
+  const [pdfPendingDelete, setPdfPendingDelete] = useState<LibraryPaper | null>(null);
+  const [deletingPdfId, setDeletingPdfId] = useState<string | null>(null);
+
+  const [eventFormOpen, setEventFormOpen] = useState(false);
+  const [eventPaperId, setEventPaperId] = useState("");
+  const [eventType, setEventType] = useState<EventKind>("retraction");
+  const [eventDescription, setEventDescription] = useState("");
+  const [eventSourceUrl, setEventSourceUrl] = useState("");
+  const [eventVerification, setEventVerification] = useState<Verification>("unverified");
+  const [recordingEvent, setRecordingEvent] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const [statusCheck, setStatusCheck] = useState<PaperStatusCheck | null>(null);
+  const [monitorIntervalMinutes, setMonitorIntervalMinutes] = useState(1440);
+  const [updatingMonitoring, setUpdatingMonitoring] = useState(false);
+  const [showAdvancedSourceSearch, setShowAdvancedSourceSearch] = useState(false);
+  const [showPdfUpload, setShowPdfUpload] = useState(false);
+  const [reviewingRelationId, setReviewingRelationId] = useState<string | null>(null);
+  const [reviewingConclusionId, setReviewingConclusionId] = useState<string | null>(null);
+  const [verifyingClaimId, setVerifyingClaimId] = useState<string | null>(null);
+  const [comparisonTargetClaimId, setComparisonTargetClaimId] = useState("");
+  const [comparingClaims, setComparingClaims] = useState(false);
+  const [verificationByClaim, setVerificationByClaim] = useState<Record<string, CitationVerificationResult>>({});
+  const [dependencyCandidates, setDependencyCandidates] = useState<DependencyCandidate[]>([]);
+  const [dependencyCandidatesLoading, setDependencyCandidatesLoading] = useState(false);
+  const [dependencyCandidatesLoaded, setDependencyCandidatesLoaded] = useState(false);
+  const [dependencyCandidateError, setDependencyCandidateError] = useState("");
+  const [savingDependencyCandidateId, setSavingDependencyCandidateId] = useState<string | null>(null);
+
+  const activeRun = useMemo(() => runs.find((run) => run.id === activeRunId) ?? null, [runs, activeRunId]);
+  const activeReport = reportVersions[0] ?? null;
+  const selectedPaper = papers.find((paper) => paper.id === eventPaperId) ?? null;
+  const synthesis = activeReport?.evidence_snapshot?.model_synthesis;
+  const modelSynthesis = synthesis && typeof synthesis === "object" ? synthesis as {
+    executive_summary?: string;
+    findings?: { statement: string; evidence_passage_ids?: string[]; relation_type?: string; context_note?: string | null }[];
+    disagreements?: { description: string; evidence_passage_ids?: string[]; comparability_note?: string | null }[];
+    limitations?: string[];
+    candidate_research_questions?: string[];
+    research_opportunities?: { question: string; rationale: string; evidence_passage_ids?: string[]; prior_art_search_queries?: string[]; alternative_explanations?: string[]; falsification_plan: string; review_status?: string }[];
+    uncertainty_statement?: string;
+    human_review_required?: boolean;
+  } : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function restoreSession() {
+      if (!hasSavedAccessToken()) {
+        setAuthLoading(false);
+        return;
+      }
+      try {
+        const user = await fetchCurrentUser();
+        if (!cancelled) setAuthUser(user);
+      } catch {
+        clearAccessToken();
+        if (!cancelled) setAuthUser(null);
+      } finally {
+        if (!cancelled) setAuthLoading(false);
+      }
+    }
+    void restoreSession();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!authUser) {
+      setRuns([]);
+      setPapers([]);
+      setSourceEvents([]);
+      setStatusChecks([]);
+      setActiveRunId(null);
+      setReportVersions([]);
+      setGraphData(null);
+      return;
+    }
+    let cancelled = false;
+    async function loadWorkspace() {
+      setWorkspaceLoading(true);
+      setWorkspaceError("");
+      try {
+        const results = await Promise.all([
+          listResearchRuns(),
+          listLibraryPapers(100),
+          listSourceEvents(50),
+          listSourceStatusChecks(50, false),
+          listResearchProjects(true)
+        ]);
+        if (cancelled) return;
+        const nextRuns = results[0] as ResearchRun[];
+        const nextPapers = results[1] as LibraryPaper[];
+        const nextProjects = results[4] as ResearchProjectRecord[];
+        setRuns(nextRuns);
+        setPapers(nextPapers);
+        setProjects(nextProjects);
+        setSourceEvents(results[2] as SourceEventRecord[]);
+        setStatusChecks(results[3] as SourceStatusCheckRecord[]);
+        setActiveRunId((current) => current && nextRuns.some((run) => run.id === current) ? current : (nextRuns[0]?.id ?? null));
+        setEventPaperId((current) => current && nextPapers.some((paper) => paper.id === current) ? current : (nextPapers[0]?.id ?? ""));
+        setActiveProjectId((current) => current && nextProjects.some((project) => project.id === current && !project.archived_at) ? current : (nextProjects.find((project) => !project.archived_at)?.id ?? null));
+      } catch (error) {
+        if (!cancelled) setWorkspaceError(error instanceof Error ? error.message : "Could not load your workspace.");
+      } finally {
+        if (!cancelled) setWorkspaceLoading(false);
+      }
+    }
+    void loadWorkspace();
+    return () => { cancelled = true; };
+  }, [authUser]);
+
+  useEffect(() => {
+    if (!authUser || !activeRunId || !["queued", "running", "cancel_requested"].includes(activeRun?.status ?? "")) return;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      try {
+        const nextRuns = await listResearchRuns();
+        if (!cancelled) setRuns(nextRuns);
+      } catch {
+        // The current status stays visible; the user can refresh manually.
+      }
+    }, 3500);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [authUser, activeRunId, activeRun?.status]);
+
+  useEffect(() => {
+    if (!authUser || !activeRunId || (activeRun?.status !== "completed" && activeRun?.status !== "completed_with_limitations")) {
+      setReportVersions([]);
+      return;
+    }
+    let cancelled = false;
+    setReportLoading(true);
+    listReportVersions(activeRunId).then((reports) => {
+      if (!cancelled) setReportVersions(reports);
+    }).catch(() => {
+      if (!cancelled) setReportVersions([]);
+    }).finally(() => {
+      if (!cancelled) setReportLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [authUser, activeRunId, activeRun?.status]);
+
+  useEffect(() => {
+    if (!authUser || view !== "Evidence graph" || !activeRunId) return;
+    let cancelled = false;
+    setGraphLoading(true);
+    setGraphError("");
+    getEvidenceGraph(activeRunId).then((graph) => {
+      if (cancelled) return;
+      setGraphData(graph);
+      setSelectedGraphNodeId((current) => current && graph.nodes.some((node) => node.id === current) ? current : (graph.nodes[0]?.id ?? null));
+    }).catch((error) => {
+      if (!cancelled) setGraphError(error instanceof Error ? error.message : "Could not load evidence for this run.");
+    }).finally(() => {
+      if (!cancelled) setGraphLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [authUser, view, activeRunId, graphRefreshKey]);
+
+  useEffect(() => {
+    const selected = papers.find((paper) => paper.id === eventPaperId);
+    if (selected) setMonitorIntervalMinutes(selected.monitor_interval_minutes);
+  }, [eventPaperId, papers]);
+
+  async function submitAuthentication(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthSubmitting(true);
+    setAuthError("");
+    try {
+      const result = authMode === "register"
+        ? await registerAccount(authEmail.trim(), authPassword)
+        : await loginAccount(authEmail.trim(), authPassword);
+      saveAccessToken(result.access_token);
+      setAuthUser(result.user);
+      setAuthPassword("");
+      setNotice(authMode === "register" ? "Account created." : "Signed in.");
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Authentication failed. Check your connection and credentials.");
+    } finally {
+      setAuthSubmitting(false);
+      setAuthLoading(false);
+    }
+  }
+
+  function signOut() {
+    clearAccessToken();
+    setAuthUser(null);
+    setView("Overview");
+    setRuns([]);
+    setProjects([]);
+    setActiveProjectId(null);
+    setPapers([]);
+    setSourceEvents([]);
+    setReportVersions([]);
+    setGraphData(null);
+    setStatusCheck(null);
+    setNotice("Signed out.");
+  }
+
+  async function refreshWorkspace() {
+    setWorkspaceLoading(true);
+    setWorkspaceError("");
+    try {
+      const results = await Promise.all([
+        listResearchRuns(), listLibraryPapers(100), listSourceEvents(50), listSourceStatusChecks(50, false), listResearchProjects(true)
+      ]);
+      const nextRuns = results[0] as ResearchRun[];
+      const nextProjects = results[4] as ResearchProjectRecord[];
+      setRuns(nextRuns);
+      setProjects(nextProjects);
+      setActiveProjectId((current) => current && nextProjects.some((project) => project.id === current && !project.archived_at) ? current : (nextProjects.find((project) => !project.archived_at)?.id ?? null));
+      setPapers(results[1] as LibraryPaper[]);
+      setSourceEvents(results[2] as SourceEventRecord[]);
+      setStatusChecks(results[3] as SourceStatusCheckRecord[]);
+      setActiveRunId((current) => current && nextRuns.some((run) => run.id === current) ? current : (nextRuns[0]?.id ?? null));
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not refresh your workspace.");
+    } finally {
+      setWorkspaceLoading(false);
+    }
+  }
+
+  async function submitNewProject(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (newProjectTitle.trim().length < 2 || newProjectQuestion.trim().length < 8) {
+      setNotice("Workspace title needs 2 characters and its research question needs 8.");
+      return;
+    }
+    setCreatingProject(true);
+    setWorkspaceError("");
+    try {
+      const project = await createResearchProject({
+        title: newProjectTitle.trim(),
+        research_question: newProjectQuestion.trim(),
+      });
+      setProjects((current) => [project, ...current.filter((item) => item.id !== project.id)]);
+      setActiveProjectId(project.id);
+      setNewProjectTitle("");
+      setNewProjectQuestion("");
+      setNotice("Research workspace created.");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not create the workspace.");
+    } finally {
+      setCreatingProject(false);
+    }
+  }
+
+  function beginEditProject(project: ResearchProjectRecord) {
+    setEditingProjectId(project.id);
+    setEditingProjectTitle(project.title);
+    setEditingProjectQuestion(project.research_question);
+  }
+
+  async function saveEditedProject(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingProjectId) return;
+    setSavingProject(true);
+    setWorkspaceError("");
+    try {
+      const updated = await updateResearchProject(editingProjectId, {
+        title: editingProjectTitle.trim(),
+        research_question: editingProjectQuestion.trim(),
+      });
+      setProjects((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setEditingProjectId(null);
+      setNotice("Workspace details updated.");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not update the workspace.");
+    } finally {
+      setSavingProject(false);
+    }
+  }
+
+  async function setProjectArchived(project: ResearchProjectRecord, archived: boolean) {
+    setSavingProject(true);
+    setWorkspaceError("");
+    try {
+      const updated = await updateResearchProject(project.id, { archived });
+      setProjects((current) => current.map((item) => item.id === updated.id ? updated : item));
+      if (archived && activeProjectId === project.id) setActiveProjectId(null);
+      if (!archived) setActiveProjectId(project.id);
+      if (editingProjectId === project.id) setEditingProjectId(null);
+      setNotice(archived ? "Workspace archived. Its historical runs remain available." : "Workspace restored.");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not change workspace archive state.");
+    } finally {
+      setSavingProject(false);
+    }
+  }
+
+  async function cancelRun(runId: string) {
+    setRunActionId(runId);
+    setWorkspaceError("");
+    try {
+      const updated = await cancelResearchRun(runId);
+      setRuns((current) => current.map((run) => run.id === updated.id ? updated : run));
+      setNotice(updated.status === "cancel_requested"
+        ? "Cancellation requested. Chronicle will stop after it reaches a safe pipeline boundary."
+        : "Queued run cancelled. The run record and audit history are preserved.");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not cancel this research run.");
+    } finally {
+      setRunActionId(null);
+    }
+  }
+
+  async function retryRun(runId: string) {
+    setRunActionId(runId);
+    setWorkspaceError("");
+    try {
+      const retry = await retryResearchRun(runId);
+      setRuns((current) => [retry, ...current.filter((run) => run.id !== retry.id)]);
+      setActiveRunId(retry.id);
+      setNotice("A new retry run has been queued. The original run and its evidence history remain unchanged.");
+      setView("Research workspace");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not retry this research run.");
+    } finally {
+      setRunActionId(null);
+    }
+  }
+
+  async function submitResearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (question.trim().length < 8) {
+      setNotice("Enter a research question of at least 8 characters.");
+      return;
+    }
+    setCreatingRun(true);
+    setNotice("");
+    try {
+      const created = await createResearchRun({
+        question: question.trim(),
+        mode: researchMode,
+        max_sources: maxSources,
+        project_id: activeProjectId,
+        source_paper_ids: selectedPdfPaperIds,
+        ...(evaluationArm === "default" ? {} : { evaluation_arm: evaluationArm }),
+        execute: true
+      });
+      setRuns((current) => [created, ...current.filter((run) => run.id !== created.id)]);
+      setActiveRunId(created.id);
+      setQuestion("");
+      setView("Research workspace");
+      setNotice("Research run started.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not start the research run.");
+    } finally {
+      setCreatingRun(false);
+    }
+  }
+
+  async function refreshGraph() {
+    if (!activeRunId) return;
+    setGraphRefreshKey((value) => value + 1);
+  }
+
+  async function reviewRelation(relationId: string, reviewerStatus: "accepted" | "rejected" | "needs_review") {
+    setReviewingRelationId(relationId);
+    setGraphError("");
+    try {
+      await reviewEvidenceRelation(
+        relationId,
+        reviewerStatus,
+        reviewerStatus === "accepted" ? "Reviewed by researcher in Chronicle." : "Researcher requested further review."
+      );
+      const graph = activeRunId ? await getEvidenceGraph(activeRunId) : null;
+      if (graph) setGraphData(graph);
+      setNotice(reviewerStatus === "accepted" ? "Relationship marked as reviewed." : "Relationship flagged for review.");
+    } catch (error) {
+      setGraphError(error instanceof Error ? error.message : "Could not save this review.");
+    } finally {
+      setReviewingRelationId(null);
+    }
+  }
+
+  async function reviewConclusionNode(nodeId: string, reviewerStatus: "accepted" | "rejected" | "needs_review") {
+    const conclusionId = nodeId.startsWith("conclusion:") ? nodeId.slice("conclusion:".length) : nodeId;
+    setReviewingConclusionId(nodeId);
+    setGraphError("");
+    try {
+      await reviewConclusionRecord(
+        conclusionId,
+        reviewerStatus,
+        reviewerStatus === "accepted"
+          ? "Reviewed by researcher in Chronicle."
+          : reviewerStatus === "rejected"
+            ? "Rejected by researcher in Chronicle."
+            : "Researcher requested further review."
+      );
+      const graph = activeRunId ? await getEvidenceGraph(activeRunId) : null;
+      if (graph) setGraphData(graph);
+      setSelectedGraphNodeId(nodeId);
+      setNotice(
+        reviewerStatus === "accepted"
+          ? "Conclusion accepted and human review recorded."
+          : reviewerStatus === "rejected"
+            ? "Conclusion rejected and review history recorded."
+            : "Conclusion returned to the review queue."
+      );
+    } catch (error) {
+      setGraphError(error instanceof Error ? error.message : "Could not save the conclusion review.");
+    } finally {
+      setReviewingConclusionId(null);
+    }
+  }
+
+  async function compareClaimContext(claimNodeId: string) {
+    const claimId = claimNodeId.startsWith("claim:") ? claimNodeId.slice("claim:".length) : claimNodeId;
+    const relatedClaimId = comparisonTargetClaimId.startsWith("claim:")
+      ? comparisonTargetClaimId.slice("claim:".length)
+      : comparisonTargetClaimId;
+    if (!relatedClaimId) {
+      setGraphError("Select another claim from this run before comparing study context.");
+      return;
+    }
+    setComparingClaims(true);
+    setGraphError("");
+    try {
+      const result = await compareClaimsContextually(claimId, relatedClaimId);
+      const graph = activeRunId ? await getEvidenceGraph(activeRunId) : null;
+      if (graph) setGraphData(graph);
+      setSelectedGraphNodeId(claimNodeId);
+      setNotice(
+        `Contextual comparison saved as ${result.relation_type.replaceAll("_", " ")}. Review the population, method and outcome comparison before accepting the relationship.`
+      );
+    } catch (error) {
+      setGraphError(error instanceof Error ? error.message : "Could not compare these claims in context.");
+    } finally {
+      setComparingClaims(false);
+    }
+  }
+
+  async function verifyClaim(claimNodeId: string) {
+    const claimId = claimNodeId.startsWith("claim:") ? claimNodeId.slice("claim:".length) : claimNodeId;
+    setVerifyingClaimId(claimNodeId);
+    setGraphError("");
+    try {
+      const result = await verifyClaimCitationSupport(claimId);
+      setVerificationByClaim((previous) => ({ ...previous, [claimNodeId]: result }));
+      const graph = activeRunId ? await getEvidenceGraph(activeRunId) : null;
+      if (graph) setGraphData(graph);
+      setNotice(`Model assessment: ${result.verdict.replaceAll("_", " ")}. Human review is still required.`);
+    } catch (error) {
+      setGraphError(error instanceof Error ? error.message : "Citation verification failed.");
+    } finally {
+      setVerifyingClaimId(null);
+    }
+  }
+
+  async function loadDependencyCandidates() {
+    setDependencyCandidatesLoading(true);
+    setDependencyCandidateError("");
+    try {
+      const result = await listDependencyCandidates(30);
+      setDependencyCandidates(result.candidates);
+      setDependencyCandidatesLoaded(true);
+    } catch (error) {
+      setDependencyCandidateError(error instanceof Error ? error.message : "Could not discover dependency candidates.");
+    } finally {
+      setDependencyCandidatesLoading(false);
+    }
+  }
+
+  async function confirmDependencyCandidate(candidate: DependencyCandidate) {
+    setSavingDependencyCandidateId(candidate.id);
+    setDependencyCandidateError("");
+    try {
+      await addPaperDependency({
+        dependent_paper_id: candidate.paper_a_id,
+        depends_on_paper_id: candidate.paper_b_id,
+        relation_type: candidate.relation_type,
+        provenance_basis: "human_reviewed",
+        rationale: "Researcher confirmed a candidate surfaced by Chronicle. Signal: " + candidate.signals.join("; ") + ". " + candidate.rationale,
+        confidence: candidate.confidence,
+      });
+      setDependencyCandidates((previous) => previous.filter((item) => item.id !== candidate.id));
+      setNotice("Source relationship confirmed. Updates to either linked record can now flag the other for human review.");
+      if (activeRunId) {
+        const graph = await getEvidenceGraph(activeRunId);
+        setGraphData(graph);
+      }
+    } catch (error) {
+      setDependencyCandidateError(error instanceof Error ? error.message : "Could not save the dependency link.");
+    } finally {
+      setSavingDependencyCandidateId(null);
+    }
+  }
+
+  async function searchPapers() {
+    if (sourceQuery.trim().length < 3) {
+      setSourceError("Enter at least 3 characters.");
+      return;
+    }
+    setSourceLoading(true);
+    setSourceError("");
+    try {
+      const result = await searchAcademicSources(sourceQuery.trim(), 10, "all");
+      setSourceResults(result.results);
+      const failed = Object.keys(result.provider_errors ?? {});
+      if (failed.length) setSourceError("Partial results: " + failed.join(", ") + " unavailable.");
+      else if (!result.results.length) setSourceError("No papers found. Try another query.");
+    } catch (error) {
+      setSourceResults([]);
+      setSourceError(error instanceof Error ? error.message : "Academic search failed.");
+    } finally {
+      setSourceLoading(false);
+    }
+  }
+
+  function paperKey(paper: AcademicSearchResult) {
+    return (paper.doi ? "doi:" + paper.doi.toLowerCase() : (paper.external_id || paper.title)).toLowerCase();
+  }
+
+  async function savePaper(paper: AcademicSearchResult) {
+    const key = paperKey(paper);
+    setSourceError("");
+    setSavedPaperKeys((current) => current.includes(key) ? current : [...current, key]);
+    try {
+      await importPaper(paper);
+      const nextPapers = await listLibraryPapers(100);
+      setPapers(nextPapers);
+      setEventPaperId((current) => current || (nextPapers[0]?.id ?? ""));
+      setNotice("Paper saved to your library.");
+    } catch (error) {
+      setSavedPaperKeys((current) => current.filter((item) => item !== key));
+      setSourceError(error instanceof Error ? error.message : "Could not save this paper.");
+    }
+  }
+
+  async function handlePdfUpload(file?: File) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      setUploadMessage("Choose a PDF file.");
+      return;
+    }
+    setUploadingPdf(true);
+    setUploadMessage("");
+    try {
+      const uploaded = await uploadPdf(file);
+      setUploadMessage(uploaded.duplicate_upload
+        ? "This PDF is already in your library."
+        : "PDF added Â· " + (uploaded.passages_created ?? 0) + " passages extracted. " + (uploaded.note ?? ""));
+      const refreshedPapers = await listLibraryPapers(100);
+      setPapers(refreshedPapers);
+      if (uploaded.paper_id) {
+        setSelectedPdfPaperIds((current) => current.includes(uploaded.paper_id)
+          ? current
+          : current.length < 5 ? [...current, uploaded.paper_id] : current);
+      }
+    } catch (error) {
+      setUploadMessage(error instanceof Error ? error.message : "PDF upload failed.");
+    } finally {
+      setUploadingPdf(false);
+    }
+  }
+
+  async function permanentlyDeletePdf(paper: LibraryPaper) {
+    setDeletingPdfId(paper.id);
+    setWorkspaceError("");
+    try {
+      const deletion = await deleteUploadedPdf(paper.id);
+      const refreshedPapers = await listLibraryPapers(100);
+      setPapers(refreshedPapers);
+      setSelectedPdfPaperIds((current) => current.filter((id) => id !== paper.id));
+      setEventPaperId((current) => current === paper.id ? (refreshedPapers[0]?.id ?? "") : current);
+      setSourceEvents(await listSourceEvents(50));
+      setStatusChecks(await listSourceStatusChecks(50, false));
+      if (activeRunId) {
+        setReportVersions(await listReportVersions(activeRunId));
+        setGraphRefreshKey((value) => value + 1);
+      }
+      setPdfPendingDelete(null);
+      setNotice(`Permanently deleted PDF. Removed ${deletion.deleted_passage_count} passage(s), ${deletion.deleted_claim_count} claim(s), and redacted ${deletion.redacted_report_version_count} report version(s) where needed.`);
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not permanently delete this PDF.");
+    } finally {
+      setDeletingPdfId(null);
+    }
+  }
+
+  async function checkPaperStatus() {
+    if (!eventPaperId) {
+      setNotice("Save a paper before checking its status.");
+      return;
+    }
+    setCheckingStatus(true);
+    setTimelineError("");
+    try {
+      const result = await recordPaperStatusCheck(eventPaperId);
+      setStatusCheck(result);
+      setStatusChecks(await listSourceStatusChecks(50, false));
+      setPapers(await listLibraryPapers(100));
+      setNotice("Source status checked.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Source status check failed.");
+    } finally {
+      setCheckingStatus(false);
+    }
+  }
+
+  const [timelineError, setTimelineError] = useState("");
+
+  async function reverifyImpactedClaims(eventId: string) {
+    setReverifyingSourceEventId(eventId);
+    setTimelineError("");
+    try {
+      const result = await reverifySourceEventImpactedClaims(eventId, 5);
+      setSourceReverification((current) => ({ ...current, [eventId]: result }));
+      setSourceEvents(await listSourceEvents(50));
+      setNotice(
+        "Rechecked " + result.rechecked_count + " impacted claim(s); " +
+        result.skipped_count + " skipped or failed. All reviewed assessments remain pending human review."
+      );
+    } catch (error) {
+      setTimelineError(error instanceof Error ? error.message : "Could not re-check impacted claims.");
+    } finally {
+      setReverifyingSourceEventId(null);
+    }
+  }
+
+  async function submitSourceEvent(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!eventPaperId || eventDescription.trim().length < 8) {
+      setTimelineError("Choose a paper and enter a short description.");
+      return;
+    }
+    setRecordingEvent(true);
+    setTimelineError("");
+    try {
+      const result = await createSourceEvent({
+        paperId: eventPaperId,
+        event_type: eventType,
+        description: eventDescription.trim(),
+        source_url: eventSourceUrl.trim() || undefined,
+        verification_status: eventVerification
+      });
+      setSourceEvents(await listSourceEvents(50));
+      setPapers(await listLibraryPapers(100));
+      setEventDescription("");
+      setEventFormOpen(false);
+      setNotice("Source event recorded. " + result.impact.claims_flagged_for_review + " claim(s) flagged for review.");
+    } catch (error) {
+      setTimelineError(error instanceof Error ? error.message : "Could not record this source event.");
+    } finally {
+      setRecordingEvent(false);
+    }
+  }
+
+  async function toggleMonitoring(enabled: boolean) {
+    if (!eventPaperId) return;
+    setUpdatingMonitoring(true);
+    try {
+      const updated = await configurePaperMonitoring(eventPaperId, enabled, monitorIntervalMinutes);
+      setPapers((current) => current.map((paper) => paper.id === updated.id ? updated : paper));
+      setNotice(enabled ? "Source monitoring enabled." : "Source monitoring disabled.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not update source monitoring.");
+    } finally {
+      setUpdatingMonitoring(false);
+    }
+  }
+
+  async function exportPassport(format: "markdown" | "json" | "pdf") {
+    if (!activeRunId) return;
+    setExporting(format);
+    try {
+      await downloadEvidencePassport(activeRunId, format);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not export the evidence passport.");
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  const graphSource = graphData?.run_id === activeRunId ? graphData : null;
+  const visibleNodes = useMemo(() => {
+    const list = graphSource?.nodes ?? [];
+    const edges = graphSource?.edges ?? [];
+    const q = graphQuery.trim().toLowerCase();
+    let statusScopedIds: Set<string> | null = null;
+    if (graphClaimStatus !== "all") {
+      const matchingClaims = list.filter((node) => node.type === "claim" && (
+        graphClaimStatus === "needs_review"
+          ? Boolean(node.review_required)
+          : (node.assessment ?? "unassessed") === graphClaimStatus
+      ));
+      statusScopedIds = new Set(matchingClaims.map((node) => node.id));
+      for (const edge of edges) {
+        if (statusScopedIds.has(edge.source) || statusScopedIds.has(edge.target)) {
+          statusScopedIds.add(edge.source);
+          statusScopedIds.add(edge.target);
+        }
+      }
+    }
+    return list.filter((node) =>
+      (!statusScopedIds || statusScopedIds.has(node.id)) &&
+      (graphType === "all" || node.type === graphType) &&
+      (!q || (node.label + " " + node.type + " " + node.id).toLowerCase().includes(q))
+    ).slice(0, 64);
+  }, [graphSource, graphQuery, graphType, graphClaimStatus]);
+  const graphLayout = useGraphLayout(visibleNodes, graphSource?.edges ?? []);
+  const selectedGraphNode = graphSource?.nodes.find((node) => node.id === selectedGraphNodeId) ?? null;
+  const visibleGraphNodeIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
+  const visibleGraphEdges = (graphSource?.edges ?? []).filter((edge) =>
+    visibleGraphNodeIds.has(edge.source) &&
+    visibleGraphNodeIds.has(edge.target) &&
+    (graphRelationType === "all" || edge.type === graphRelationType) &&
+    (!graphOpenIssuesOnly || edge.reviewer_status === "unreviewed" || edge.reviewer_status === "needs_review" ||
+      Boolean(graphSource?.nodes.find((node) => node.id === edge.source)?.review_required) ||
+      Boolean(graphSource?.nodes.find((node) => node.id === edge.target)?.review_required))
+  );
+  const currentPaperStatus = selectedPaper?.monitoring_enabled ? "Monitoring on" : "Monitoring off";
+
+  if (authLoading) {
+    return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500"><LoaderCircle className="mr-2 animate-spin" size={18}/> Loading Chronicleâ€¦</div>;
+  }
+
+  if (!authUser) {
+    return <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
+      <div className="grid w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 md:grid-cols-2">
+        <section className="hidden flex-col justify-between bg-slate-950 p-10 text-white md:flex">
+          <div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10"><History size={22}/></span><div><div className="text-lg font-semibold">chronicle.</div><div className="text-xs text-slate-400">Evidence intelligence</div></div></div>
+          <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300">Research with provenance</p><h1 className="mt-4 max-w-sm text-3xl font-semibold leading-tight">Keep every conclusion connected to its evidence.</h1><p className="mt-4 max-w-sm text-sm leading-6 text-slate-300">Search literature, track source changes, and inspect relationships between claims and passages.</p></div>
+          <p className="text-xs text-slate-500">Evidence is a starting point for review, not a substitute for it.</p>
+        </section>
+        <section className="p-7 sm:p-10">
+          <div className="mb-8 flex items-center gap-3 md:hidden"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-white"><History size={20}/></span><div><div className="font-semibold">chronicle.</div><div className="text-xs text-slate-500">Evidence intelligence</div></div></div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">{authMode === "login" ? "Welcome back" : "Get started"}</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{authMode === "login" ? "Sign in to Chronicle" : "Create your account"}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-500">{authMode === "login" ? "Continue your research workspace." : "Save your research runs, sources, and evidence."}</p>
+          <form className="mt-8 space-y-4" onSubmit={submitAuthentication}>
+            <label className="block text-sm font-medium text-slate-700">Email address<input className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-indigo-500" type="email" autoComplete="email" required value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} placeholder="you@example.com"/></label>
+            <label className="block text-sm font-medium text-slate-700">Password<input className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-indigo-500" type="password" autoComplete={authMode === "login" ? "current-password" : "new-password"} minLength={authMode === "register" ? 12 : 1} required value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder={authMode === "register" ? "At least 12 characters" : "Enter your password"}/></label>
+            {authError ? <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{authError}</div> : null}
+            <button disabled={authSubmitting} className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60">{authSubmitting ? <LoaderCircle size={16} className="animate-spin"/> : null}{authSubmitting ? "Please waitâ€¦" : authMode === "login" ? "Sign in" : "Create account"}<ArrowRight size={16}/></button>
+          </form>
+          <p className="mt-6 text-center text-sm text-slate-500">{authMode === "login" ? "New to Chronicle?" : "Already have an account?"} <button className="font-semibold text-indigo-600 hover:text-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600" onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}>{authMode === "login" ? "Create an account" : "Sign in"}</button></p>
+        </section>
+      </div>
+    </main>;
+  }
+
+  const viewSubtitle: Record<View, string> = {
+    "Overview": "Your research, sources, and review activity.",
+    "Research workspace": "Start a question or return to a saved run.",
+    "Evidence graph": "Explore persisted papers, passages, studies, and claims.",
+    "Source timeline": "Track updates that may change how evidence should be reviewed.",
+    "Hypothesis lab": "Turn evidence gaps into candidate research questions."
+  };
+
+  return <div className="min-h-screen bg-slate-50 text-slate-900">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-200 bg-white px-4 py-5 lg:flex">
+      <button onClick={() => setView("Overview")} className="flex items-center gap-3 rounded-xl px-2 py-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-white"><History size={20}/></span>
+        <span><span className="block font-semibold tracking-tight">chronicle.</span><span className="block text-xs text-slate-500">Evidence intelligence</span></span>
+      </button>
+      <div className="mt-9 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Workspace</div>
+      <nav className="mt-3 space-y-1" aria-label="Main navigation">
+        {NAV.map((item) => {
+          const Icon = item.icon;
+          return <button key={item.label} onClick={() => setView(item.label)} aria-current={view === item.label ? "page" : undefined} className={"flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 " + (view === item.label ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950")}><Icon size={17}/><span>{item.label}</span>{item.label === "Source timeline" && sourceEvents.length > 0 ? <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-[10px]">{sourceEvents.length}</span> : null}</button>;
+        })}
+      </nav>
+      <div className="mt-auto border-t border-slate-100 pt-4">
+        <div className="flex items-center gap-3 px-2"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">{authUser.email.slice(0, 1).toUpperCase()}</span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium text-slate-800">{authUser.email}</span><span className="block text-[11px] text-slate-500">Personal workspace</span></span></div>
+        <button onClick={signOut} className="mt-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 hover:text-slate-900"><LogOut size={16}/>Sign out</button>
+      </div>
+    </aside>
+
+    <div className="lg:pl-64">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="flex min-h-[72px] items-center justify-between gap-4 px-4 sm:px-6 xl:px-8">
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold tracking-tight">{view}</h1>
+            <p className="hidden text-xs text-slate-500 sm:block">{viewSubtitle[view]}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="hidden max-w-48 truncate rounded-full bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600 xl:block">{authUser.email}</span>
+            <button onClick={() => { setView("Research workspace"); setQuestion(""); }} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"><Plus size={16}/><span className="hidden sm:inline">New research</span><span className="sm:hidden">New</span></button>
+          </div>
+        </div>
+        <nav className="flex gap-1 overflow-x-auto border-t border-slate-100 px-3 py-2 lg:hidden" aria-label="Mobile navigation">
+          {NAV.map((item) => {
+            const Icon = item.icon;
+            return <button key={item.label} onClick={() => setView(item.label)} aria-current={view === item.label ? "page" : undefined} className={"inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium " + (view === item.label ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50")}><Icon size={14}/>{item.label}</button>;
+          })}
+        </nav>
+      </header>
+
+      <main className="mx-auto max-w-[1500px] space-y-6 px-4 py-6 sm:px-6 xl:px-8">
+        {notice ? <div role="status" aria-live="polite" className="flex items-start justify-between gap-3 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-sm text-indigo-900"><span>{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice("")} className="shrink-0 rounded p-0.5 text-indigo-700 hover:bg-indigo-100"><X size={16}/></button></div> : null}
+        {workspaceError ? <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"><AlertCircle size={17} className="mt-0.5 shrink-0"/><span>{workspaceError}</span></div> : null}
+
+        {view === "Overview" ? <div className="space-y-6">
+          <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">Workspace</p><h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Your research, at a glance.</h2></div>
+            <button onClick={refreshWorkspace} disabled={workspaceLoading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"><RefreshCw size={15} className={workspaceLoading ? "animate-spin" : ""}/>Refresh</button>
+          </section>
+          <section className="grid gap-4 sm:grid-cols-3">
+            {[
+              { label: "Research runs", value: runs.length, hint: "Questions submitted", icon: Activity },
+              { label: "Saved papers", value: papers.length, hint: "In your library", icon: BookOpen },
+              { label: "Source events", value: sourceEvents.length, hint: "Updates recorded", icon: Clock3 }
+            ].map((item) => {
+              const Icon = item.icon;
+              return <article key={item.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><div className="flex items-center justify-between"><span className="text-sm font-medium text-slate-500">{item.label}</span><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Icon size={18}/></span></div><div className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">{item.value}</div><p className="mt-1 text-xs text-slate-500">{item.hint}</p></article>;
+            })}
+          </section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+              <div><h3 className="text-sm font-semibold text-slate-900">Research workspaces</h3><p className="mt-1 text-xs leading-5 text-slate-500">Group questions and research runs by topic. Archived workspaces keep their history but cannot start new runs.</p></div>
+              <button type="button" onClick={() => setShowArchivedProjects((value) => !value)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">{showArchivedProjects ? "Hide archived" : "Show archived"}</button>
+            </div>
+            <form onSubmit={submitNewProject} className="mt-4 grid gap-3 border-b border-slate-100 pb-4 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto]">
+              <label className="block text-xs font-medium text-slate-700">Workspace title<input value={newProjectTitle} onChange={(event) => setNewProjectTitle(event.target.value)} minLength={2} maxLength={240} required placeholder="e.g. Major project literature" className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/></label>
+              <label className="block text-xs font-medium text-slate-700">Primary research question<input value={newProjectQuestion} onChange={(event) => setNewProjectQuestion(event.target.value)} minLength={8} maxLength={4000} required placeholder="What is the main question for this workspace?" className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/></label>
+              <button disabled={creatingProject} className="self-end rounded-lg bg-indigo-600 px-3.5 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">{creatingProject ? "Creatingâ€¦" : "Create workspace"}</button>
+            </form>
+            <div className="mt-3 space-y-2">
+              {projects.filter((project) => showArchivedProjects || !project.archived_at).length === 0 ? <p className="rounded-lg bg-slate-50 p-4 text-xs text-slate-500">{showArchivedProjects ? "No workspaces found yet." : "No active workspaces yet. Create one above or run research without a workspace."}</p> : null}
+              {projects.filter((project) => showArchivedProjects || !project.archived_at).map((project) => <article key={project.id} className="rounded-xl border border-slate-100 p-3">
+                {editingProjectId === project.id ? <form onSubmit={saveEditedProject} className="grid gap-3 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto]">
+                  <label className="block text-xs font-medium text-slate-700">Title<input value={editingProjectTitle} onChange={(event) => setEditingProjectTitle(event.target.value)} minLength={2} maxLength={240} required className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"/></label>
+                  <label className="block text-xs font-medium text-slate-700">Research question<input value={editingProjectQuestion} onChange={(event) => setEditingProjectQuestion(event.target.value)} minLength={8} maxLength={4000} required className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"/></label>
+                  <div className="flex items-end gap-2"><button disabled={savingProject} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{savingProject ? "Savingâ€¦" : "Save"}</button><button type="button" onClick={() => setEditingProjectId(null)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600">Cancel</button></div>
+                </form> : <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                  <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold text-slate-900">{project.title}</h4>{project.archived_at ? <StatusPill status="archived">archived</StatusPill> : activeProjectId === project.id ? <StatusPill status="completed">selected</StatusPill> : null}</div><p className="mt-1 text-xs leading-5 text-slate-500">{project.research_question}</p></div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <button type="button" onClick={() => { setActiveProjectId(project.archived_at ? null : project.id); setView("Research workspace"); }} disabled={Boolean(project.archived_at)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">Open</button>
+                    {!project.archived_at ? <><button type="button" onClick={() => beginEditProject(project)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Rename / edit</button><button type="button" disabled={savingProject} onClick={() => void setProjectArchived(project, true)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Archive</button></> : <button type="button" disabled={savingProject} onClick={() => void setProjectArchived(project, false)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">Restore</button>}
+                  </div>
+                </div>}
+              </article>)}
+            </div>
+          </section>
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h3 className="font-semibold text-slate-900">Recent research</h3><p className="mt-0.5 text-xs text-slate-500">Open a run to continue.</p></div><button onClick={() => setView("Research workspace")} className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700">New run<ArrowRight size={15}/></button></div>
+            {runsLoadingOrEmpty(workspaceLoading, runs) ? <div className="divide-y divide-slate-100">{[1, 2, 3].map((row) => <div key={row} className="animate-pulse px-5 py-4"><div className="h-3 w-2/3 rounded bg-slate-100"/><div className="mt-3 h-3 w-1/3 rounded bg-slate-100"/></div>)}</div> : null}
+            {!workspaceLoading && runs.length === 0 ? <div className="p-4"><EmptyState icon={BookOpen} title="Start your first research run" description="Enter a question and Chronicle will collect source metadata for review." action={<button onClick={() => setView("Research workspace")} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Start research</button>}/></div> : null}
+            {!workspaceLoading && runs.length > 0 ? <div className="divide-y divide-slate-100">{runs.slice(0, 6).map((run) => <button key={run.id} onClick={() => { setActiveRunId(run.id); setView("Research workspace"); }} className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-indigo-600"><span className="min-w-0"><span className="block truncate text-sm font-medium text-slate-900">{run.question}</span><span className="mt-1 block text-xs text-slate-500">{run.mode} Â· {formatDate(run.created_at)}{run.demo ? " Â· Request only" : ""}</span></span><span className="flex shrink-0 items-center gap-3"><StatusPill status={run.status}>{run.status}</StatusPill><ArrowRight size={15} className="text-slate-400"/></span></button>)}</div> : null}
+          </section>
+        </div> : null}
+
+        {view === "Research workspace" ? <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-6">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30 sm:p-6">
+              <div className="mb-5 flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">Research question</p><h2 className="mt-1.5 text-xl font-semibold tracking-tight">What do you want to investigate?</h2></div><span className="hidden rounded-xl bg-indigo-50 p-3 text-indigo-600 sm:flex"><Sparkles size={20}/></span></div>
+              <form onSubmit={submitResearch} className="space-y-4">
+                <label className="block text-sm font-medium text-slate-700">Workspace<select value={activeProjectId ?? ""} onChange={(event) => setActiveProjectId(event.target.value || null)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="">No workspace (standalone run)</option>{projects.filter((project) => !project.archived_at).map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
+                <label className="block text-sm font-medium text-slate-700">Question<textarea value={question} onChange={(event) => setQuestion(event.target.value)} required minLength={8} maxLength={2000} rows={4} placeholder="e.g. How does retrieval practice affect long-term learning outcomes?" className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-indigo-500"/></label>
+                <fieldset className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div><legend className="text-sm font-semibold text-slate-900">Attach PDF evidence</legend><p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Choose up to five PDFs from your private library. Chronicle ranks their extracted passages against your question and uses the selected excerpts in the evidence context.</p></div>
+                    <span className={"rounded-full px-2.5 py-1 text-[11px] font-semibold " + (selectedPdfPaperIds.length ? "bg-indigo-100 text-indigo-700" : "bg-white text-slate-500 border border-slate-200")}>{selectedPdfPaperIds.length}/5 attached</span>
+                  </div>
+                  {papers.filter((paper) => paper.source_provider === "upload").length ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{papers.filter((paper) => paper.source_provider === "upload").map((paper) => {
+                    const selected = selectedPdfPaperIds.includes(paper.id);
+                    const disabled = !selected && selectedPdfPaperIds.length >= 5;
+                    return <label key={paper.id} className={"flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition " + (selected ? "border-indigo-200 bg-white shadow-sm" : "border-slate-200 bg-white hover:border-slate-300") + (disabled ? " cursor-not-allowed opacity-50" : "")}>
+                      <input type="checkbox" checked={selected} disabled={disabled} onChange={(event) => setSelectedPdfPaperIds((current) => event.target.checked ? (current.length < 5 && !current.includes(paper.id) ? [...current, paper.id] : current) : current.filter((id) => id !== paper.id))} className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"/>
+                      <span className="min-w-0"><span className="block break-words text-xs font-semibold leading-5 text-slate-800">{paper.title}</span><span className="mt-1 block text-[11px] text-slate-500">{"PDF Â· extracted passages available"}</span></span>
+                    </label>;
+                  })}</div> : <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-white px-3.5 py-3"><p className="text-xs leading-5 text-slate-500">No uploaded PDFs yet. Add a paper to use its extracted passages alongside scholarly search results.</p><button type="button" onClick={() => setShowPdfUpload(true)} className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Add a PDF</button></div>}
+                  {selectedPdfPaperIds.length ? <p className="mt-3 flex items-start gap-2 text-[11px] leading-5 text-indigo-800"><Check size={13} className="mt-0.5 shrink-0"/>Attached PDFs are retrieved alongside scholarly abstracts. Ranking uses lexical BM25 and optional Hugging Face dense reranking; it falls back to BM25 if embeddings are disabled or unavailable. Scores are not evidence-confidence estimates.</p> : null}
+                </fieldset>
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px]">
+                  <label className="block text-sm font-medium text-slate-700">Research mode<select value={researchMode} onChange={(event) => setResearchMode(event.target.value as ResearchMode)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">{MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                  <label className="block text-sm font-medium text-slate-700">Source limit<select value={maxSources} onChange={(event) => setMaxSources(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value={5}>5 sources</option><option value={10}>10 sources</option><option value={20}>20 sources</option><option value={30}>30 sources</option></select></label>
+                </div>
+                <label className="block text-sm font-medium text-slate-700">FF180 evaluation arm (optional)
+                  <select value={evaluationArm} onChange={(event) => setEvaluationArm(event.target.value as "default" | "A" | "B" | "C" | "D")} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                    <option value="default">Normal research mode (recommended)</option>
+                    <option value="A">A â€” Standard RAG baseline</option>
+                    <option value="B">B â€” Iterative research agent</option>
+                    <option value="C">C â€” Claim/provenance graph</option>
+                    <option value="D">D â€” Full lifecycle with temporal impact</option>
+                  </select>
+                  <span className="mt-2 block text-xs leading-5 text-slate-500">For controlled comparisons, keep the question, source limit, selected PDFs, model/provider and evaluation dataset constant across Aâ€“D. A uses one query; Bâ€“D permit up to two bounded follow-up searches. Arm C disables temporal propagation; D enables it. These arms support experiments but do not themselves constitute benchmark results.</span>
+                </label>
+                <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900">Provider disclosure: Chronicle sends the research query to scholarly metadata providers. When model-backed extraction or verification is run, selected source passages may be sent to the model provider configured by the server. Do not upload or process confidential or restricted material unless authorized.</p>
+                <div className="flex flex-col-reverse justify-between gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center"><p className="text-xs leading-5 text-slate-500">Results remain reviewable; missing evidence is not proof of absence.</p><button disabled={creatingRun} className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60">{creatingRun ? <LoaderCircle size={16} className="animate-spin"/> : <Sparkles size={16}/>} {creatingRun ? "Startingâ€¦" : "Start research"}</button></div>
+              </form>
+            </section>
+
+            {activeRun ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Selected run</p><h3 className="mt-1.5 max-w-3xl text-lg font-semibold tracking-tight text-slate-950">{activeRun.question}</h3></div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusPill status={activeRun.status}>{activeRun.status.replaceAll("_", " ")}</StatusPill>
+                  {!activeRun.demo && (activeRun.status === "queued" || activeRun.status === "running") ? <button type="button" onClick={() => void cancelRun(activeRun.id)} disabled={runActionId === activeRun.id} className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">{runActionId === activeRun.id ? <LoaderCircle size={13} className="animate-spin"/> : <X size={13}/>}Cancel run</button> : null}
+                  {!activeRun.demo && (activeRun.status === "failed" || activeRun.status === "cancelled" || activeRun.status === "completed_with_limitations") ? <button type="button" onClick={() => void retryRun(activeRun.id)} disabled={runActionId === activeRun.id} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">{runActionId === activeRun.id ? <LoaderCircle size={13} className="animate-spin"/> : <RefreshCw size={13}/>}Retry run</button> : null}
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500"><span>{activeRun.mode} Â· up to {activeRun.max_sources} sources</span><span>{formatDate(activeRun.created_at)}</span><span className="font-mono">ID {activeRun.id.slice(0, 8)}</span></div>
+              {activeRun.error_message ? <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{activeRun.error_message}</div> : null}
+              {activeRun.status === "queued" || activeRun.status === "running" ? <div role="status" aria-live="polite" className="mt-5 rounded-xl bg-indigo-50 px-4 py-3"><div className="flex items-center gap-2 text-sm font-medium text-indigo-800"><LoaderCircle size={16} className="animate-spin"/> Research is in progress</div><p className="mt-1 text-xs text-indigo-700">This panel updates automatically.</p></div> : null}
+              {activeRun.status === "cancel_requested" ? <div role="status" aria-live="polite" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"><p className="text-sm font-semibold text-amber-900">Cancellation requested</p><p className="mt-1 text-xs leading-5 text-amber-800">Chronicle is stopping current external work at a safe cancellation point. The original records are preserved.</p></div> : null}
+              {activeRun.status === "cancelled" ? <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-sm font-semibold text-slate-800">Run cancelled</p><p className="mt-1 text-xs leading-5 text-slate-600">A new retry can be launched without changing the original run history.</p></div> : null}
+              {activeRun.status === "completed" || activeRun.status === "completed_with_limitations" ? <div className="mt-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4"><div><p className="text-sm font-semibold text-slate-900">Research report</p><p className="mt-0.5 text-xs text-slate-500">{reportLoading ? "Loading latest reportâ€¦" : activeReport ? "Latest saved version" : "No report version found for this run."}</p></div><div className="flex flex-wrap gap-2"><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("markdown")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "markdown" ? "Exportingâ€¦" : "Export .md"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("json")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "json" ? "Exportingâ€¦" : "Export .json"}</button><button disabled={!activeReport || exporting !== null} onClick={() => void exportPassport("pdf")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{exporting === "pdf" ? "Exportingâ€¦" : "Export .pdf"}</button></div></div>
+                {activeReport ? <div className="max-h-[460px] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/70 p-4 sm:p-5"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                  h1: ({ children }) => <h1 className="mb-3 mt-5 text-xl font-semibold text-slate-900 first:mt-0">{children}</h1>,
+                  h2: ({ children }) => <h2 className="mb-2 mt-5 text-lg font-semibold text-slate-900">{children}</h2>,
+                  h3: ({ children }) => <h3 className="mb-2 mt-4 text-base font-semibold text-slate-900">{children}</h3>,
+                  p: ({ children }) => <p className="mb-3 text-sm leading-6 text-slate-700">{children}</p>,
+                  ul: ({ children }) => <ul className="mb-4 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-700">{children}</ul>,
+                  ol: ({ children }) => <ol className="mb-4 list-decimal space-y-1 pl-5 text-sm leading-6 text-slate-700">{children}</ol>,
+                  a: ({ children, href }) => <a className="text-indigo-600 underline underline-offset-2" href={href} target="_blank" rel="noreferrer">{children}</a>,
+                  blockquote: ({ children }) => <blockquote className="my-4 border-l-2 border-indigo-300 pl-4 text-sm text-slate-600">{children}</blockquote>
+                }}>{activeReport.content_markdown}</ReactMarkdown></div> : <p className="text-sm text-slate-500">The run completed, but no report is available yet.</p>}
+              </div> : null}
+              <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-100 pt-4"><button onClick={() => setView("Evidence graph")} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"><Network size={15}/>Open evidence graph</button><button onClick={() => setView("Hypothesis lab")} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><FlaskConical size={15}/>Hypothesis lab</button></div>
+            </section> : <EmptyState icon={BookOpen} title="No selected research run" description="Start a question above or select a run from the list."/>}
+
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
+              <button onClick={() => setShowAdvancedSourceSearch((current) => !current)} aria-expanded={showAdvancedSourceSearch} className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-slate-50"><span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Search size={17}/></span><span><span className="block text-sm font-semibold text-slate-900">Discover papers</span><span className="mt-0.5 block text-xs text-slate-500">Search Crossref, OpenAlex, Semantic Scholar and public-web discovery leads. Web snippets are not verified full text.</span></span></span><ChevronDown size={17} className={"shrink-0 text-slate-400 transition " + (showAdvancedSourceSearch ? "rotate-180" : "")}/></button>
+              {showAdvancedSourceSearch ? <div className="border-t border-slate-100 p-5">
+                <form onSubmit={(event) => { event.preventDefault(); void searchPapers(); }} className="flex flex-col gap-2 sm:flex-row"><input value={sourceQuery} onChange={(event) => setSourceQuery(event.target.value)} placeholder="Search by topic, title, or DOI" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/><button disabled={sourceLoading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">{sourceLoading ? <LoaderCircle size={15} className="animate-spin"/> : <Search size={15}/>}Search</button></form>
+                {sourceError ? <p role="status" className="mt-3 text-xs text-amber-700">{sourceError}</p> : null}
+                {sourceResults.length ? <div className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-100">{sourceResults.map((paper) => { const key = paperKey(paper); const saved = savedPaperKeys.includes(key) || papers.some((item) => (paper.doi && item.doi?.toLowerCase() === paper.doi.toLowerCase()) || (paper.external_id && item.external_id === paper.external_id)); return <article key={key} className="flex flex-col justify-between gap-3 p-4 sm:flex-row"><div className="min-w-0"><h4 className="text-sm font-medium text-slate-900">{paper.title}</h4><p className="mt-1 text-xs text-slate-500">{(paper.authors ?? []).slice(0, 3).join(", ")}{paper.publication_year ? " Â· " + paper.publication_year : ""}{paper.publisher ? " Â· " + paper.publisher : ""}</p>{paper.doi ? <p className="mt-1 break-all text-[11px] text-slate-400">DOI: {paper.doi}</p> : null}</div><button onClick={() => void savePaper(paper)} disabled={saved} className="h-fit shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-default disabled:bg-emerald-50 disabled:text-emerald-700">{saved ? "Saved" : "Save paper"}</button></article>; })}</div> : null}
+              </div> : null}
+            </section>
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
+              <button onClick={() => setShowPdfUpload((current) => !current)} aria-expanded={showPdfUpload} className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-slate-50"><span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><Upload size={17}/></span><span><span className="block text-sm font-semibold text-slate-900">Add a PDF</span><span className="mt-0.5 block text-xs text-slate-500">Extract text passages for evidence inspection.</span></span></span><ChevronDown size={17} className={"shrink-0 text-slate-400 transition " + (showPdfUpload ? "rotate-180" : "")}/></button>
+              {showPdfUpload ? <div className="border-t border-slate-100 p-5"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-indigo-300 hover:bg-indigo-50/40"><Upload size={20} className="text-slate-500"/><span className="mt-2 text-sm font-medium text-slate-800">{uploadingPdf ? "Uploading PDFâ€¦" : "Choose a PDF (server limit applies)"}</span><span className="mt-1 text-xs text-slate-500">The server validates the file signature, size and page limits. Extracted passages are stored in PostgreSQL. Original PDFs use a private object bucket when configured, or the private PostgreSQL blob table after migration 0008. Vercel uploads are capped at 3 MB until direct-to-object-storage upload is available.</span><input className="sr-only" type="file" accept=".pdf,application/pdf" disabled={uploadingPdf} onChange={(event) => void handlePdfUpload(event.target.files?.[0])}/></label>{uploadMessage ? <p role="status" className="mt-3 text-sm leading-5 text-slate-600">{uploadMessage}</p> : null}
+                {papers.some((paper) => paper.source_provider === "upload") ? <div className="mt-4 border-t border-slate-200 pt-4">
+                  <div className="mb-2 flex items-center justify-between gap-3"><p className="text-xs font-semibold text-slate-800">Uploaded PDF library</p><span className="text-[11px] text-slate-500">{papers.filter((paper) => paper.source_provider === "upload").length} file(s)</span></div>
+                  <div className="space-y-2">{papers.filter((paper) => paper.source_provider === "upload").map((paper) => <div key={paper.id} className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center">
+                    <div className="min-w-0"><p className="break-words text-xs font-semibold leading-5 text-slate-800">{paper.title}</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Selected passages are searchable in new research runs. Deletion also removes their derived claims and redacts affected report versions.</p></div>
+                    <button type="button" onClick={() => setPdfPendingDelete(paper)} disabled={deletingPdfId !== null} className="inline-flex shrink-0 items-center justify-center gap-1.5 self-start rounded-lg border border-rose-200 px-3 py-2 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50 sm:self-center"><X size={13}/>Delete PDF</button>
+                  </div>)}</div>
+                </div> : null}</div> : null}
+            </section>
+          </div>
+          <aside className="space-y-5">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-900">Recent runs</h3><span className="text-xs text-slate-400">{runs.length}</span></div><div className="mt-3 space-y-1">{runs.slice(0, 6).map((run) => <button key={run.id} onClick={() => setActiveRunId(run.id)} className={"w-full rounded-xl px-3 py-3 text-left transition " + (run.id === activeRunId ? "bg-indigo-50" : "hover:bg-slate-50")}><span className="block line-clamp-2 text-sm font-medium text-slate-800">{run.question}</span><span className="mt-2 flex items-center justify-between gap-2"><span className="text-[11px] text-slate-500">{formatDate(run.created_at)}</span><StatusPill status={run.status}>{run.status}</StatusPill></span></button>)}</div></section>
+            <section className="rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white"><ShieldCheck size={20} className="text-indigo-300"/><h3 className="mt-3 text-sm font-semibold">Evidence-first by design</h3><p className="mt-2 text-xs leading-5 text-slate-300">Trace claims back to stored sources. Treat generated interpretations as candidates for review.</p></section>
+          </aside>
+        </div> : null}
+
+        {view === "Evidence graph" ? <section className="space-y-4">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><h2 className="text-xl font-semibold tracking-tight text-slate-950">Evidence relationship map</h2><p className="mt-1 text-sm text-slate-500">Select a node to inspect its saved record.</p></div><div className="flex items-center gap-2"><label className="sr-only" htmlFor="graph-run">Research run</label><select id="graph-run" value={activeRunId ?? ""} onChange={(event) => { setActiveRunId(event.target.value || null); setSelectedGraphNodeId(null); }} className="min-w-0 max-w-64 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="">Choose a research run</option>{runs.map((run) => <option key={run.id} value={run.id}>{shorten(run.question, 58)}</option>)}</select><button aria-label="Refresh graph" onClick={() => void refreshGraph()} disabled={!activeRunId || graphLoading} className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-600 hover:bg-slate-50 disabled:opacity-50"><RefreshCw size={16} className={graphLoading ? "animate-spin" : ""}/></button></div></div>
+          {!activeRunId ? <EmptyState icon={Network} title="Choose a research run" description="The graph uses saved source and claim records from a specific run." action={<button onClick={() => setView("Research workspace")} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Start research</button>}/> : null}
+          {activeRunId && graphLoading && !graphSource ? <div role="status" aria-live="polite" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><div className="flex items-center gap-2 text-sm font-medium text-slate-700"><LoaderCircle size={16} className="animate-spin text-indigo-600"/> Loading saved evidenceâ€¦</div><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{[1, 2, 3, 4].map((item) => <div key={item} className="h-20 animate-pulse rounded-xl bg-slate-100"/> )}</div><div className="mt-4 h-80 animate-pulse rounded-xl bg-slate-50"/></div> : null}
+          {activeRunId && graphError && !graphSource ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-5"><p className="text-sm font-semibold text-rose-800">Could not load this graph</p><p className="mt-1 text-sm text-rose-700">{graphError}</p><button onClick={() => void refreshGraph()} className="mt-3 rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-700">Try again</button></div> : null}
+          {activeRunId && graphSource && graphSource.nodes.length === 0 ? <EmptyState icon={Network} title="No saved evidence yet" description="This run has no persisted papers, passages, studies, or claims to draw. Completed discovery runs may populate source nodes first; claim links appear as they are saved." action={<button onClick={() => setView("Research workspace")} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">View research run</button>}/> : null}
+          {activeRunId && graphSource && graphSource.nodes.length > 0 ? <div className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_300px]">
+            <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
+              <div className="flex flex-col gap-3 border-b border-slate-100 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="relative min-w-0 flex-1"><Search size={15} className="absolute left-3 top-3 text-slate-400"/><input value={graphQuery} onChange={(event) => setGraphQuery(event.target.value)} placeholder="Find a paper, claim, or passage" className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/></div>
+                  <label className="flex items-center gap-2 text-xs font-medium text-slate-500">Node type<select value={graphType} onChange={(event) => setGraphType(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All types</option><option value="paper">Papers</option><option value="paper_version">Versions</option><option value="passage">Passages</option><option value="study">Studies</option><option value="claim">Claims</option><option value="conclusion">Report findings</option><option value="report_version">Report versions</option><option value="recommendation">Recommendations</option></select></label>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-xs font-medium text-slate-500">Claim status<select value={graphClaimStatus} onChange={(event) => setGraphClaimStatus(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All claims</option><option value="needs_review">Needs review</option><option value="unassessed">Unassessed</option><option value="supported">Supported</option><option value="partially_supported">Partially supported</option><option value="contradicted">Contradicted</option><option value="insufficient_evidence">Insufficient evidence</option><option value="unverifiable">Unverifiable</option></select></label>
+                  <label className="flex items-center gap-2 text-xs font-medium text-slate-500">Relationship<select value={graphRelationType} onChange={(event) => setGraphRelationType(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><option value="all">All relationships</option>{Array.from(new Set((graphSource?.edges ?? []).map((edge) => edge.type))).sort().map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
+                  <label className="ml-1 inline-flex items-center gap-2 text-xs font-medium text-slate-600"><input type="checkbox" checked={graphOpenIssuesOnly} onChange={(event) => setGraphOpenIssuesOnly(event.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"/>Open review issues only</label>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 px-4 py-3 text-xs text-slate-500"><span><strong className="text-slate-900">{graphSource.nodes.length}</strong> nodes</span><span><strong className="text-slate-900">{graphSource.edges.length}</strong> relationships</span><span><strong className="text-slate-900">{graphSource.nodes.filter((node) => node.type === "claim").length}</strong> claims</span>{graphLoading ? <span role="status" className="inline-flex items-center gap-1 text-indigo-600"><LoaderCircle size={13} className="animate-spin"/>Refreshing</span> : null}</div>
+              {visibleNodes.length === 0 ? <div className="p-8 text-center"><Search size={20} className="mx-auto text-slate-400"/><p className="mt-2 text-sm font-medium text-slate-800">No matching nodes</p><p className="mt-1 text-xs text-slate-500">Change the search or node filter.</p></div> : <div className="graph-canvas max-h-[680px] overflow-auto">
+                <svg viewBox={"0 0 1200 " + graphLayout.height} className="block min-w-[1200px] w-full" role="img" aria-label="Interactive map of persisted evidence relationships">
+                  <defs><marker id="chronicle-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#9aa7bd"/></marker></defs>
+                  {["Papers", "Versions", "Passages & studies", "Claims & findings", "Reports & recommendations"].map((label, index) => <text key={label} x={[123, 361, 599, 837, 1075][index]} y="25" textAnchor="middle" fontSize="10" fontWeight="700" letterSpacing="1.3" fill="#8591a6">{label.toUpperCase()}</text>)}
+                  {graphLayout.lines.filter((line) => visibleGraphEdges.includes(line.edge)).map((line, index) => <g key={line.edge.id ?? (line.edge.source + "-" + line.edge.target + "-" + index)}><path d={line.path} fill="none" stroke={edgeColor(line.edge.type)} strokeWidth="1.8" strokeOpacity="0.78" markerEnd="url(#chronicle-arrow)"/>{graphLayout.lines.length < 18 ? <text x={line.labelX} y={line.labelY} textAnchor="middle" fontSize="10" fill="#64748b" paintOrder="stroke" stroke="#ffffff" strokeWidth="4" strokeLinejoin="round">{shorten(line.edge.type.replaceAll("_", " "), 24)}</text> : null}</g>)}
+                  {graphLayout.placed.map(({ node, x, y }) => {
+                    const selected = node.id === selectedGraphNodeId;
+                    const lines = wrapSvgLabel(node.label);
+                    const meta = node.type === "claim" || node.type === "conclusion" ? (node.assessment ?? (node.review_required ? "needs_review" : "unassessed")).replaceAll("_", " ") : node.type === "passage" && node.page_number ? "Page " + node.page_number : node.type === "report_version" ? "Report v" + (node.report_version_number ?? "") : node.review_status?.replaceAll("_", " ") ?? node.provenance_basis?.replaceAll("_", " ") ?? node.publication_status?.replaceAll("_", " ") ?? "";
+                    return <g key={node.id} role="button" tabIndex={0} aria-label={node.type + ": " + node.label} aria-pressed={selected} onClick={() => setSelectedGraphNodeId(node.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedGraphNodeId(node.id); } }} className="cursor-pointer outline-none">
+                      <rect x={x} y={y} width={graphLayout.nodeWidth} height={graphLayout.nodeHeight} rx="12" fill={selected ? "#eef2ff" : "#ffffff"} stroke={selected ? "#6366f1" : "#dbe2ee"} strokeWidth={selected ? "2.4" : "1.2"}/>
+                      <text x={x + 12} y={y + 17} fontSize="9.5" fontWeight="700" letterSpacing=".5" fill={selected ? "#4f46e5" : "#64748b"}>{node.type.replaceAll("_", " ").toUpperCase()}</text>
+                      <text x={x + 12} y={y + 38} fontSize="12" fontWeight="600" fill="#172033"><tspan x={x + 12} dy="0">{lines[0] ?? ""}</tspan>{lines[1] ? <tspan x={x + 12} dy="16">{lines[1]}</tspan> : null}</text>
+                      {meta ? <text x={x + 12} y={y + 72} fontSize="9.5" fill="#64748b">{shorten(meta, 26)}</text> : null}
+                    </g>;
+                  })}
+                </svg>
+              </div>}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 px-4 py-3 text-[11px] text-slate-500"><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500"/>Supports</span><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-rose-500"/>Contradicts</span><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-500"/>Qualifies / uncertain</span><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-violet-500"/>Dependencies</span><span className="ml-auto hidden sm:inline">Only stored relationships are shown.</span></div>
+              {graphSource.note ? <p className="px-4 pb-4 text-[11px] leading-5 text-slate-400">{graphSource.note}</p> : null}
+            </section>
+            <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/30">
+              {selectedGraphNode ? <><div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">Node details</span><StatusPill status={selectedGraphNode.type}>{selectedGraphNode.type.replaceAll("_", " ")}</StatusPill></div><h3 className="mt-3 break-words text-base font-semibold leading-6 text-slate-950">{selectedGraphNode.label}</h3>
+                {selectedGraphNode.assessment ? <div className="mt-3"><StatusPill status={selectedGraphNode.assessment}>{selectedGraphNode.assessment.replaceAll("_", " ")}</StatusPill></div> : null}
+                {selectedGraphNode.review_required ? <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">This item needs human review.</p> : null}
+                {selectedGraphNode.doi ? <p className="mt-4 break-all text-xs leading-5 text-slate-500">DOI: {selectedGraphNode.doi}</p> : null}
+                {selectedGraphNode.page_number ? <p className="mt-3 text-xs text-slate-500">Page {selectedGraphNode.page_number}</p> : null}
+                {selectedGraphNode.population ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Population</p><p className="mt-1 text-sm leading-5 text-slate-600">{selectedGraphNode.population}</p></div> : null}
+                {selectedGraphNode.method ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Method</p><p className="mt-1 text-sm leading-5 text-slate-600">{selectedGraphNode.method}</p></div> : null}
+                {selectedGraphNode.limitations?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Limitations</p><ul className="mt-1 list-disc space-y-1 pl-4 text-sm leading-5 text-slate-600">{selectedGraphNode.limitations.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
+                {selectedGraphNode.created_at ? <p className="mt-3 text-xs text-slate-500">Recorded: {formatDate(selectedGraphNode.created_at)}</p> : null}
+                {selectedGraphNode.provenance_basis ? <p className="mt-3 text-xs text-slate-500">Provenance: <span className="font-medium text-slate-700">{selectedGraphNode.provenance_basis.replaceAll("_", " ")}</span></p> : null}
+                {selectedGraphNode.rationale ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Rationale</p><p className="mt-1 text-sm leading-5 text-slate-600">{selectedGraphNode.rationale}</p></div> : null}
+                {selectedGraphNode.evidence_passage_ids?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Evidence trace</p><div className="mt-2 space-y-1.5">{selectedGraphNode.evidence_passage_ids.map((passageId) => <button key={passageId} type="button" onClick={() => { setGraphType("all"); setGraphQuery(""); setSelectedGraphNodeId("passage:" + passageId); }} className="block w-full break-all rounded-lg border border-slate-200 px-2.5 py-2 text-left text-[11px] leading-4 text-indigo-700 hover:bg-indigo-50">Open source passage Â· {passageId}</button>)}</div></div> : null}
+                {selectedGraphNode.prior_art_search_queries?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Suggested prior-art searches</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{selectedGraphNode.prior_art_search_queries.map((query) => <li key={query}>{query}</li>)}</ul></div> : null}
+                {selectedGraphNode.alternative_explanations?.length ? <div className="mt-4"><p className="text-xs font-semibold text-slate-700">Alternative explanations</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{selectedGraphNode.alternative_explanations.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
+                {selectedGraphNode.falsification_plan ? <div className="mt-4 rounded-lg bg-slate-50 p-3"><p className="text-xs font-semibold text-slate-700">Falsification plan</p><p className="mt-1 text-xs leading-5 text-slate-600">{selectedGraphNode.falsification_plan}</p></div> : null}
+                {selectedGraphNode.type === "report_version" ? <p className="mt-3 text-xs leading-5 text-slate-500">This version is a snapshot of the conclusions and recommendations emitted for this research run. Select a finding or recommendation node to inspect its evidence trace.</p> : null}
+                {selectedGraphNode.type === "recommendation" ? <button type="button" onClick={() => { setQuestion(selectedGraphNode.prior_art_search_queries?.[0] ?? selectedGraphNode.label); setResearchMode("forensic"); setView("Research workspace"); }} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700"><Search size={13}/>Investigate prior art</button> : null}
+                  {selectedGraphNode.type === "conclusion" ? <div className="mt-5 space-y-3 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
+                    <div><p className="text-xs font-semibold text-slate-900">Human review</p><p className="mt-1 text-xs leading-5 text-slate-600">Check the linked passages and claim lineage before recording a decision. Acceptance records your review; it does not certify scientific truth.</p></div>
+                    <StatusPill status={selectedGraphNode.reviewer_status ?? (selectedGraphNode.review_required ? "needs_review" : "accepted")}>{(selectedGraphNode.reviewer_status ?? (selectedGraphNode.review_required ? "needs_review" : "accepted")).replaceAll("_", " ")}</StatusPill>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" disabled={reviewingConclusionId === selectedGraphNode.id} onClick={() => void reviewConclusionNode(selectedGraphNode.id, "accepted")} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{reviewingConclusionId === selectedGraphNode.id ? "Savingâ€¦" : "Accept conclusion"}</button>
+                      <button type="button" disabled={reviewingConclusionId === selectedGraphNode.id} onClick={() => void reviewConclusionNode(selectedGraphNode.id, "rejected")} className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50">Reject conclusion</button>
+                      <button type="button" disabled={reviewingConclusionId === selectedGraphNode.id} onClick={() => void reviewConclusionNode(selectedGraphNode.id, "needs_review")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Needs review</button>
+                    </div>
+                  </div> : null}
+                <details className="mt-5 border-t border-slate-100 pt-3"><summary className="cursor-pointer text-xs font-medium text-slate-500">Record ID</summary><code className="mt-2 block break-all text-[10px] leading-4 text-slate-500">{selectedGraphNode.id}</code></details>
+                {selectedGraphNode.type === "claim" ? <div className="mt-5 space-y-3">
+                  <div className="rounded-xl border border-slate-100 p-3">
+                    <label className="block text-xs font-semibold text-slate-800">Compare this claim with another claim</label>
+                    <p className="mt-1 text-[11px] leading-5 text-slate-500">Chronicle compares recorded population, method/intervention and outcome context with linked passage excerpts. The suggested relation remains unreviewed.</p>
+                    <select value={comparisonTargetClaimId} onChange={(event) => setComparisonTargetClaimId(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                      <option value="">Select a claim in this runâ€¦</option>
+                      {graphSource.nodes.filter((node) => node.type === "claim" && node.id !== selectedGraphNode.id).map((node) => <option key={node.id} value={node.id}>{shorten(node.label, 90)}</option>)}
+                    </select>
+                    <button type="button" onClick={() => void compareClaimContext(selectedGraphNode.id)} disabled={comparingClaims || !comparisonTargetClaimId} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50">
+                      {comparingClaims ? <><LoaderCircle size={13} className="animate-spin"/>Comparing study contextâ€¦</> : <><Network size={13}/>Compare contextual evidence</>}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    <p className="text-xs leading-5 text-slate-500">Run a model-assisted comparison between this claim and its linked passages. The result is a review prompt, not proof of scientific truth.</p>
+                    <button onClick={() => void verifyClaim(selectedGraphNode.id)} disabled={verifyingClaimId === selectedGraphNode.id} className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+                      {verifyingClaimId === selectedGraphNode.id ? <><LoaderCircle size={14} className="animate-spin"/>Verifying citation supportâ€¦</> : <><ShieldCheck size={14}/>Verify citation support</>}
+                    </button>
+                  </div>
+                  {verificationByClaim[selectedGraphNode.id] ? <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-slate-900">Model-assisted assessment</p><StatusPill status={verificationByClaim[selectedGraphNode.id].verdict}>{verificationByClaim[selectedGraphNode.id].verdict.replaceAll("_", " ")}</StatusPill></div>
+                    <p className="mt-2 text-sm leading-5 text-slate-700">{verificationByClaim[selectedGraphNode.id].rationale}</p>
+                    {verificationByClaim[selectedGraphNode.id].context_note ? <p className="mt-2 text-xs leading-5 text-slate-600">Context: {verificationByClaim[selectedGraphNode.id].context_note}</p> : null}
+                    {verificationByClaim[selectedGraphNode.id].evidence_passage_ids.length ? <p className="mt-2 break-words text-[11px] leading-5 text-slate-500">Evidence passage IDs: {verificationByClaim[selectedGraphNode.id].evidence_passage_ids.join(", ")}</p> : null}
+                    {verificationByClaim[selectedGraphNode.id].uncertainty_notes.length ? <div className="mt-2"><p className="text-[11px] font-semibold text-slate-600">Uncertainty notes</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{verificationByClaim[selectedGraphNode.id].uncertainty_notes.map((item, index) => <li key={index}>{item}</li>)}</ul></div> : null}
                     <p className="mt-3 text-[11px] leading-5 text-amber-800">{verificationByClaim[selectedGraphNode.id].notice}</p>
                   </div> : null}
                   {visibleGraphEdges.filter((edge) => edge.id && (edge.source === selectedGraphNode.id || edge.target === selectedGraphNode.id) && edge.reviewer_status === "unreviewed").map((edge) => <div key={edge.id} className="rounded-xl border border-slate-100 p-3"><p className="text-xs font-medium text-slate-800">{edge.type.replaceAll("_", " ")}</p><p className="mt-1 text-[11px] text-slate-500">{shorten(graphSource.nodes.find((node) => node.id === (edge.source === selectedGraphNode.id ? edge.target : edge.source))?.label ?? "", 90)}</p>{edge.contextual_comparison ? <div className="mt-3 space-y-2 rounded-lg bg-indigo-50/60 p-3 text-[11px] leading-5 text-slate-700"><p className="font-semibold text-slate-800">Study-context comparison</p><p>{edge.contextual_comparison.comparability_note}</p><p><span className="font-medium">Population:</span> {edge.contextual_comparison.population_comparison}</p><p><span className="font-medium">Method:</span> {edge.contextual_comparison.method_comparison}</p><p><span className="font-medium">Outcome:</span> {edge.contextual_comparison.outcome_comparison}</p>{edge.contextual_comparison.evidence_passage_ids?.length ? <p className="break-words text-slate-500">Evidence passages: {edge.contextual_comparison.evidence_passage_ids.join(", ")}</p> : null}{edge.contextual_comparison.uncertainty_notes?.length ? <ul className="list-disc pl-4">{edge.contextual_comparison.uncertainty_notes.map((note, index) => <li key={index}>{note}</li>)}</ul> : null}<p className="font-medium text-amber-800">Model-inferred Â· human review required</p></div> : null}<div className="mt-3 flex gap-2"><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "accepted")} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{reviewingRelationId === edge.id ? "Savingâ€¦" : "Accept"}</button><button disabled={reviewingRelationId === edge.id} onClick={() => void reviewRelation(edge.id as string, "needs_review")} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Needs review</button></div></div>)}
