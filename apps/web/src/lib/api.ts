@@ -21,10 +21,9 @@ export interface ResearchRun {
   };
 }
 
-// Keep deployed builds functional even when the Vercel project does not expose
-// a public build-time variable. Local development can still override this with
-// NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 in apps/web/.env.local.
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://chronicle-alpha-five.vercel.app").replace(/\/$/, "");
+// Use the Next.js same-origin proxy. This avoids exposing the API deployment
+// directly to browsers and makes authenticated requests immune to CORS errors.
+const API_BASE = "";
 
 const SESSION_TOKEN_KEY = "chronicle.access-token";
 
