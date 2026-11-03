@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import or_, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_llm_config, get_settings
@@ -635,11 +636,19 @@ def get_evidence_graph(run_id: str, db: Session = Depends(get_db), current_user:
         select(Conclusion).where(Conclusion.run_id == run_id).order_by(Conclusion.created_at.asc())
     ).all())
     persisted_conclusion_ids = {conclusion.id for conclusion in persisted_conclusions}
-    conclusion_relations = list(db.scalars(
-        select(ConclusionEvidenceRelation)
-        .where(ConclusionEvidenceRelation.conclusion_id.in_(persisted_conclusion_ids))
-        .order_by(ConclusionEvidenceRelation.created_at.asc())
-    ).all()) if persisted_conclusion_ids else []
+    # Conclusion provenance is an optional enrichment. Keep the source/passage
+    # graph usable if a deployment is briefly behind on the conclusion-edge
+    # migration; the missing enrichment remains visible through the report's
+    # review metadata rather than turning the entire graph into a fetch error.
+    try:
+        conclusion_relations = list(db.scalars(
+            select(ConclusionEvidenceRelation)
+            .where(ConclusionEvidenceRelation.conclusion_id.in_(persisted_conclusion_ids))
+            .order_by(ConclusionEvidenceRelation.created_at.asc())
+        ).all()) if persisted_conclusion_ids else []
+    except SQLAlchemyError:
+        db.rollback()
+        conclusion_relations = []
     conclusion_relations_by_id: dict[str, list[ConclusionEvidenceRelation]] = {}
     for conclusion_relation in conclusion_relations:
         conclusion_relations_by_id.setdefault(conclusion_relation.conclusion_id, []).append(conclusion_relation)
